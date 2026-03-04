@@ -1,0 +1,311 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── HELPER FUNCTIONS ────────────────────────────────────────────────
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function getRole() {
+      return getUserData().role;
+    }
+
+    function hasRole(role) {
+      return isAuthenticated() && getRole() == role;
+    }
+
+    function isSuperAdmin() {
+      return isAuthenticated() && getRole() == 'SUPER_ADMIN';
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (getRole() == 'SUPER_ADMIN' || getRole() == 'ADMIN');
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function belongsToVenue(venueId) {
+      return isAuthenticated() &&
+        (getUserData().venueId == venueId ||
+         (getUserData().venueIds != null && venueId in getUserData().venueIds));
+    }
+
+    function isVenueOwnerOf(venueId) {
+      return isAuthenticated() && getRole() == 'VENUE_OWNER' && belongsToVenue(venueId);
+    }
+
+    function isKitchenStaffOf(venueId) {
+      return isAuthenticated() && getRole() == 'KITCHEN_STAFF' && belongsToVenue(venueId);
+    }
+
+
+    // ─── ROOT STATS ──────────────────────────────────────────────────────
+    match /stats/{statId} {
+      allow read: if isAdmin();
+      allow write: if false; // Only Cloud Functions can write here (e.g. aggregateAdminStats)
+    }
+
+    // ─── USERS ───────────────────────────────────────────────────────────
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      
+      // Permitir creación solo si no intentan inyectar un rol administrativo sin permiso
+      allow create: if (isOwner(userId) && request.resource.data.role != 'SUPER_ADMIN') || isAdmin();
+      
+      // Permitir actualización solo si NO están modificando campos restringidos (role, isVerified) por sí mismos
+      allow update: if isAdmin() || (isOwner(userId) && 
+                      (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'isVerified', 'permissions'])));
+                      
+      allow delete: if isSuperAdmin();
+    }
+
+
+    // ─── VENUES ──────────────────────────────────────────────────────────
+
+    match /venues/{venueId} {
+      allow read: if isAuthenticated();
+      allow update: if isVenueOwnerOf(venueId) || isAdmin();
+      allow create, delete: if isAdmin();
+
+      // Stats subcollection
+      match /stats/{statId} {
+        allow read: if isAuthenticated();
+        // Allow clients to update rating stats, but block revenue/orders stats
+        allow write: if isAuthenticated() && statId == 'ratings';
+      }
+    }
+
+
+    // ─── PRODUCTS ────────────────────────────────────────────────────────
+
+    match /products/{productId} {
+      allow read: if isAuthenticated();
+
+      allow create: if isAdmin() ||
+        (hasRole('VENUE_OWNER') &&
+         belongsToVenue(request.resource.data.venueId));
+
+      allow update: if isAdmin() ||
+        isVenueOwnerOf(resource.data.venueId);
+        
+      allow delete: if isAdmin() ||
+        isVenueOwnerOf(resource.data.venueId);
+    }
+
+
+    // ─── ORDERS ──────────────────────────────────────────────────────────
+
+    match /orders/{orderId} {
+      // Customers read their own; venue staff read their venue's; drivers read assigned
+      allow read: if isAdmin() ||
+        (isAuthenticated() && resource.data.customerId == request.auth.uid) ||
+        (isAuthenticated() && belongsToVenue(resource.data.venueId)) ||
+        (hasRole('DRIVER') && resource.data.driverId == request.auth.uid) ||
+        (hasRole('KITCHEN_STAFF') && belongsToVenue(resource.data.venueId));
+
+      // Creación bloqueada desde cliente: Todos los pedidos deben pasar por la Cloud Function "createOrder"
+      // para asegurar lógica transaccional, descuentos y control de fraude.
+      allow create: if false;
+
+      // Status updates by authorized roles
+      allow update: if isAdmin() ||
+        isVenueOwnerOf(resource.data.venueId) ||
+        isKitchenStaffOf(resource.data.venueId) ||
+        (hasRole('DRIVER') && resource.data.driverId == request.auth.uid);
+
+      allow delete: if isSuperAdmin();
+    }
+
+
+    // ─── RATINGS ─────────────────────────────────────────────────────────
+
+    match /ratings/{ratingId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+        request.auth.uid == request.resource.data.fromUserId &&
+        request.resource.data.score >= 1 &&
+        request.resource.data.score <= 5;
+      allow update, delete: if false; // Ratings are immutable
+    }
+
+
+    // ─── CATEGORIES ──────────────────────────────────────────────────────
+
+    match /categories/{categoryId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+
+    // ─── SETTINGS ────────────────────────────────────────────────────────
+
+    match /settings/{settingId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+
+    // ─── WALLETS ─────────────────────────────────────────────────────────
+
+    match /wallets/{walletId} {
+      allow read: if belongsToVenue(walletId) || isAdmin();
+      allow write: if false; // Only via Cloud Functions
+    }
+
+
+    // ─── WALLET TRANSACTIONS ─────────────────────────────────────────────
+
+    match /wallet_transactions/{txId} {
+      allow read: if isAdmin() ||
+        (isAuthenticated() && (
+          resource.data.venueId == getUserData().venueId ||
+          (getUserData().venueIds != null && resource.data.venueId in getUserData().venueIds)
+        ));
+      allow write: if false; // Only via Cloud Functions
+    }
+
+
+    // ─── CHATS ───────────────────────────────────────────────────────────
+
+    match /chats/{chatId} {
+      allow read: if isAdmin() ||
+        (isAuthenticated() && request.auth.uid in resource.data.participants);
+
+      allow create: if isAuthenticated() &&
+        request.auth.uid in request.resource.data.participants &&
+        request.resource.data.participants.size() >= 2;
+
+      allow update: if isAdmin() ||
+        (isAuthenticated() && request.auth.uid in resource.data.participants);
+
+      allow delete: if isAdmin();
+
+      // ─── MESSAGES (subcollection of chats) ──────────────────────────
+      match /messages/{messageId} {
+        // Only chat participants can read messages
+        allow read: if isAdmin() ||
+          (isAuthenticated() &&
+           request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants);
+
+        // Only participants can send messages, and must be the sender
+        allow create: if isAuthenticated() &&
+          request.auth.uid == request.resource.data.senderId &&
+          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+
+        // Only sender can edit their message, or participants can mark as read
+        allow update: if isAuthenticated() &&
+          (request.auth.uid == resource.data.senderId ||
+           (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']) &&
+            request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants));
+
+        allow delete: if isSuperAdmin();
+      }
+    }
+
+
+    // ─── NOTIFICATIONS ───────────────────────────────────────────────────
+
+    match /notifications/{notifId} {
+      allow read: if isAuthenticated() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+
+      allow create: if isAdmin();
+
+      // Users can only mark their own notifications as read
+      allow update: if isAuthenticated() &&
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+
+      allow delete: if isAdmin() ||
+        (isAuthenticated() && resource.data.userId == request.auth.uid);
+    }
+
+
+    // ─── AUDIT LOGS ──────────────────────────────────────────────────────
+
+    match /audit_logs/{logId} {
+      allow read: if isAdmin();
+      // Only allow creating a log entry for your own actions (prevents spoofing other users)
+      allow create: if isAuthenticated()
+          && request.resource.data.performedBy == request.auth.uid
+          && request.resource.data.keys().hasAll(['performedBy', 'action', 'timestamp']);
+      allow update, delete: if false;     // Immutable
+    }
+
+
+    // ─── FLASH DEALS ─────────────────────────────────────────────────────
+
+    match /flash_deals/{dealId} {
+      // Any authenticated user can read active deals
+      allow read: if isAuthenticated();
+
+      // Only admins and venue owners (for their own venue) can create flash deals
+      allow create: if isAdmin() ||
+        (hasRole('VENUE_OWNER') && belongsToVenue(request.resource.data.venueId));
+
+      // Only admins and venue owners (for their own venue) can update/deactivate flash deals
+      allow update: if isAdmin() ||
+        (hasRole('VENUE_OWNER') && belongsToVenue(resource.data.venueId));
+
+      allow delete: if isAdmin();
+    }
+
+
+    // ─── DONATION CENTERS ────────────────────────────────────────────────
+
+    match /donation_centers/{centerId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+
+    // ─── REDEMPTIONS ─────────────────────────────────────────────────────
+
+    match /redemptions/{redemptionId} {
+      allow read: if isAuthenticated() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if false; // Only via Cloud Functions (redeemPoints)
+    }
+
+
+    // ─── SYSTEM / INTERNAL COLLECTIONS ───────────────────────────────────
+    // These are only written by Cloud Functions (Admin SDK bypasses rules).
+    // Deny all direct client access to prevent enumeration.
+
+    match /rate_limits/{docId} {
+      allow read, write: if false;
+    }
+
+    match /webhook_dedup/{docId} {
+      allow read, write: if false;
+    }
+
+    match /webhook_errors/{docId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /rating_stats/{statsId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Updated by Cloud Functions (onRatingCreated)
+    }
+
+    // ─── CARTS ────────────────────────────────────────────────────────────
+    // Each user owns their own cart document. Only readable/writable by owner.
+
+    match /carts/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+  }
+}

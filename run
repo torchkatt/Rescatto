@@ -1,0 +1,8 @@
+#!/bin/bash
+
+if [ "$1" = "dev" ] && [ "$2" = "rescatto" ]; then
+  npm run dev
+else
+  echo "Usage: ./run dev rescatto"
+  echo "You can also allow other arguments by extending this script."
+fi

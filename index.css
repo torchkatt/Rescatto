@@ -1,0 +1,242 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    :root {
+        --primary-color: #10b981;
+        /* Emerald 500 */
+        --background-color: #f8fafc;
+        /* Slate 50 */
+        --surface-color: #ffffff;
+        --text-primary: #0f172a;
+        /* Slate 900 */
+        --text-secondary: #64748b;
+        /* Slate 500 */
+    }
+
+    html {
+        -webkit-tap-highlight-color: transparent;
+        scroll-behavior: smooth;
+        overscroll-behavior-y: none;
+        /* Prevents elastic bounce effect on iOS/Android */
+        overflow-x: hidden;
+        max-width: 100vw;
+    }
+
+    *,
+    *::before,
+    *::after {
+        box-sizing: border-box;
+    }
+
+    /* Force all layout components to respect viewport boundaries */
+    #root {
+        overflow-x: hidden;
+        width: 100%;
+        max-width: 100vw;
+        position: relative;
+    }
+
+    body {
+        font-family: 'Outfit', 'Inter', sans-serif;
+        background-color: var(--background-color);
+        color: var(--text-primary);
+        overflow-x: hidden;
+        /* Prevent horizontal scroll */
+        width: 100%;
+        position: relative;
+        -webkit-user-select: none;
+        /* Prevent accidental text selection */
+        user-select: none;
+    }
+
+    /* Fix for iOS Input Zoom - Ensure base font size is 16px */
+    input,
+    select,
+    textarea,
+    button {
+        font-size: 16px !important;
+    }
+
+    /* Re-enable text selection for actual typable inputs */
+    input,
+    textarea {
+        -webkit-user-select: auto;
+        user-select: auto;
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 10px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }
+}
+
+/* Glassmorphism Utilities */
+.glass {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.glass-dark {
+    background: rgba(15, 23, 42, 0.7);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Micro-animations */
+@keyframes fade-in-up {
+    0% {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-in-up {
+    animation: fade-in-up 0.5s ease-out forwards;
+}
+
+/* Custom Animation Classes from original file preserved & enhanced */
+.animate-spin-slow {
+    animation: spin-slow 3s linear infinite;
+}
+
+@keyframes spin-slow {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Hover triggers via .group */
+.group:hover .animate-spin-hover {
+    animation: spin-slow 1s linear infinite !important;
+}
+
+.group:hover .animate-logout-hover {
+    animation: logout-move 0.8s ease-in-out infinite !important;
+}
+
+@keyframes logout-move {
+    0% {
+        transform: translateX(0);
+        opacity: 1;
+    }
+
+    50% {
+        transform: translateX(5px);
+        opacity: 0.7;
+    }
+
+    100% {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.group:hover .animate-bounce-hover {
+    animation: bounce-subtle 0.6s ease-in-out infinite !important;
+}
+
+@keyframes bounce-subtle {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-3px);
+    }
+}
+
+.group:hover .animate-pulse-hover {
+    animation: pulse-emerald 1.5s ease-in-out infinite !important;
+}
+
+@keyframes pulse-emerald {
+    0% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.1);
+    }
+
+    100% {
+        transform: scale(1);
+    }
+}
+
+.group:hover .animate-download-hover {
+    animation: download-bounce 0.8s ease-in-out infinite !important;
+}
+
+@keyframes download-bounce {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(4px);
+    }
+}
+
+/* Translation & Scale fallbacks for group-hover */
+.group:hover .animate-scale-hover {
+    transform: scale(1.15) !important;
+}
+
+.group:hover .animate-rotate-hover {
+    transform: rotate(15deg) !important;
+}
+
+.group:hover .animate-rotate-90-hover {
+    transform: rotate(90deg) !important;
+}
+
+.group:hover .animate-up-hover {
+    transform: translateY(-2px) !important;
+}
+
+/* Base transitions for icons */
+.sidebar-icon {
+    transition: all 0.3s ease-in-out !important;
+}
+
+/* Hide scrollbar util classes */
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}

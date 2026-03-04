@@ -1,0 +1,90 @@
+/**
+ * REFERENCE ONLY
+ * This code is intended for Firebase Cloud Functions (backend).
+ * 
+ * Instructions:
+ * 1. Initialize Firebase Functions: `firebase init functions`
+ * 2. Install Stripe: `cd functions && npm install stripe`
+ * 3. Add this code to `functions/index.js` (or .ts)
+ * 4. Set secret key: `firebase functions:config:set stripe.secret="sk_live_..."`
+ */
+
+const functions = require("firebase-functions");
+const admin = require("firebase-admin");
+const stripe = require("stripe")(functions.config().stripe.secret);
+
+admin.initializeApp();
+
+/**
+ * Create Payment Intent
+ * Endpoint: POST /createPaymentIntent
+ */
+exports.createPaymentIntent = functions.https.onRequest(async (req, res) => {
+    // Enable CORS
+    res.set("Access-Control-Allow-Origin", "*");
+
+    if (req.method === "OPTIONS") {
+        res.set("Access-Control-Allow-Methods", "POST");
+        res.set("Access-Control-Allow-Headers", "Content-Type");
+        res.status(204).send("");
+        return;
+    }
+
+    if (req.method !== "POST") {
+        res.status(405).send("Method Not Allowed");
+        return;
+    }
+
+    try {
+        const { amount, currency = "usd" } = req.body;
+
+        // Create a PaymentIntent with the order amount and currency
+        const paymentIntent = await stripe.paymentIntents.create({
+            amount: Math.round(amount * 100), // Stripe expects verified integer in cents
+            currency: currency,
+            automatic_payment_methods: {
+                enabled: true,
+            },
+        });
+
+        res.status(200).send({
+            clientSecret: paymentIntent.client_secret,
+        });
+    } catch (error) {
+        console.error("Error creating payment intent:", error);
+        res.status(500).send({
+            error: error.message,
+        });
+    }
+});
+
+/**
+ * Stripe Webhook Handler (Optional but recommended)
+ * Update order status based on payment events
+ */
+exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
+    const sig = req.headers["stripe-signature"];
+    const endpointSecret = functions.config().stripe.webhook_secret;
+
+    let event;
+
+    try {
+        event = stripe.webhooks.constructEvent(req.rawBody, sig, endpointSecret);
+    } catch (err) {
+        res.status(400).send(`Webhook Error: ${err.message}`);
+        return;
+    }
+
+    // Handle the event
+    switch (event.type) {
+        case "payment_intent.succeeded":
+            const paymentIntent = event.data.object;
+            console.log("PaymentSucceeded:", paymentIntent.id);
+            // Logic to update Firestore order status to 'PAID'
+            break;
+        default:
+            console.log(`Unhandled event type ${event.type}`);
+    }
+
+    res.json({ received: true });
+});
