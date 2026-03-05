@@ -36,6 +36,18 @@ const CustomerHome: React.FC = () => {
     const [showUserMenu, setShowUserMenu] = useState(false);
     const userMenuRef = useRef<HTMLDivElement>(null);
 
+    // Lock scroll when user menu is open
+    useEffect(() => {
+        if (showUserMenu) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'unset';
+        }
+        return () => {
+            document.body.style.overflow = 'unset';
+        };
+    }, [showUserMenu]);
+
     useEffect(() => {
         const fetchVenues = async () => {
             try {
@@ -203,7 +215,7 @@ const CustomerHome: React.FC = () => {
     return (
         <div className="pb-20 bg-gray-50 min-h-screen">
             {/* Header */}
-            <header className="bg-white sticky top-safe z-50 shadow-sm border-b border-gray-100 overflow-x-hidden">
+            <header className="bg-white sticky top-0 z-50 shadow-sm border-b border-gray-100 overflow-x-hidden pt-safe-top">
                 <div className="px-4 py-3 flex items-center justify-between">
                     <button
                         type="button"
@@ -232,72 +244,79 @@ const CustomerHome: React.FC = () => {
 
                             {/* User Dropdown Menu */}
                             {showUserMenu && (
-                                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50 animate-fadeIn">
-                                    {/* User Info Header */}
-                                    <div className="px-4 py-3 bg-gradient-to-r from-emerald-50 to-teal-50 border-b border-gray-100">
-                                        <p className="font-bold text-gray-900 truncate">{user.fullName}</p>
-                                        <p className="text-xs text-gray-500 truncate">{user.email}</p>
-                                        {/* Streak display in menu */}
-                                        {(user.streak?.current ?? 0) >= 2 && (
-                                            <p className="text-xs text-orange-600 font-bold mt-1 flex items-center gap-1">
-                                                🔥 {user.streak?.current} días de racha
-                                            </p>
-                                        )}
+                                <>
+                                    {/* Backdrop for mobile to prevent scroll and allow closing */}
+                                    <div
+                                        className="fixed inset-0 bg-black/5 z-40 lg:hidden"
+                                        onClick={() => setShowUserMenu(false)}
+                                    />
+                                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50 animate-fadeIn">
+                                        {/* User Info Header */}
+                                        <div className="px-4 py-3 bg-gradient-to-r from-emerald-50 to-teal-50 border-b border-gray-100">
+                                            <p className="font-bold text-gray-900 truncate">{user.fullName}</p>
+                                            <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                                            {/* Streak display in menu */}
+                                            {(user.streak?.current ?? 0) >= 2 && (
+                                                <p className="text-xs text-orange-600 font-bold mt-1 flex items-center gap-1">
+                                                    🔥 {user.streak?.current} días de racha
+                                                </p>
+                                            )}
+                                        </div>
+
+                                        {/* Menu Items */}
+                                        <div className="py-2">
+                                            <button
+                                                onClick={() => { setShowUserMenu(false); navigate('/profile'); }}
+                                                className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-gray-50 transition-colors text-gray-700 active:bg-gray-100"
+                                            >
+                                                <User size={20} className="text-emerald-600" />
+                                                <span className="font-bold text-sm">Mi Perfil</span>
+                                            </button>
+
+                                            <button
+                                                onClick={() => { setShowUserMenu(false); navigate('/app/orders'); }}
+                                                className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-gray-50 transition-colors text-gray-700 active:bg-gray-100"
+                                            >
+                                                <ShoppingBag size={20} className="text-emerald-600" />
+                                                <span className="font-bold text-sm">Mis Pedidos</span>
+                                            </button>
+
+                                            <button
+                                                onClick={() => { setShowUserMenu(false); navigate('/app/favorites'); }}
+                                                className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-gray-50 transition-colors text-gray-700 active:bg-gray-100"
+                                            >
+                                                <Heart size={20} className="text-red-500" />
+                                                <span className="font-bold text-sm">Mis Favoritos</span>
+                                            </button>
+
+                                            <button
+                                                onClick={() => { setShowUserMenu(false); navigate('/app/impact'); }}
+                                                className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-gray-50 transition-colors text-gray-700 active:bg-gray-100"
+                                            >
+                                                <Leaf size={20} className="text-emerald-600" />
+                                                <span className="font-bold text-sm">Mi Impacto 🌱</span>
+                                            </button>
+
+                                            <button
+                                                onClick={() => { setShowUserMenu(false); handleForceUpdate(); }}
+                                                className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-gray-50 transition-colors text-gray-700 active:bg-gray-100"
+                                            >
+                                                <RefreshCw size={20} className="text-blue-500" />
+                                                <span className="font-bold text-sm">Actualizar App</span>
+                                            </button>
+
+                                            <div className="border-t border-gray-100 my-1"></div>
+
+                                            <button
+                                                onClick={() => { setShowUserMenu(false); handleLogout(); }}
+                                                className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-red-50 transition-colors text-red-600 cursor-pointer active:bg-red-100"
+                                            >
+                                                <LogOut size={20} />
+                                                <span className="font-bold text-sm">Cerrar Sesión</span>
+                                            </button>
+                                        </div>
                                     </div>
-
-                                    {/* Menu Items */}
-                                    <div className="py-2">
-                                        <button
-                                            onClick={() => { setShowUserMenu(false); navigate('/profile'); }}
-                                            className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-gray-50 transition-colors text-gray-700 active:bg-gray-100"
-                                        >
-                                            <User size={20} className="text-emerald-600" />
-                                            <span className="font-bold text-sm">Mi Perfil</span>
-                                        </button>
-
-                                        <button
-                                            onClick={() => { setShowUserMenu(false); navigate('/app/orders'); }}
-                                            className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-gray-50 transition-colors text-gray-700 active:bg-gray-100"
-                                        >
-                                            <ShoppingBag size={20} className="text-emerald-600" />
-                                            <span className="font-bold text-sm">Mis Pedidos</span>
-                                        </button>
-
-                                        <button
-                                            onClick={() => { setShowUserMenu(false); navigate('/app/favorites'); }}
-                                            className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-gray-50 transition-colors text-gray-700 active:bg-gray-100"
-                                        >
-                                            <Heart size={20} className="text-red-500" />
-                                            <span className="font-bold text-sm">Mis Favoritos</span>
-                                        </button>
-
-                                        <button
-                                            onClick={() => { setShowUserMenu(false); navigate('/app/impact'); }}
-                                            className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-gray-50 transition-colors text-gray-700 active:bg-gray-100"
-                                        >
-                                            <Leaf size={20} className="text-emerald-600" />
-                                            <span className="font-bold text-sm">Mi Impacto 🌱</span>
-                                        </button>
-
-                                        <button
-                                            onClick={() => { setShowUserMenu(false); handleForceUpdate(); }}
-                                            className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-gray-50 transition-colors text-gray-700 active:bg-gray-100"
-                                        >
-                                            <RefreshCw size={20} className="text-blue-500" />
-                                            <span className="font-bold text-sm">Actualizar App</span>
-                                        </button>
-
-                                        <div className="border-t border-gray-100 my-1"></div>
-
-                                        <button
-                                            onClick={() => { setShowUserMenu(false); handleLogout(); }}
-                                            className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-red-50 transition-colors text-red-600 cursor-pointer active:bg-red-100"
-                                        >
-                                            <LogOut size={20} />
-                                            <span className="font-bold text-sm">Cerrar Sesión</span>
-                                        </button>
-                                    </div>
-                                </div>
+                                </>
                             )}
                         </div>
                     )}
