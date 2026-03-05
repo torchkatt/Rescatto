@@ -11,7 +11,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <div className="flex h-[100dvh] w-full bg-gray-50 overflow-hidden">
       <Sidebar />
-      <main className="flex-1 p-4 pt-16 md:pt-8 md:p-8 overflow-y-auto overflow-x-hidden h-full w-full relative scroll-smooth no-scrollbar">
+      <main className="flex-1 p-4 pt-header-mobile md:pt-8 md:p-8 overflow-y-auto overflow-x-hidden h-full w-full relative scroll-smooth no-scrollbar">
         <div className="max-w-7xl mx-auto pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0">
           {children}
         </div>

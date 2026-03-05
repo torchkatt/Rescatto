@@ -255,11 +255,19 @@
 
 @layer utilities {
     .pt-safe-top {
-        padding-top: env(safe-area-inset-top, 0px);
+        padding-top: max(env(safe-area-inset-top, 0px), 0.5rem);
     }
 
     .pb-safe-bottom {
         padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    .h-header-mobile {
+        height: calc(4.5rem + env(safe-area-inset-top, 0px));
+    }
+
+    .pt-header-mobile {
+        padding-top: calc(4.5rem + env(safe-area-inset-top, 0px));
     }
 
     .top-safe {

@@ -333,7 +333,7 @@ const Sidebar: React.FC = () => {
   return (
     <>
       {/* Gatillo para Móvil - Fixed Header */}
-      <div className="lg:hidden fixed top-0 left-0 w-full bg-slate-900/95 backdrop-blur-md border-b border-slate-800 z-50 px-4 pt-safe-top min-h-[4rem] flex items-center justify-between shadow-lg shadow-black/20">
+      <div className="lg:hidden fixed top-0 left-0 w-full bg-slate-900/95 backdrop-blur-md border-b border-slate-800 z-50 px-4 pt-safe-top h-header-mobile flex items-center justify-between shadow-lg shadow-black/20">
         <Link to={dashPath} className="flex items-center space-x-2">
           {logoUrl ? (
             <img src={logoUrl} alt="Logo" className="h-8 w-8 object-contain rounded-lg" />
