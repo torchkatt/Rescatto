@@ -21,6 +21,9 @@ const VenuesManager = lazyLoad(() => import('./pages/admin/VenuesManager'), 'Ven
 const CategoriesManager = lazyLoad(() => import('./pages/admin/CategoriesManager'), 'CategoriesManager');
 const AuditLogs = lazyLoad(() => import('./pages/admin/AuditLogs'), 'AuditLogs');
 const FinanceManager = lazyLoad(() => import('./pages/admin/FinanceManager'), 'FinanceManager');
+const AdminDeliveriesPage = lazyLoad(() => import('./pages/admin/sections/AdminDeliveries'), 'AdminDeliveries');
+const AdminSalesPage = lazyLoad(() => import('./pages/admin/sections/AdminSales'), 'AdminSales');
+const AdminSettingsPage = lazyLoad(() => import('./pages/admin/sections/AdminSettings'), 'AdminSettings');
 import { VerifyEmail } from './pages/VerifyEmail';
 
 // Components
@@ -253,6 +256,21 @@ const AppRoutes: React.FC = () => {
                 <Route path="/admin/finance" element={
                     <ProtectedRoute allowedRoles={[UserRole.SUPER_ADMIN]}>
                         <Layout><FinanceManager /></Layout>
+                    </ProtectedRoute>
+                } />
+                <Route path="/admin/deliveries" element={
+                    <ProtectedRoute allowedRoles={[UserRole.SUPER_ADMIN]}>
+                        <Layout><AdminDeliveriesPage /></Layout>
+                    </ProtectedRoute>
+                } />
+                <Route path="/admin/sales" element={
+                    <ProtectedRoute allowedRoles={[UserRole.SUPER_ADMIN]}>
+                        <Layout><AdminSalesPage /></Layout>
+                    </ProtectedRoute>
+                } />
+                <Route path="/admin/settings" element={
+                    <ProtectedRoute allowedRoles={[UserRole.SUPER_ADMIN]}>
+                        <Layout><AdminSettingsPage /></Layout>
                     </ProtectedRoute>
                 } />
                 <Route path="/admin/profile" element={

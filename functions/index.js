@@ -1430,3 +1430,77 @@ exports.migrateVenueIdToVenueIds = functions.https.onCall(async (_data, context)
     console.log("migrateVenueIdToVenueIds complete:", result);
     return result;
 });
+
+// ─── getFinanceStats ──────────────────────────────────────────────────────────
+/**
+ * Returns real aggregated platform finance stats for a given date range.
+ * Only callable by SUPER_ADMIN.
+ * @param {object} data - { startDate: ISO string, endDate: ISO string }
+ */
+exports.getFinanceStats = functions.https.onCall(async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError("unauthenticated", "Autenticación requerida.");
+    }
+
+    const db = admin.firestore();
+    const userDoc = await db.collection("users").doc(context.auth.uid).get();
+    if (!userDoc.exists || userDoc.data().role !== "SUPER_ADMIN") {
+        throw new functions.https.HttpsError("permission-denied", "Solo el Super Admin puede acceder a las estadísticas globales.");
+    }
+
+    const { startDate, endDate } = data || {};
+
+    let ordersQuery = db.collection("orders")
+        .where("status", "in", ["COMPLETED", "PAID"]);
+
+    if (startDate) {
+        ordersQuery = ordersQuery.where("createdAt", ">=", startDate);
+    }
+    if (endDate) {
+        ordersQuery = ordersQuery.where("createdAt", "<=", endDate);
+    }
+
+    const snapshot = await ordersQuery.get();
+
+    let totalRevenue = 0;
+    let totalPlatformFee = 0;
+    let totalVenueEarnings = 0;
+    let totalOrders = 0;
+    const venueBreakdown = {};
+
+    snapshot.forEach(doc => {
+        const order = doc.data();
+        const subtotal = Number(order.subtotal) || 0;
+        const platformFee = Number(order.platformFee) || subtotal * 0.10;
+        const venueEarnings = Number(order.venueEarnings) || subtotal * 0.90;
+
+        totalRevenue += subtotal;
+        totalPlatformFee += platformFee;
+        totalVenueEarnings += venueEarnings;
+        totalOrders++;
+
+        // Per-venue breakdown
+        const venueId = order.venueId || "unknown";
+        if (!venueBreakdown[venueId]) {
+            venueBreakdown[venueId] = { venueId, revenue: 0, orders: 0, platformFee: 0 };
+        }
+        venueBreakdown[venueId].revenue += subtotal;
+        venueBreakdown[venueId].orders++;
+        venueBreakdown[venueId].platformFee += platformFee;
+    });
+
+    const topVenues = Object.values(venueBreakdown)
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 10);
+
+    return {
+        totalRevenue,
+        totalPlatformFee,
+        totalVenueEarnings,
+        totalOrders,
+        averageOrderValue: totalOrders > 0 ? totalRevenue / totalOrders : 0,
+        topVenues,
+        periodStart: startDate || null,
+        periodEnd: endDate || null,
+    };
+});

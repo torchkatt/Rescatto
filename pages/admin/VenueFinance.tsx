@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { UserRole } from '../../types';
 import { walletService, VenueWallet, WalletTransaction } from '../../services/walletService';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
-import { DollarSign, ArrowUpRight, ArrowDownLeft, AlertCircle } from 'lucide-react';
+import { DollarSign, ArrowUpRight, ArrowDownLeft, AlertCircle, Mail, Info } from 'lucide-react';
 import { logger } from '../../utils/logger';
 
 export const VenueFinance: React.FC = () => {
@@ -84,12 +84,22 @@ export const VenueFinance: React.FC = () => {
                 </div>
 
                 {isDebt && (
-                    <button
-                        onClick={() => alert("Próximamente: Integración con Wompi para pagar deuda")}
-                        className="mt-4 md:mt-0 bg-white text-rose-600 px-6 py-3 rounded-xl font-bold shadow-md hover:scale-105 transition-transform"
-                    >
-                        Pagar Deuda
-                    </button>
+                    <div className="mt-4 md:mt-0 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl p-4 max-w-sm">
+                        <div className="flex items-start gap-2 mb-2">
+                            <Info size={16} className="text-white shrink-0 mt-0.5" />
+                            <p className="text-white text-sm font-medium">¿Cómo pagar tu deuda?</p>
+                        </div>
+                        <p className="text-white/80 text-xs leading-relaxed mb-3">
+                            El pago de comisiones se realiza manualmente. Contacta a soporte para coordinar tu liquidación.
+                        </p>
+                        <a
+                            href="mailto:soporte@rescatto.com?subject=Solicitud%20de%20liquidaci%C3%B3n%20de%20comisiones"
+                            className="flex items-center gap-2 bg-white text-rose-600 px-4 py-2 rounded-lg font-bold text-sm hover:bg-rose-50 transition-colors w-full justify-center"
+                        >
+                            <Mail size={15} />
+                            Contactar Soporte
+                        </a>
+                    </div>
                 )}
             </div>
 

@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate, Link } from 'react-router-dom';
-import { LayoutDashboard, ShoppingBag, FileText, Settings, UtensilsCrossed, ClipboardList, LogOut, Menu, X, Package, BarChart, MessageSquare, Users, Shield, Download, Tag, RefreshCw, MapPin, DollarSign, Zap, Moon, Sun } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, FileText, Settings, UtensilsCrossed, ClipboardList, LogOut, Menu, X, Package, BarChart, MessageSquare, Users, Shield, Download, Tag, RefreshCw, MapPin, DollarSign, Zap, Moon, Sun, Truck, TrendingUp } from 'lucide-react';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '../services/firebase';
 import { useAuth } from '../context/AuthContext';
 import { usePWA } from '../hooks/usePWA';
 import { useTheme } from '../context/ThemeContext';
@@ -21,6 +23,23 @@ const Sidebar: React.FC = () => {
   const navigate = useNavigate();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [showLocationSelector, setShowLocationSelector] = useState(false);
+  const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
+
+  // Real-time badge: pedidos PENDING + PAID para la sede actual
+  useEffect(() => {
+    if (!user?.id) return;
+    if (user.role === UserRole.CUSTOMER || user.role === UserRole.DRIVER) return;
+
+    const venueId = user.venueIds?.[0] || user.venueId;
+    if (!venueId && user.role !== UserRole.SUPER_ADMIN) return;
+
+    const constraints: any[] = [where('status', 'in', ['PENDING', 'PAID'])];
+    if (venueId) constraints.push(where('venueId', '==', venueId));
+
+    const q = query(collection(db, 'orders'), ...constraints);
+    const unsub = onSnapshot(q, snap => setPendingOrdersCount(snap.size), () => {});
+    return () => unsub();
+  }, [user?.id, user?.venueId, user?.venueIds, user?.role]);
 
   // Bloquear scroll del cuerpo cuando el menú móvil está abierto
   React.useEffect(() => {
@@ -134,7 +153,12 @@ const Sidebar: React.FC = () => {
                 <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-white/10 transition-colors">
                   <UtensilsCrossed size={18} className="sidebar-icon" />
                 </div>
-                <span className="font-medium">Pedidos (KDS)</span>
+                <span className="font-medium flex-1">Pedidos (KDS)</span>
+                {pendingOrdersCount > 0 && (
+                  <span className="ml-auto bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                    {pendingOrdersCount > 99 ? '99+' : pendingOrdersCount}
+                  </span>
+                )}
               </NavLink>
             )}
             {hasRole([UserRole.DRIVER]) && (
@@ -217,7 +241,7 @@ const Sidebar: React.FC = () => {
               <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-white/10 transition-colors">
                 <Tag size={18} className="sidebar-icon text-emerald-500" />
               </div>
-              <span className="font-medium">Etiquetas</span>
+              <span className="font-medium">Categorías</span>
             </NavLink>
             <NavLink to="/admin/venues" className={navClass} onClick={() => setIsMobileOpen(false)}>
               <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-white/10 transition-colors">
@@ -238,6 +262,24 @@ const Sidebar: React.FC = () => {
                     <DollarSign size={18} className="sidebar-icon text-emerald-400" />
                   </div>
                   <span className="font-medium">Finanzas Global</span>
+                </NavLink>
+                <NavLink to="/admin/sales" className={navClass} onClick={() => setIsMobileOpen(false)}>
+                  <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-white/10 transition-colors">
+                    <TrendingUp size={18} className="sidebar-icon text-blue-400" />
+                  </div>
+                  <span className="font-medium">Ventas Global</span>
+                </NavLink>
+                <NavLink to="/admin/deliveries" className={navClass} onClick={() => setIsMobileOpen(false)}>
+                  <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-white/10 transition-colors">
+                    <Truck size={18} className="sidebar-icon text-orange-400" />
+                  </div>
+                  <span className="font-medium">Domicilios</span>
+                </NavLink>
+                <NavLink to="/admin/settings" className={navClass} onClick={() => setIsMobileOpen(false)}>
+                  <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-white/10 transition-colors">
+                    <Settings size={18} className="sidebar-icon text-gray-400" />
+                  </div>
+                  <span className="font-medium">Config. Plataforma</span>
                 </NavLink>
                 <NavLink to="/tech-docs" className={navClass} onClick={() => setIsMobileOpen(false)}>
                   <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-white/10 transition-colors">

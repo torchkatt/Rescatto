@@ -135,11 +135,15 @@ export const FlashDealsManager: React.FC = () => {
             toast.error('La fecha de fin debe ser posterior a la de inicio'); return;
         }
 
+        const selectedProduct = products.find(p => p.id === form.productId);
+        if (selectedProduct && selectedProduct.quantity === 0 && form.isActive) {
+            toast.error('El producto seleccionado no tiene stock. Actívalo cuando haya unidades disponibles.');
+            return;
+        }
+
         const venueName = venues.find(v => v.id === selectedVenueId)?.name
             || user?.fullName
             || 'Negocio';
-
-        const selectedProduct = products.find(p => p.id === form.productId);
 
         const payload: FlashDealInput = {
             title: form.title.trim(),
@@ -456,9 +460,22 @@ const DealModal: React.FC<ModalProps> = ({ form, setForm, products, editing, sav
                             <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                         </div>
                         {selectedProduct && (
-                            <p className="text-xs text-gray-500 mt-1">
-                                Precio actual: ${selectedProduct.originalPrice?.toLocaleString()} → ${selectedProduct.discountedPrice?.toLocaleString()}
-                            </p>
+                            <div className="mt-1.5 space-y-1">
+                                <p className="text-xs text-gray-500">
+                                    Precio actual: ${selectedProduct.originalPrice?.toLocaleString()} → ${selectedProduct.discountedPrice?.toLocaleString()}
+                                </p>
+                                {selectedProduct.quantity === 0 ? (
+                                    <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-xs font-medium">
+                                        <AlertTriangle size={13} />
+                                        Este producto está agotado. No se puede activar el deal.
+                                    </div>
+                                ) : selectedProduct.quantity < 5 ? (
+                                    <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 text-yellow-700 px-3 py-2 rounded-lg text-xs font-medium">
+                                        <AlertTriangle size={13} />
+                                        Stock bajo: solo {selectedProduct.quantity} unidades disponibles.
+                                    </div>
+                                ) : null}
+                            </div>
                         )}
                     </div>
 

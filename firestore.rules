@@ -80,8 +80,10 @@ service cloud.firestore {
       // Stats subcollection
       match /stats/{statId} {
         allow read: if isAuthenticated();
-        // Allow clients to update rating stats, but block revenue/orders stats
-        allow write: if isAuthenticated() && statId == 'ratings';
+        // Only customers and admins can update rating stats (after creating a rating)
+        // Revenue/orders stats are Cloud Function only (statId != 'ratings' is blocked)
+        allow write: if statId == 'ratings' &&
+          (isSuperAdmin() || (isAuthenticated() && getRole() == 'CUSTOMER'));
       }
     }
 
@@ -150,7 +152,8 @@ service cloud.firestore {
     // ─── SETTINGS ────────────────────────────────────────────────────────
 
     match /settings/{settingId} {
-      allow read: if isAuthenticated();
+      // Platform config contains sensitive data (commission %, limits) — admins only
+      allow read: if isAdmin();
       allow write: if isSuperAdmin();
     }
 

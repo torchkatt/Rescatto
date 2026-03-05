@@ -11,6 +11,7 @@ import {
     Truck,
     DollarSign
 } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { logger } from '../../../utils/logger';
 
 interface DashboardStats {
@@ -31,6 +32,7 @@ export const AdminOverview: React.FC = () => {
         activeDeliveries: 0,
         pendingOrders: 0,
     });
+    const [weeklyData, setWeeklyData] = useState<{ day: string; ventas: number }[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -65,7 +67,22 @@ export const AdminOverview: React.FC = () => {
                 return sum + (Number(data.totalAmount) || 0);
             }, 0);
 
-            // globalStatsDoc contains totalRevenue if we wanted all time, but the UI shows todaySales
+            // Build 7-day chart data
+            const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); sevenDaysAgo.setHours(0, 0, 0, 0);
+            const weekOrdersSnap = await getDocs(query(collection(db, 'orders'), where('createdAt', '>=', Timestamp.fromDate(sevenDaysAgo))));
+            const dayMap: Record<string, number> = {};
+            for (let i = 0; i < 7; i++) {
+                const d = new Date(); d.setDate(d.getDate() - (6 - i)); d.setHours(0, 0, 0, 0);
+                const key = d.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric' });
+                dayMap[key] = 0;
+            }
+            weekOrdersSnap.docs.forEach(d => {
+                const data = d.data();
+                const ts = data.createdAt?.toDate?.() || new Date(data.createdAt);
+                const key = ts.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric' });
+                if (key in dayMap) dayMap[key] += Number(data.totalAmount) || 0;
+            });
+            setWeeklyData(Object.entries(dayMap).map(([day, ventas]) => ({ day, ventas })));
 
             setStats({
                 totalUsers: users.length,
@@ -158,12 +175,30 @@ export const AdminOverview: React.FC = () => {
                 })}
             </div>
 
-            {/* Placeholder for charts */}
+            {/* 7-day sales chart */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                <h3 className="font-bold text-lg mb-4">Ventas de los Últimos 7 Días</h3>
-                <div className="h-64 flex items-center justify-center bg-gray-50 rounded-lg">
-                    <p className="text-gray-400">Gráfico de ventas (Por implementar)</p>
-                </div>
+                <h3 className="font-bold text-lg mb-4 text-gray-800">Ventas de los Últimos 7 Días</h3>
+                {weeklyData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={240}>
+                        <AreaChart data={weeklyData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                            <defs>
+                                <linearGradient id="colorVentas" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                            <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                            <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v/1000).toFixed(0)}k`} />
+                            <Tooltip formatter={(v: number) => [`$${v.toLocaleString()}`, 'Ventas']} contentStyle={{ borderRadius: '10px', border: '1px solid #e5e7eb', fontSize: 12 }} />
+                            <Area type="monotone" dataKey="ventas" stroke="#10b981" strokeWidth={2.5} fill="url(#colorVentas)" dot={{ r: 3, fill: '#10b981' }} activeDot={{ r: 5 }} />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                ) : (
+                    <div className="h-60 flex items-center justify-center bg-gray-50 rounded-lg">
+                        <p className="text-gray-400 text-sm">Sin datos de ventas esta semana</p>
+                    </div>
+                )}
             </div>
         </div>
     );

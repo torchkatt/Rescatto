@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { adminService } from '../../services/adminService';
 import { Venue, VenueCategory, BUSINESS_TYPES_LIST } from '../../types';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
-import { Store, Plus, Search, X, Eye, EyeOff, RotateCw } from 'lucide-react';
+import { Store, Plus, Search, X, Eye, EyeOff, RotateCw, MapPin, Loader2 } from 'lucide-react';
 import { VenueCard } from '../../components/customer/venue/VenueCard';
 import { VenueDetailsModal } from '../../components/customer/venue/VenueDetailsModal';
 import { VenueMobilePreview } from '../../components/admin/VenueMobilePreview';
@@ -34,6 +34,28 @@ export const VenuesManager: React.FC = () => {
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [formData, setFormData] = useState<Partial<Venue>>({});
+    const [geocoding, setGeocoding] = useState(false);
+
+    const geocodeAddress = async () => {
+        const address = [formData.address, formData.city].filter(Boolean).join(', ');
+        if (!address) { toast.error('Ingresa una dirección primero'); return; }
+        setGeocoding(true);
+        try {
+            const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`;
+            const res = await fetch(url, { headers: { 'Accept-Language': 'es' } });
+            const results = await res.json();
+            if (results.length > 0) {
+                setFormData(prev => ({ ...prev, latitude: parseFloat(results[0].lat), longitude: parseFloat(results[0].lon) }));
+                toast.success('Coordenadas actualizadas');
+            } else {
+                toast.error('No se encontraron coordenadas para esa dirección');
+            }
+        } catch {
+            toast.error('Error al geocodificar la dirección');
+        } finally {
+            setGeocoding(false);
+        }
+    };
 
     useEffect(() => {
         loadInitialData();
@@ -138,8 +160,8 @@ export const VenuesManager: React.FC = () => {
                     city: formData.city || 'Bogotá',
                     closingTime: formData.closingTime || '22:00',
                     rating: 5, // Default
-                    latitude: 0,
-                    longitude: 0,
+                    latitude: formData.latitude || 0,
+                    longitude: formData.longitude || 0,
                     imageUrl: formData.imageUrl || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
                     categories: formData.categories || [],
                     businessType: formData.businessType || 'Restaurante',
@@ -163,7 +185,7 @@ export const VenuesManager: React.FC = () => {
             loadVenues();
         } catch (error) {
             logger.error('Error saving venue', error);
-            alert('Error al guardar el negocio');
+            toast.error('Error al guardar el negocio');
         }
     };
 
@@ -401,6 +423,45 @@ export const VenuesManager: React.FC = () => {
                                     value={formData.city || ''}
                                     onChange={e => setFormData({ ...formData, city: e.target.value })}
                                 />
+                            </div>
+
+                            <div>
+                                <div className="flex items-center justify-between mb-1">
+                                    <label className="block text-sm font-medium text-gray-700">Coordenadas GPS</label>
+                                    <button
+                                        type="button"
+                                        onClick={geocodeAddress}
+                                        disabled={geocoding}
+                                        className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg transition-colors disabled:opacity-50"
+                                    >
+                                        {geocoding ? <Loader2 size={12} className="animate-spin" /> : <MapPin size={12} />}
+                                        {geocoding ? 'Buscando...' : 'Autocompletar con dirección'}
+                                    </button>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-xs text-gray-500 mb-1">Latitud</label>
+                                        <input
+                                            type="number"
+                                            step="any"
+                                            className="w-full rounded-xl border-gray-300 border p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                                            placeholder="4.6097"
+                                            value={formData.latitude ?? ''}
+                                            onChange={e => setFormData({ ...formData, latitude: e.target.value ? parseFloat(e.target.value) : undefined })}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs text-gray-500 mb-1">Longitud</label>
+                                        <input
+                                            type="number"
+                                            step="any"
+                                            className="w-full rounded-xl border-gray-300 border p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                                            placeholder="-74.0817"
+                                            value={formData.longitude ?? ''}
+                                            onChange={e => setFormData({ ...formData, longitude: e.target.value ? parseFloat(e.target.value) : undefined })}
+                                        />
+                                    </div>
+                                </div>
                             </div>
 
                             <div>

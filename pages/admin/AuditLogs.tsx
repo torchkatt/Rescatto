@@ -8,7 +8,8 @@ import {
     getDocs,
     doc,
     getDoc,
-    startAfter
+    startAfter,
+    getCountFromServer
 } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { AuditLog } from '../../types';
@@ -42,36 +43,42 @@ const getCategory = (action: string) => {
 const IGNORED_ACTIONS = ['SYSTEM_PING', 'BATCH_READ', 'AUTOMATED_TASK'];
 const ENTITY_CACHE_KEY_PREFIX = 'audit_entity_';
 
-// CSV Export Helper
-const exportToCSV = (logs: AuditLog[], entityNames: Record<string, string>) => {
-    const headers = ['Fecha', 'Hora', 'Categoría', 'Acción', 'Actor', 'Target', 'Detalles', 'IP', 'User Agent'];
-    const csvContent = [
-        headers.join(','),
-        ...logs.map(log => {
-            const date = new Date(log.timestamp).toLocaleDateString();
-            const time = new Date(log.timestamp).toLocaleTimeString();
-            const category = getCategory(log.action).label;
-            const actor = entityNames[log.performedBy] || log.performedBy;
-            const target = log.targetId ? (entityNames[log.targetId] || log.targetId) : '';
-            const details = JSON.stringify(log.details || {}).replace(/,/g, ';').replace(/\n/g, ' ');
-            return [
-                date,
-                time,
-                category,
-                log.action,
-                actor,
-                target,
-                details,
-                log.metadata?.ip || '',
-                log.metadata?.userAgent || ''
-            ].join(',');
-        })
-    ].join('\n');
+// CSV Export Helpers
+const toInitials = (name: string) =>
+    name.split(' ').map(w => w[0]?.toUpperCase() || '').join('').slice(0, 3) || '???';
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+const maskIp = (ip: string) => {
+    const parts = ip.split('.');
+    return parts.length === 4 ? `${parts[0]}.${parts[1]}.*.*` : ip.slice(0, 6) + '***';
+};
+
+const buildCSV = (logs: AuditLog[], entityNames: Record<string, string>, anonymize: boolean) => {
+    const headers = ['Fecha', 'Hora', 'Categoría', 'Acción', 'Actor', 'Target', 'Detalles', 'IP'];
+    const rows = logs.map(log => {
+        const date = new Date(log.timestamp).toLocaleDateString();
+        const time = new Date(log.timestamp).toLocaleTimeString();
+        const category = getCategory(log.action).label;
+        const actorFull = entityNames[log.performedBy] || log.performedBy;
+        const targetFull = log.targetId ? (entityNames[log.targetId] || log.targetId) : '';
+        const ip = log.metadata?.ip || '';
+        const details = JSON.stringify(log.details || {}).replace(/,/g, ';').replace(/\n/g, ' ');
+
+        const actor = anonymize ? toInitials(actorFull) : actorFull;
+        const target = anonymize ? (targetFull ? toInitials(targetFull) : '') : targetFull;
+        const maskedIp = anonymize ? (ip ? maskIp(ip) : '') : ip;
+
+        return [date, time, category, log.action, actor, target, anonymize ? '' : details, maskedIp].join(',');
+    });
+    return [headers.join(','), ...rows].join('\n');
+};
+
+const exportToCSV = (logs: AuditLog[], entityNames: Record<string, string>, anonymize = false) => {
+    const csv = buildCSV(logs, entityNames, anonymize);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `rescatto_audit_logs_${new Date().toISOString().split('T')[0]}.csv`;
+    const suffix = anonymize ? '_anonimizado' : '';
+    link.download = `rescatto_audit_logs${suffix}_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
 };
 
@@ -93,18 +100,20 @@ export const AuditLogs: React.FC = () => {
     // Entity Cache
     const [entityNames, setEntityNames] = useState<Record<string, string>>({});
 
+    const [totalLogCount, setTotalLogCount] = useState(0);
+
     // Fetch Stats
     useEffect(() => {
         const fetchStats = async () => {
             try {
                 const logsRef = collection(db, 'audit_logs');
-                const q = query(logsRef, orderBy('timestamp', 'desc'), limit(200));
-                const snapshot = await getDocs(q);
-                const fetchedStatsLogs = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                })) as AuditLog[];
+                const [snapshot, countSnap] = await Promise.all([
+                    getDocs(query(logsRef, orderBy('timestamp', 'desc'), limit(200))),
+                    getCountFromServer(logsRef),
+                ]);
+                const fetchedStatsLogs = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as AuditLog[];
                 setStatsLogs(fetchedStatsLogs);
+                setTotalLogCount(countSnap.data().count);
             } catch (e) {
                 logger.error("Error fetching stats logs", e);
             }
@@ -358,7 +367,7 @@ export const AuditLogs: React.FC = () => {
             </div>
 
             {/* STATS & CHARTS */}
-            <AuditLogStats logs={statsLogs} totalCount={statsLogs.length} />
+            <AuditLogStats logs={statsLogs} totalCount={totalLogCount} />
 
             {/* FILTERS TOOLBAR */}
             <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm mb-6 flex flex-col xl:flex-row gap-4 xl:items-center justify-between">
@@ -410,13 +419,22 @@ export const AuditLogs: React.FC = () => {
                         />
                     </div>
 
-                    {/* Export */}
+                    {/* Export buttons */}
                     <button
-                        onClick={() => exportToCSV(filteredLogs, entityNames)}
-                        className="flex items-center justify-center gap-2 px-6 py-3 bg-emerald-50 border border-emerald-100 text-emerald-700 font-bold rounded-xl hover:bg-emerald-100 active:scale-95 transition-all shadow-sm ml-auto w-full sm:w-auto"
+                        onClick={() => exportToCSV(filteredLogs, entityNames, false)}
+                        className="flex items-center justify-center gap-2 px-5 py-3 bg-emerald-50 border border-emerald-100 text-emerald-700 font-bold rounded-xl hover:bg-emerald-100 active:scale-95 transition-all shadow-sm ml-auto w-full sm:w-auto"
+                        title="Exportar con datos completos"
                     >
                         <Download size={18} />
                         <span>Exportar CSV</span>
+                    </button>
+                    <button
+                        onClick={() => exportToCSV(filteredLogs, entityNames, true)}
+                        className="flex items-center justify-center gap-2 px-5 py-3 bg-gray-50 border border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-100 active:scale-95 transition-all shadow-sm w-full sm:w-auto"
+                        title="IPs parciales, nombres como iniciales, sin payload técnico"
+                    >
+                        <Download size={18} />
+                        <span>CSV Anonimizado</span>
                     </button>
                 </div>
             </div>

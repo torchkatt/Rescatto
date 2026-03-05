@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
@@ -8,7 +8,7 @@ import { useToast } from '../../context/ToastContext';
 import { Order, OrderStatus, Permission, UserRole } from '../../types';
 import { PermissionGate } from '../../components/PermissionGate';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
-import { Package, Clock, CheckCircle, ChefHat, MessageSquare, Search, RotateCw, Heart, MapPin } from 'lucide-react';
+import { Package, Clock, CheckCircle, ChefHat, MessageSquare, Search, RotateCw, Heart, MapPin, Truck, X, User } from 'lucide-react';
 import { useNotifications } from '../../context/NotificationContext';
 import { dataService } from '../../services/dataService';
 import { logger } from '../../utils/logger';
@@ -27,6 +27,11 @@ export const OrderManagement: React.FC = () => {
     const [filter, setFilter] = useState<'all' | OrderStatus>('all');
     const [searchTerm, setSearchTerm] = useState(initialSearch);
     const previousOrderCountRef = useRef<number>(0);
+
+    // Driver assignment
+    const [assigningOrder, setAssigningOrder] = useState<Order | null>(null);
+    const [drivers, setDrivers] = useState<{ id: string; fullName: string; email: string }[]>([]);
+    const [loadingDrivers, setLoadingDrivers] = useState(false);
 
     useEffect(() => {
         if (!user) return;
@@ -153,6 +158,33 @@ export const OrderManagement: React.FC = () => {
         }
     };
 
+    const openAssignDriver = async (order: Order) => {
+        setAssigningOrder(order);
+        setLoadingDrivers(true);
+        try {
+            const snap = await getDocs(query(collection(db, 'users'), where('role', '==', 'DRIVER')));
+            setDrivers(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
+        } catch (err) {
+            logger.error('Error loading drivers:', err);
+            showError('Error al cargar conductores');
+        } finally {
+            setLoadingDrivers(false);
+        }
+    };
+
+    const assignDriver = async (driverId: string) => {
+        if (!assigningOrder) return;
+        try {
+            await updateDoc(doc(db, 'orders', assigningOrder.id), { driverId });
+            setOrders(prev => prev.map(o => o.id === assigningOrder.id ? { ...o, driverId } : o));
+            success('Conductor asignado correctamente');
+            setAssigningOrder(null);
+        } catch (err) {
+            logger.error('Error assigning driver:', err);
+            showError('Error al asignar conductor');
+        }
+    };
+
     const getStatusLabel = (status: OrderStatus): string => {
         const labels = {
             [OrderStatus.PENDING]: 'Pendiente',
@@ -204,6 +236,7 @@ export const OrderManagement: React.FC = () => {
     if (loading) return <LoadingSpinner fullPage />;
 
     return (
+        <>
         <div className="space-y-6 overflow-x-hidden">
             {/* Fila 1: título + contador + botón refresh */}
             <div className="flex justify-between items-start">
@@ -410,8 +443,19 @@ export const OrderManagement: React.FC = () => {
                                             )}
 
                                             {order.status === OrderStatus.READY_PICKUP && (
-                                                <div className="w-full text-center text-sm text-gray-500 font-bold py-3 bg-gray-50 rounded-xl border border-gray-200 shadow-sm">
-                                                    Esperando recogida
+                                                <div className="flex flex-col gap-2 w-full">
+                                                    <div className="w-full text-center text-sm text-gray-500 font-bold py-3 bg-gray-50 rounded-xl border border-gray-200 shadow-sm">
+                                                        Esperando recogida
+                                                    </div>
+                                                    {order.deliveryAddress && (
+                                                        <button
+                                                            onClick={() => openAssignDriver(order)}
+                                                            className="w-full px-4 py-2.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-xl hover:bg-indigo-100 active:scale-95 transition-all text-sm font-bold flex items-center justify-center gap-2"
+                                                        >
+                                                            <Truck size={16} />
+                                                            {order.driverId ? 'Reasignar Conductor' : 'Asignar Conductor'}
+                                                        </button>
+                                                    )}
                                                 </div>
                                             )}
 
@@ -455,7 +499,53 @@ export const OrderManagement: React.FC = () => {
                     </div>
                 )
             }
-        </div >
+        </div>
+
+            {/* Driver Assignment Modal */}
+            {assigningOrder && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm animate-in fade-in zoom-in duration-200">
+                        <div className="flex justify-between items-center p-5 border-b">
+                            <div>
+                                <h3 className="font-bold text-gray-900">Asignar Conductor</h3>
+                                <p className="text-xs text-gray-500 mt-0.5">Pedido #{assigningOrder.id.slice(0, 8)} · {assigningOrder.customerName}</p>
+                            </div>
+                            <button onClick={() => setAssigningOrder(null)} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
+                                <X size={18} className="text-gray-500" />
+                            </button>
+                        </div>
+                        <div className="p-4 max-h-72 overflow-y-auto">
+                            {loadingDrivers ? (
+                                <div className="py-8 text-center text-gray-400 text-sm">Cargando conductores...</div>
+                            ) : drivers.length === 0 ? (
+                                <div className="py-8 text-center text-gray-400 text-sm">No hay conductores registrados</div>
+                            ) : (
+                                <div className="space-y-2">
+                                    {drivers.map(driver => (
+                                        <button
+                                            key={driver.id}
+                                            onClick={() => assignDriver(driver.id)}
+                                            className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all hover:bg-indigo-50 hover:border-indigo-200 ${assigningOrder.driverId === driver.id ? 'bg-indigo-50 border-indigo-300' : 'border-gray-100'}`}
+                                        >
+                                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center text-white text-sm font-bold shrink-0">
+                                                {driver.fullName?.charAt(0)?.toUpperCase() || <User size={14} />}
+                                            </div>
+                                            <div className="text-left flex-1">
+                                                <p className="font-medium text-gray-800 text-sm">{driver.fullName}</p>
+                                                <p className="text-xs text-gray-500">{driver.email}</p>
+                                            </div>
+                                            {assigningOrder.driverId === driver.id && (
+                                                <span className="text-xs text-indigo-600 font-bold">Asignado</span>
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+        </>
     );
 };
 

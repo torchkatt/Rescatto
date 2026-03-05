@@ -7,7 +7,7 @@ import { Product, ProductType, Permission, VenueCategory, Venue, UserRole } from
 import { PermissionGate } from '../../components/PermissionGate';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
 import { Button } from '../../components/customer/common/Button';
-import { Plus, Pencil, Trash2, Package, Search, X, Store, Eye, EyeOff, RotateCw, AlertTriangle, Clock } from 'lucide-react';
+import { Plus, Pencil, Trash2, Package, Search, X, Store, Eye, EyeOff, RotateCw, AlertTriangle, Clock, Copy } from 'lucide-react';
 import { Pagination } from '../../components/common/Pagination';
 import { useToast } from '../../context/ToastContext';
 import { useConfirm } from '../../context/ConfirmContext';
@@ -231,6 +231,24 @@ export const ProductManager: React.FC = () => {
         }
     };
 
+    const handleDuplicate = (product: Product) => {
+        setEditingProduct(null);
+        setFormData({
+            name: `Copia de ${product.name}`,
+            category: product.category,
+            type: product.type,
+            originalPrice: product.originalPrice,
+            discountedPrice: product.discountedPrice,
+            quantity: 0,
+            imageUrl: product.imageUrl,
+            availableUntil: new Date().toISOString().split('T')[0],
+            isDynamicPricing: product.isDynamicPricing,
+            tags: product.tags || [],
+        });
+        setShowModal(true);
+        toast.info?.('Producto duplicado — ajusta el stock y la fecha antes de guardar');
+    };
+
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 6; // Reduced to fit with preview
 
@@ -440,6 +458,17 @@ export const ProductManager: React.FC = () => {
                                                         className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-gray-50 text-gray-700 rounded-xl hover:bg-gray-100 active:scale-95 transition-all duration-200 text-xs font-semibold"
                                                     >
                                                         <Pencil size={14} /> Editar
+                                                    </button>
+                                                </Tooltip>
+                                            </PermissionGate>
+
+                                            <PermissionGate requires={Permission.EDIT_PRODUCTS}>
+                                                <Tooltip text="Duplicar producto con datos pre-cargados">
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); handleDuplicate(product); }}
+                                                        className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 active:scale-95 transition-all duration-200"
+                                                    >
+                                                        <Copy size={14} />
                                                     </button>
                                                 </Tooltip>
                                             </PermissionGate>

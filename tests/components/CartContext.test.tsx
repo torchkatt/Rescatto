@@ -5,6 +5,10 @@ import React from 'react';
 import { CartProvider, useCart } from '../../context/CartContext';
 import { ProductType } from '../../types';
 
+vi.mock('../../context/AuthContext', () => ({
+  useAuth: () => ({ user: { id: 'user-123' } })
+}));
+
 const mockProduct = {
   id: 'prod-1',
   venueId: 'venue-1',
