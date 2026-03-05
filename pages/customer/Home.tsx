@@ -190,7 +190,7 @@ const CustomerHome: React.FC = () => {
     return (
         <div className="pb-20 bg-gray-50 min-h-screen">
             {/* Header */}
-            <header className="bg-white sticky top-0 z-50 shadow-sm border-b border-gray-100 overflow-x-hidden">
+            <header className="bg-white sticky top-0 z-50 shadow-sm border-b border-gray-100 overflow-x-hidden pt-[env(safe-area-inset-top,0px)]">
                 <div className="px-4 py-3 flex items-center justify-between">
                     <button
                         type="button"
