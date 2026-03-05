@@ -4,10 +4,14 @@ import { useCart } from '../../context/CartContext';
 import { ShoppingCart, Trash2, Plus, Minus, ArrowLeft, Clock, AlertTriangle } from 'lucide-react';
 import { Button } from '../../components/customer/common/Button';
 import { Countdown } from '../../components/customer/common/Countdown';
+import { useToast } from '../../context/ToastContext';
+import { isProductExpired } from '../../utils/productAvailability';
+import { formatCOP } from '../../utils/formatters';
 
 export const Cart: React.FC = () => {
     const navigate = useNavigate();
     const { items, removeFromCart, updateQuantity, getTotalPrice, getTotalItems, getCartByVenue } = useCart();
+    const { error } = useToast();
 
     const venueGroups = getCartByVenue();
 
@@ -60,14 +64,29 @@ export const Cart: React.FC = () => {
         );
     }
 
+    const expiredItems = useMemo(
+        () => items.filter(item => isProductExpired(item.availableUntil)),
+        [items]
+    );
+
     const handleCheckout = () => {
+        if (expiredItems.length > 0) {
+            const names = expiredItems.map(item => item.name).slice(0, 2).join(', ');
+            error(`Elimina productos expirados antes de pagar: ${names}${expiredItems.length > 2 ? '...' : ''}`);
+            return;
+        }
         navigate('/app/checkout');
     };
 
-    // Urgency: detect items expiring within 2 hours or already expired
+    // Urgency: detect items expiring within 2 hours (excluding already expired)
     const urgentItems = useMemo(() => {
+        const now = Date.now();
         const twoHoursFromNow = Date.now() + 2 * 60 * 60 * 1000;
-        return items.filter(item => item.availableUntil && new Date(item.availableUntil).getTime() < twoHoursFromNow);
+        return items.filter(item => {
+            if (!item.availableUntil) return false;
+            const expiresAt = new Date(item.availableUntil).getTime();
+            return expiresAt > now && expiresAt < twoHoursFromNow;
+        });
     }, [items]);
 
     return (
@@ -84,7 +103,7 @@ export const Cart: React.FC = () => {
 
                 <h1 className="text-3xl font-bold text-gray-900 mb-8 flex items-center gap-3">
                     <ShoppingCart className="text-emerald-600" size={32} />
-                    Mi Carrito <span className="text-gray-400 text-2xl">({getTotalItems()} {getTotalItems() === 1 ? 'producto' : 'productos'})</span>
+                    Mi Carrito <span className="text-gray-400 text-2xl">({getTotalItems().toLocaleString('es-CO')} {getTotalItems() === 1 ? 'producto' : 'productos'})</span>
                 </h1>
 
                 {/* Urgency banner — shown when any item expires within 2 hours */}
@@ -94,6 +113,17 @@ export const Cart: React.FC = () => {
                         <div>
                             <p className="font-bold text-amber-800 text-sm">¡Atención! {urgentItems.length === 1 ? 'Un producto expira' : `${urgentItems.length} productos expiran`} pronto</p>
                             <p className="text-amber-700 text-xs mt-0.5">Completa tu compra antes de que se agoten.</p>
+                        </div>
+                    </div>
+                )}
+                {expiredItems.length > 0 && (
+                    <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3 animate-fadeIn">
+                        <AlertTriangle className="text-red-500 flex-shrink-0 mt-0.5" size={20} />
+                        <div>
+                            <p className="font-bold text-red-700 text-sm">
+                                {expiredItems.length === 1 ? 'Tienes un producto expirado' : `Tienes ${expiredItems.length} productos expirados`}
+                            </p>
+                            <p className="text-red-600 text-xs mt-0.5">Elimínalos para continuar al pago.</p>
                         </div>
                     </div>
                 )}
@@ -112,6 +142,13 @@ export const Cart: React.FC = () => {
                                 <div className="p-6 space-y-5">
                                     {venueItems.map(item => (
                                         <div key={item.id} className="flex flex-col gap-3 pb-5 border-b border-gray-100 last:border-0 last:pb-0">
+                                            {(() => {
+                                                const isExpired = isProductExpired(item.availableUntil);
+                                                const stockQuantity = typeof item.stockQuantity === 'number' ? item.stockQuantity : null;
+                                                const isAtStockLimit = stockQuantity !== null && item.quantity >= stockQuantity;
+
+                                                return (
+                                                    <>
                                             {/* Fila 1: imagen + info */}
                                             <div className="flex items-start gap-4">
                                                 <img
@@ -124,27 +161,29 @@ export const Cart: React.FC = () => {
                                                     <p className="text-sm text-gray-500 mb-1">{item.category || item.type}</p>
                                                     <div className="flex items-baseline gap-2">
                                                         <p className="text-emerald-600 font-bold text-lg">
-                                                            ${item.discountedPrice}
+                                                            {formatCOP(item.discountedPrice)}
                                                         </p>
                                                         <span className="text-sm text-gray-400 line-through">
-                                                            ${item.originalPrice}
+                                                            {formatCOP(item.originalPrice)}
                                                         </span>
                                                     </div>
                                                     {/* Urgency indicators */}
-                                                    {item.availableUntil && (() => {
-                                                        const expiresAt = new Date(item.availableUntil).getTime();
-                                                        const twoHoursFromNow = Date.now() + 2 * 60 * 60 * 1000;
-                                                        if (expiresAt < Date.now()) {
-                                                            return <p className="text-xs font-bold text-red-600 flex items-center gap-1 mt-1"><AlertTriangle size={12} /> Producto expirado</p>;
-                                                        }
-                                                        if (expiresAt < twoHoursFromNow) {
-                                                            return <Countdown targetTime={item.availableUntil} />;
-                                                        }
-                                                        return null;
-                                                    })()}
-                                                    {item.quantity <= 3 && item.quantity > 0 && (
+                                                    {item.availableUntil && !isExpired && (
+                                                        <Countdown targetTime={item.availableUntil} />
+                                                    )}
+                                                    {isExpired && (
+                                                        <p className="text-xs font-bold text-red-600 flex items-center gap-1 mt-1">
+                                                            <AlertTriangle size={12} /> Producto expirado
+                                                        </p>
+                                                    )}
+                                                    {stockQuantity !== null && stockQuantity <= 3 && stockQuantity > 0 && !isExpired && (
                                                         <p className="text-xs font-bold text-orange-500 flex items-center gap-1 mt-1">
-                                                            <Clock size={12} /> ¡Solo {item.quantity} disponibles!
+                                                            <Clock size={12} /> {stockQuantity === 1 ? '¡Solo 1 disponible!' : `¡Solo ${stockQuantity} disponibles!`}
+                                                        </p>
+                                                    )}
+                                                    {isAtStockLimit && !isExpired && (
+                                                        <p className="text-xs font-bold text-amber-600 flex items-center gap-1 mt-1">
+                                                            <AlertTriangle size={12} /> Ya tienes el máximo disponible
                                                         </p>
                                                     )}
                                                 </div>
@@ -163,8 +202,9 @@ export const Cart: React.FC = () => {
                                                     <span className="w-8 text-center font-bold text-gray-900 text-lg">{item.quantity}</span>
                                                     <button
                                                         onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                                                        className="w-9 h-9 flex items-center justify-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-md transition-all active:scale-90"
+                                                        className="w-9 h-9 flex items-center justify-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-md transition-all active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed"
                                                         aria-label="Aumentar cantidad"
+                                                        disabled={isExpired || isAtStockLimit}
                                                     >
                                                         <Plus size={16} strokeWidth={3} />
                                                     </button>
@@ -178,6 +218,9 @@ export const Cart: React.FC = () => {
                                                     <Trash2 size={20} />
                                                 </button>
                                             </div>
+                                                    </>
+                                                );
+                                            })()}
                                         </div>
                                     ))}
                                 </div>
@@ -196,7 +239,7 @@ export const Cart: React.FC = () => {
                                 <div className="space-y-3">
                                     <div className="flex justify-between text-gray-700">
                                         <span className="font-medium">Subtotal</span>
-                                        <span className="font-semibold">${getTotalPrice().toFixed(2)}</span>
+                                        <span className="font-semibold">{formatCOP(getTotalPrice())}</span>
                                     </div>
                                     <div className="flex justify-between text-gray-700">
                                         <span className="font-medium">Domicilio</span>
@@ -204,7 +247,7 @@ export const Cart: React.FC = () => {
                                     </div>
                                     <div className="border-t-2 border-gray-200 pt-3 flex justify-between items-baseline">
                                         <span className="font-bold text-gray-900 text-lg">Total</span>
-                                        <span className="text-emerald-600 font-bold text-2xl">${getTotalPrice().toFixed(2)}</span>
+                                        <span className="text-emerald-600 font-bold text-2xl">{formatCOP(getTotalPrice())}</span>
                                     </div>
                                 </div>
 

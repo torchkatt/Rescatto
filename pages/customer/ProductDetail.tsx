@@ -7,6 +7,8 @@ import { LoadingSpinner } from '../../components/customer/common/Loading';
 import { Button } from '../../components/customer/common/Button';
 import { ArrowLeft, ShoppingCart, Info, Store, Clock, MapPin, Star, ChevronRight } from 'lucide-react';
 import { logger } from '../../utils/logger';
+import { isProductAvailable, isProductExpired } from '../../utils/productAvailability';
+import { formatCOP } from '../../utils/formatters';
 
 export const ProductDetail: React.FC = () => {
     const { productId } = useParams<{ productId: string }>();
@@ -42,6 +44,9 @@ export const ProductDetail: React.FC = () => {
 
     const handleAddToCart = () => {
         if (product) {
+            if (!isProductAvailable(product)) {
+                return;
+            }
             const cartProduct = product.isDynamicPricing && product.dynamicDiscountedPrice
                 ? { ...product, discountedPrice: product.dynamicDiscountedPrice }
                 : product;
@@ -66,6 +71,7 @@ export const ProductDetail: React.FC = () => {
 
     const activePrice = (product.isDynamicPricing && product.dynamicDiscountedPrice) ? product.dynamicDiscountedPrice : product.discountedPrice;
     const isDynamic = product.isDynamicPricing && !!product.dynamicDiscountedPrice;
+    const isUnavailable = !isProductAvailable(product);
 
     const discount = product.originalPrice > activePrice
         ? Math.round(((product.originalPrice - activePrice) / product.originalPrice) * 100)
@@ -74,7 +80,7 @@ export const ProductDetail: React.FC = () => {
     return (
         <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white pb-24">
             {/* Header / Nav */}
-            <div className="bg-white/80 backdrop-blur-md px-4 py-3 shadow-sm sticky top-0 z-30 flex items-center gap-3 border-b border-gray-100">
+            <div className="bg-white/80 backdrop-blur-md px-4 py-3 shadow-sm sticky top-safe z-30 flex items-center gap-3 border-b border-gray-100">
                 <button
                     onClick={() => navigate(-1)}
                     className="p-2 hover:bg-gray-100 rounded-full transition-all active:scale-95"
@@ -96,7 +102,7 @@ export const ProductDetail: React.FC = () => {
                 <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent"></div>
 
                 {/* Stock Badge */}
-                {product.quantity < 5 && product.quantity > 0 && (
+                {product.quantity < 5 && product.quantity > 0 && !isProductExpired(product.availableUntil) && (
                     <div className="absolute top-4 right-4">
                         <span className="bg-red-500 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg backdrop-blur-sm animate-pulse inline-flex items-center gap-1">
                             <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span>
@@ -131,9 +137,9 @@ export const ProductDetail: React.FC = () => {
                                     {product.dynamicTier}
                                 </span>
                             )}
-                            <p className={`text-3xl font-bold ${isDynamic ? 'text-orange-600' : 'text-emerald-600'}`}>${activePrice}</p>
+                            <p className={`text-3xl font-bold ${isDynamic ? 'text-orange-600' : 'text-emerald-600'}`}>{formatCOP(activePrice)}</p>
                             {product.originalPrice > activePrice && (
-                                <p className="text-sm text-gray-400 line-through mt-1">${product.originalPrice}</p>
+                                <p className="text-sm text-gray-400 line-through mt-1">{formatCOP(product.originalPrice)}</p>
                             )}
                         </div>
                     </div>
@@ -207,24 +213,24 @@ export const ProductDetail: React.FC = () => {
             </div>
 
             {/* Bottom Action Bar */}
-            <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md p-4 shadow-[0_-4px_20px_-1px_rgba(0,0,0,0.1)] border-t border-gray-100 z-20">
+            <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md px-4 pt-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] shadow-[0_-4px_20px_-1px_rgba(0,0,0,0.1)] border-t border-gray-100 z-20">
                 <div className="max-w-5xl mx-auto flex items-center gap-4">
                     <div className="flex-1">
                         <p className="text-xs text-gray-500 font-medium">Total a pagar</p>
-                        <p className={`text-2xl font-bold ${isDynamic ? 'text-orange-600' : 'text-gray-900'}`}>${activePrice}</p>
+                        <p className={`text-2xl font-bold ${isDynamic ? 'text-orange-600' : 'text-gray-900'}`}>{formatCOP(activePrice)}</p>
                         {discount > 0 && (
                             <p className="text-xs text-emerald-600 font-semibold">
-                                ¡Ahorras ${(product.originalPrice - activePrice).toFixed(2)}!
+                                ¡Ahorras {formatCOP(product.originalPrice - activePrice)}!
                             </p>
                         )}
                     </div>
                     <Button
                         onClick={handleAddToCart}
                         className="flex-1 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white shadow-lg shadow-emerald-200 py-4 text-base font-bold active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                        disabled={product.quantity === 0}
+                        disabled={isUnavailable}
                     >
                         <ShoppingCart size={20} strokeWidth={2.5} />
-                        {product.quantity === 0 ? 'Agotado' : 'Agregar al Carrito'}
+                        {isUnavailable ? 'No disponible' : 'Agregar al Carrito'}
                     </Button>
                 </div>
             </div>

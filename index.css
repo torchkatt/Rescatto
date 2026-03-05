@@ -51,6 +51,18 @@
         user-select: none;
     }
 
+    /* Keep inputs readable when iOS applies aggressive autofill styling */
+    input:-webkit-autofill,
+    input:-webkit-autofill:hover,
+    input:-webkit-autofill:focus,
+    textarea:-webkit-autofill,
+    textarea:-webkit-autofill:hover,
+    textarea:-webkit-autofill:focus {
+        -webkit-text-fill-color: #0f172a;
+        -webkit-box-shadow: 0 0 0px 1000px #ffffff inset;
+        transition: background-color 5000s ease-in-out 0s;
+    }
+
     /* Fix for iOS Input Zoom - Ensure base font size is 16px */
     input,
     select,
@@ -239,4 +251,22 @@
 .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
+}
+
+@layer utilities {
+    .pt-safe-top {
+        padding-top: env(safe-area-inset-top, 0px);
+    }
+
+    .pb-safe-bottom {
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    .top-safe {
+        top: calc(env(safe-area-inset-top, 0px) + 0.5rem);
+    }
+
+    .bottom-safe {
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);
+    }
 }

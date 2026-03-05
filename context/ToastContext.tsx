@@ -19,6 +19,8 @@ interface ToastContextType {
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
+const MAX_TOASTS = 3;
+const MAX_MESSAGE_LENGTH = 140;
 
 export const useToast = () => {
   const context = useContext(ToastContext);
@@ -37,9 +39,12 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const showToast = useCallback((type: ToastType, message: string, duration = 5000) => {
     const id = Math.random().toString(36).substring(7);
-    const toast: Toast = { id, type, message, duration };
+    const safeMessage = message.length > MAX_MESSAGE_LENGTH
+      ? `${message.slice(0, MAX_MESSAGE_LENGTH - 1)}…`
+      : message;
+    const toast: Toast = { id, type, message: safeMessage, duration };
 
-    setToasts(prev => [...prev, toast]);
+    setToasts(prev => [...prev, toast].slice(-MAX_TOASTS));
 
     if (duration > 0) {
       setTimeout(() => {
@@ -77,7 +82,7 @@ const ToastContainer: React.FC<{ toasts: Toast[]; onRemove: (id: string) => void
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed top-4 right-4 z-50 space-y-2 max-w-md">
+    <div className="fixed top-[calc(env(safe-area-inset-top,0px)+0.75rem)] left-1/2 -translate-x-1/2 z-[90] space-y-2 w-[calc(100%-1.25rem)] max-w-sm">
       {toasts.map(toast => (
         <ToastItem key={toast.id} toast={toast} onRemove={onRemove} />
       ))}
@@ -127,25 +132,25 @@ const ToastItem: React.FC<{ toast: Toast; onRemove: (id: string) => void }> = ({
 
   return (
     <div
-      className={`relative overflow-hidden bg-gradient-to-br ${config.gradient} backdrop-blur-xl border-2 border-white/50 p-5 rounded-2xl ${config.shadow} shadow-2xl flex items-center gap-4 min-w-[350px] animate-slide-in-right transform hover:scale-105 transition-all duration-300`}
+      className={`relative overflow-hidden bg-gradient-to-br ${config.gradient} backdrop-blur-xl border border-white/70 p-3 rounded-2xl ${config.shadow} shadow-lg flex items-center gap-2.5 animate-slide-in-right transition-all duration-300`}
     >
       {/* Efecto de borde degradado */}
       <div className={`absolute inset-0 bg-gradient-to-r ${config.borderGradient} opacity-20 rounded-2xl pointer-events-none`}></div>
 
       {/* Ícono con resplandor */}
-      <div className={`${config.iconColor} bg-white/80 p-2 rounded-xl shadow-lg`}>
-        <Icon size={28} strokeWidth={2.5} />
+      <div className={`${config.iconColor} bg-white/85 p-1.5 rounded-lg shadow-sm`}>
+        <Icon size={18} strokeWidth={2.25} />
       </div>
 
       {/* Mensaje */}
-      <p className={`${config.textColor} flex-1 text-base font-semibold leading-snug`}>{toast.message}</p>
+      <p className={`${config.textColor} flex-1 text-[13px] font-semibold leading-tight break-words max-h-12 overflow-hidden`}>{toast.message}</p>
 
       {/* Botón de cerrar */}
       <button
         onClick={() => onRemove(toast.id)}
-        className={`${config.textColor} hover:bg-white/50 p-1.5 rounded-lg transition-all duration-200 hover:rotate-90`}
+        className={`${config.textColor} hover:bg-white/50 p-1 rounded-md transition-all duration-200`}
       >
-        <X size={20} strokeWidth={2.5} />
+        <X size={16} strokeWidth={2.5} />
       </button>
     </div>
   );

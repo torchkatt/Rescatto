@@ -29,7 +29,7 @@ export const ImpactStats: React.FC<ImpactStatsProps> = ({ impact }) => {
                     <div className="text-3xl font-black text-gray-900 mb-1">
                         {stats.co2Saved.toFixed(1)} <span className="text-lg font-bold">kg</span>
                     </div>
-                    <div className="text-sm font-semibold text-emerald-600 uppercase tracking-wider">CO2 Ahorrado</div>
+                    <div className="text-sm font-semibold text-emerald-600 uppercase tracking-wider">CO₂ Ahorrado</div>
                     <p className="text-xs text-gray-400 mt-2">Equivale a {stats.treesEquivalent} árboles plantados 🌳</p>
                 </div>
             </div>

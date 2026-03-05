@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useChat } from '../../context/ChatContext';
 import { MessageSquare, X, Sparkles } from 'lucide-react';
 import { ChatList } from './ChatList';
@@ -7,9 +8,26 @@ import { AIChat } from './AIChat';
 
 export const ChatButton: React.FC = () => {
     const { unreadCount } = useChat();
+    const location = useLocation();
     const [isOpen, setIsOpen] = useState(false);
     const [selectedChat, setSelectedChat] = useState(false);
     const [activeTab, setActiveTab] = useState<'messages' | 'assistant'>('messages');
+
+    const path = location.pathname;
+    const hiddenOnPaths = [
+        '/app/cart',
+        '/app/checkout',
+        '/app/orders',
+        '/app/profile',
+        '/app/impact',
+        '/app/favorites',
+    ];
+    const shouldHide =
+        hiddenOnPaths.includes(path) ||
+        path.startsWith('/app/venue/') ||
+        path.startsWith('/app/product/');
+
+    if (shouldHide) return null;
 
     const toggleChat = () => {
         setIsOpen(!isOpen);
@@ -29,7 +47,7 @@ export const ChatButton: React.FC = () => {
             {/* Floating Button */}
             <button
                 onClick={toggleChat}
-                className="fixed bottom-6 right-6 w-14 h-14 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full shadow-lg flex items-center justify-center transition-all z-40"
+                className="fixed bottom-safe right-4 w-14 h-14 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full shadow-lg flex items-center justify-center transition-all z-40"
             >
                 {isOpen ? (
                     <X size={24} />
@@ -47,7 +65,7 @@ export const ChatButton: React.FC = () => {
 
             {/* Chat Modal */}
             {isOpen && (
-                <div className="fixed bottom-24 right-6 w-96 h-[600px] bg-white rounded-xl shadow-2xl z-40 overflow-hidden flex flex-col">
+                <div className="fixed left-4 right-4 sm:left-auto sm:right-4 bottom-[calc(env(safe-area-inset-bottom,0px)+4.75rem)] w-auto sm:w-96 max-w-[420px] h-[70vh] sm:h-[600px] bg-white rounded-xl shadow-2xl z-40 overflow-hidden flex flex-col">
                     {/* Tabs */}
                     <div className="flex border-b border-gray-200">
                         <button

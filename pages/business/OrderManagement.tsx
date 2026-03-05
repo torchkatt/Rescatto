@@ -413,13 +413,19 @@ export const OrderManagement: React.FC = () => {
                                 <PermissionGate requires={Permission.MANAGE_ORDERS}>
                                     <div className="flex flex-col gap-3">
                                         <div className="flex flex-col sm:flex-row gap-2">
-                                            {order.status === OrderStatus.PENDING && (
+                                            {order.status === OrderStatus.PENDING && order.paymentMethod === 'cash' && (
                                                 <button
                                                     onClick={() => updateOrderStatus(order.id, OrderStatus.PAID)}
                                                     className="w-full px-4 py-3 bg-blue-600 text-white rounded-xl shadow-sm hover:bg-blue-700 active:scale-95 transition-all duration-200 text-sm font-bold"
                                                 >
                                                     Confirmar Pago
                                                 </button>
+                                            )}
+
+                                            {order.status === OrderStatus.PENDING && order.paymentMethod === 'card' && (
+                                                <div className="w-full text-center text-sm text-indigo-600 font-bold py-3 bg-indigo-50 rounded-xl border border-indigo-200 shadow-sm animate-pulse">
+                                                    Esperando confirmación del pago online
+                                                </div>
                                             )}
 
                                             {order.status === OrderStatus.PAID && (

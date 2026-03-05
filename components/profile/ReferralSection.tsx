@@ -4,7 +4,8 @@ import { Share2, Copy, Gift, Users, Check } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import { QRCodeSVG } from 'qrcode.react';
 import { collection, query, where, getCountFromServer } from 'firebase/firestore';
-import { db } from '../../services/firebase';
+import { db, functions } from '../../services/firebase';
+import { httpsCallable } from 'firebase/functions';
 import { logger } from '../../utils/logger';
 
 interface Props {
@@ -17,23 +18,57 @@ export const ReferralSection: React.FC<Props> = ({ user }) => {
     const { success, error } = useToast();
     const [copied, setCopied] = useState(false);
     const [showQR, setShowQR] = useState(false);
-    const [friendCount, setFriendCount] = useState<number | null>(null);
+    const [friendCount, setFriendCount] = useState(0);
+    const [isCounting, setIsCounting] = useState(false);
+    const [isGeneratingCode, setIsGeneratingCode] = useState(false);
+    const [referralCode, setReferralCode] = useState((user.referralCode || '').trim());
 
-    const referralCode = user.referralCode || 'ACTUALIZA';
+    const hasValidReferralCode = referralCode.length >= 6;
     const referralLink = `https://rescatto.com/registro?ref=${referralCode}`;
     const shareText = `¡Únete a Rescatto con mi código y salvemos el planeta comiendo delicioso! 🌱\n\nUsa el código: *${referralCode}*\nO regístrate directo: ${referralLink}`;
 
+    useEffect(() => {
+        if (hasValidReferralCode) return;
+
+        const ensureCode = async () => {
+            setIsGeneratingCode(true);
+            try {
+                const ensureReferralCode = httpsCallable(functions, 'ensureReferralCode');
+                const result: any = await ensureReferralCode({});
+                const code = (result?.data?.referralCode || '').trim();
+                if (code.length >= 6) {
+                    setReferralCode(code);
+                }
+            } catch (err) {
+                logger.error('Error ensuring referral code:', err);
+                const code = (err as any)?.code || '';
+                if (!String(code).includes('not-found')) {
+                    error('No fue posible generar tu código de referido en este momento.');
+                }
+            } finally {
+                setIsGeneratingCode(false);
+            }
+        };
+
+        ensureCode();
+    }, [hasValidReferralCode, error]);
+
     // Count how many users have been invited with this code
     useEffect(() => {
-        if (!user.referralCode) return;
-        const q = query(collection(db, 'users'), where('invitedBy', '==', user.referralCode));
+        if (!hasValidReferralCode) return;
+        setIsCounting(true);
+        const q = query(collection(db, 'users'), where('invitedBy', '==', referralCode));
         getCountFromServer(q)
             .then(snap => setFriendCount(snap.data().count))
-            .catch(err => logger.error('Error counting referrals:', err));
-    }, [user.referralCode]);
+            .catch(err => logger.error('Error counting referrals:', err))
+            .finally(() => setIsCounting(false));
+    }, [hasValidReferralCode, referralCode]);
 
     const copyToClipboard = async (text: string, label = 'Código') => {
-        if (referralCode === 'ACTUALIZA') return;
+        if (!hasValidReferralCode) {
+            error('Tu código aún no está disponible. Intenta de nuevo en unos segundos.');
+            return;
+        }
         try {
             await navigator.clipboard.writeText(text);
             setCopied(true);
@@ -50,7 +85,10 @@ export const ReferralSection: React.FC<Props> = ({ user }) => {
     };
 
     const handleNativeShare = async () => {
-        if (referralCode === 'ACTUALIZA') return;
+        if (!hasValidReferralCode) {
+            error('Tu código aún no está disponible para compartir.');
+            return;
+        }
         if (navigator.share) {
             try {
                 await navigator.share({
@@ -86,9 +124,15 @@ export const ReferralSection: React.FC<Props> = ({ user }) => {
             </div>
 
             {/* Stats row */}
+            {isGeneratingCode && (
+                <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 font-medium">
+                    Generando tu código de referido...
+                </div>
+            )}
+
             <div className="grid grid-cols-3 gap-3 mb-6">
                 <div className="bg-emerald-50 rounded-xl p-3 text-center border border-emerald-100">
-                    <p className="text-2xl font-black text-emerald-600">{friendCount ?? '—'}</p>
+                    <p className="text-2xl font-black text-emerald-600">{isCounting ? '...' : friendCount}</p>
                     <p className="text-xs text-emerald-700 font-medium mt-0.5">amigos<br/>invitados</p>
                 </div>
                 <div className="bg-amber-50 rounded-xl p-3 text-center border border-amber-100">
@@ -113,13 +157,15 @@ export const ReferralSection: React.FC<Props> = ({ user }) => {
                     <div className="flex gap-2 mb-4 relative z-10">
                         <button
                             onClick={() => setShowQR(false)}
-                            className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${!showQR ? 'bg-white text-emerald-700' : 'bg-white/20 text-white'}`}
+                            className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${!showQR ? 'bg-white text-emerald-700' : 'bg-white/20 text-white'} ${!hasValidReferralCode ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            disabled={!hasValidReferralCode}
                         >
                             Código
                         </button>
                         <button
                             onClick={() => setShowQR(true)}
-                            className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${showQR ? 'bg-white text-emerald-700' : 'bg-white/20 text-white'}`}
+                            className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${showQR ? 'bg-white text-emerald-700' : 'bg-white/20 text-white'} ${!hasValidReferralCode ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            disabled={!hasValidReferralCode}
                         >
                             QR
                         </button>
@@ -138,7 +184,7 @@ export const ReferralSection: React.FC<Props> = ({ user }) => {
                     ) : (
                         <div className="bg-white/20 backdrop-blur-md border border-white/30 rounded-2xl px-8 py-4 mb-4 relative z-10 w-full max-w-[240px]">
                             <div className="text-4xl font-black tracking-widest text-white">
-                                {referralCode}
+                                {hasValidReferralCode ? referralCode : 'PENDIENTE'}
                             </div>
                         </div>
                     )}
@@ -147,14 +193,16 @@ export const ReferralSection: React.FC<Props> = ({ user }) => {
                     <div className="flex gap-2 w-full max-w-[280px] relative z-10">
                         <button
                             onClick={() => copyToClipboard(referralCode, 'Código')}
-                            className="flex-1 bg-white/20 hover:bg-white/30 backdrop-blur-md border border-white/30 text-white font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 text-sm"
+                            className="flex-1 bg-white/20 hover:bg-white/30 backdrop-blur-md border border-white/30 text-white font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={!hasValidReferralCode}
                         >
                             {copied ? <Check size={16} /> : <Copy size={16} />}
                             {copied ? 'Copiado' : 'Copiar'}
                         </button>
                         <button
                             onClick={handleNativeShare}
-                            className="flex-1 bg-white text-emerald-700 hover:bg-emerald-50 font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 text-sm shadow-sm"
+                            className="flex-1 bg-white text-emerald-700 hover:bg-emerald-50 font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 text-sm shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={!hasValidReferralCode}
                         >
                             <Share2 size={16} />
                             Compartir
@@ -164,7 +212,8 @@ export const ReferralSection: React.FC<Props> = ({ user }) => {
                     {/* WhatsApp button */}
                     <button
                         onClick={handleWhatsApp}
-                        className="mt-2 w-full max-w-[280px] relative z-10 bg-green-500 hover:bg-green-600 text-white font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-sm"
+                        className="mt-2 w-full max-w-[280px] relative z-10 bg-green-500 hover:bg-green-600 text-white font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={!hasValidReferralCode}
                     >
                         <span className="text-base">💬</span>
                         Enviar por WhatsApp

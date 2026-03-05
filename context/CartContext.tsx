@@ -3,9 +3,11 @@ import { Product } from '../types';
 import { logger } from '../utils/logger';
 import { useAuth } from './AuthContext';
 import { cartSyncService } from '../services/cartSyncService';
+import { isProductAvailable, isProductExpired } from '../utils/productAvailability';
 
 interface CartItem extends Product {
     quantity: number;
+    stockQuantity?: number;
     venueName?: string;
 }
 
@@ -18,6 +20,7 @@ const isCartItem = (value: unknown): value is CartItem => {
         typeof obj['venueId'] === 'string' &&
         typeof obj['name'] === 'string' &&
         typeof obj['quantity'] === 'number' &&
+        (obj['stockQuantity'] === undefined || typeof obj['stockQuantity'] === 'number') &&
         typeof obj['discountedPrice'] === 'number'
     );
 };
@@ -142,16 +145,30 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, [items, userId]);
 
     const addToCart = useCallback((product: Product, venueName?: string) => {
+        if (!isProductAvailable(product)) {
+            logger.warn(`CartContext: intento de agregar producto no disponible (${product.id})`);
+            return;
+        }
+
         setItems(prevItems => {
             const existingItem = prevItems.find(item => item.id === product.id);
+            const stockQuantity = Number(product.quantity) > 0 ? Number(product.quantity) : undefined;
             if (existingItem) {
+                const maxAllowed = existingItem.stockQuantity ?? stockQuantity ?? Number.POSITIVE_INFINITY;
+                if (existingItem.quantity >= maxAllowed) {
+                    return prevItems;
+                }
                 return prevItems.map(item =>
                     item.id === product.id
-                        ? { ...item, quantity: item.quantity + 1 }
+                        ? {
+                            ...item,
+                            stockQuantity: item.stockQuantity ?? stockQuantity,
+                            quantity: item.quantity + 1
+                        }
                         : item
                 );
             } else {
-                return [...prevItems, { ...product, quantity: 1, venueName }];
+                return [...prevItems, { ...product, stockQuantity, quantity: 1, venueName }];
             }
         });
     }, []);
@@ -161,15 +178,26 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, []);
 
     const updateQuantity = useCallback((productId: string, quantity: number) => {
-        if (quantity <= 0) {
-            setItems(prevItems => prevItems.filter(item => item.id !== productId));
-            return;
-        }
-        setItems(prevItems =>
-            prevItems.map(item =>
-                item.id === productId ? { ...item, quantity } : item
-            )
-        );
+        setItems(prevItems => {
+            const existingItem = prevItems.find(item => item.id === productId);
+            if (!existingItem) return prevItems;
+
+            if (quantity <= 0) {
+                return prevItems.filter(item => item.id !== productId);
+            }
+
+            // If the product already expired in cart, only allow reducing quantity.
+            if (isProductExpired(existingItem.availableUntil) && quantity > existingItem.quantity) {
+                return prevItems;
+            }
+
+            const maxAllowed = existingItem.stockQuantity ?? Number.POSITIVE_INFINITY;
+            const safeQuantity = Math.min(quantity, maxAllowed);
+
+            return prevItems.map(item =>
+                item.id === productId ? { ...item, quantity: safeQuantity } : item
+            );
+        });
     }, []);
 
     const clearCart = useCallback(() => {

@@ -33,8 +33,74 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    function canUserCreateOwnProfile(userId) {
+      return isOwner(userId) &&
+        request.resource.data.role == 'CUSTOMER' &&
+        request.resource.data.keys().hasAll([
+          'fullName',
+          'email',
+          'role',
+          'createdAt'
+        ]) &&
+        request.resource.data.keys().hasOnly([
+          'fullName',
+          'email',
+          'role',
+          'createdAt',
+          'referralCode',
+          'invitedBy',
+          'isGuest',
+          'avatarUrl',
+          'hasSeenOnboarding',
+          'fcmToken',
+          'lastTokenUpdate'
+        ]) &&
+        (
+          (request.auth.token.email != null && request.resource.data.email == request.auth.token.email) ||
+          (request.auth.token.email == null && request.resource.data.email == null)
+        );
+    }
+
+    function canUserUpdateOwnProfile(userId) {
+      return isOwner(userId) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'fullName',
+          'phone',
+          'address',
+          'city',
+          'avatarUrl',
+          'hasSeenOnboarding',
+          'fcmToken',
+          'lastTokenUpdate',
+          'updatedAt'
+        ]);
+    }
+
+    function canUserConvertGuest(userId) {
+      return isOwner(userId) &&
+        resource.data.isGuest != false &&
+        request.resource.data.isGuest == false &&
+        request.resource.data.email == request.auth.token.email &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'fullName',
+          'email',
+          'isGuest'
+        ]);
+    }
+
+    function canUserSyncVerification(userId) {
+      return isOwner(userId) &&
+        request.auth.token.email_verified == true &&
+        request.resource.data.isVerified == true &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'isVerified',
+          'verificationDate'
+        ]);
+    }
+
     function belongsToVenue(venueId) {
       return isAuthenticated() &&
+        getRole() in ['VENUE_OWNER', 'KITCHEN_STAFF'] &&
         (getUserData().venueId == venueId ||
          (getUserData().venueIds != null && venueId in getUserData().venueIds));
     }
@@ -59,12 +125,16 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
       
-      // Permitir creación solo si no intentan inyectar un rol administrativo sin permiso
-      allow create: if (isOwner(userId) && request.resource.data.role != 'SUPER_ADMIN') || isAdmin();
+      // Solo el propio usuario puede auto-crear perfil como CUSTOMER.
+      // Roles elevados se crean/gestionan por admin.
+      allow create: if canUserCreateOwnProfile(userId) || isAdmin();
       
-      // Permitir actualización solo si NO están modificando campos restringidos (role, isVerified) por sí mismos
-      allow update: if isAdmin() || (isOwner(userId) && 
-                      (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'isVerified', 'permissions'])));
+      // El usuario solo puede actualizar campos de perfil permitidos.
+      // isVerified puede sincronizarse solo si email_verified=true en Auth token.
+      allow update: if isAdmin()
+        || canUserUpdateOwnProfile(userId)
+        || canUserConvertGuest(userId)
+        || canUserSyncVerification(userId);
                       
       allow delete: if isSuperAdmin();
     }
@@ -108,11 +178,60 @@ service cloud.firestore {
     // ─── ORDERS ──────────────────────────────────────────────────────────
 
     match /orders/{orderId} {
+      function isDriverAvailableOrder(data) {
+        return data.deliveryMethod == 'delivery' &&
+          data.driverId == null &&
+          data.status in ['PAID', 'IN_PREPARATION', 'READY_PICKUP'];
+      }
+
+      function canDriverTakeOrder() {
+        return hasRole('DRIVER') &&
+          isDriverAvailableOrder(resource.data) &&
+          request.resource.data.driverId == request.auth.uid &&
+          request.resource.data.status == 'DRIVER_ACCEPTED' &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'driverId',
+            'driverName',
+            'status',
+            'acceptedAt',
+            'updatedAt'
+          ]);
+      }
+
+      function canDriverStartTransit() {
+        return hasRole('DRIVER') &&
+          resource.data.driverId == request.auth.uid &&
+          request.resource.data.driverId == request.auth.uid &&
+          resource.data.status == 'DRIVER_ACCEPTED' &&
+          request.resource.data.status == 'IN_TRANSIT' &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status',
+            'updatedAt'
+          ]);
+      }
+
+      function canDriverCompleteOrder() {
+        return hasRole('DRIVER') &&
+          resource.data.driverId == request.auth.uid &&
+          request.resource.data.driverId == request.auth.uid &&
+          resource.data.status == 'IN_TRANSIT' &&
+          request.resource.data.status == 'COMPLETED' &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status',
+            'deliveredAt',
+            'deliveryNotes',
+            'updatedAt'
+          ]);
+      }
+
       // Customers read their own; venue staff read their venue's; drivers read assigned
       allow read: if isAdmin() ||
         (isAuthenticated() && resource.data.customerId == request.auth.uid) ||
         (isAuthenticated() && belongsToVenue(resource.data.venueId)) ||
-        (hasRole('DRIVER') && resource.data.driverId == request.auth.uid) ||
+        (hasRole('DRIVER') && (
+          resource.data.driverId == request.auth.uid ||
+          isDriverAvailableOrder(resource.data)
+        )) ||
         (hasRole('KITCHEN_STAFF') && belongsToVenue(resource.data.venueId));
 
       // Creación bloqueada desde cliente: Todos los pedidos deben pasar por la Cloud Function "createOrder"
@@ -123,7 +242,9 @@ service cloud.firestore {
       allow update: if isAdmin() ||
         isVenueOwnerOf(resource.data.venueId) ||
         isKitchenStaffOf(resource.data.venueId) ||
-        (hasRole('DRIVER') && resource.data.driverId == request.auth.uid);
+        canDriverTakeOrder() ||
+        canDriverStartTransit() ||
+        canDriverCompleteOrder();
 
       allow delete: if isSuperAdmin();
     }
@@ -146,6 +267,13 @@ service cloud.firestore {
     match /categories/{categoryId} {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
+    }
+
+    // ─── ROLES ───────────────────────────────────────────────────────────
+
+    match /roles/{roleId} {
+      allow read: if isAdmin();
+      allow write: if isSuperAdmin();
     }
 
 
@@ -222,7 +350,8 @@ service cloud.firestore {
       allow read: if isAuthenticated() &&
         (resource.data.userId == request.auth.uid || isAdmin());
 
-      allow create: if isAdmin();
+      // Se crean desde backend (Cloud Functions) para evitar spoofing/spam.
+      allow create: if false;
 
       // Users can only mark their own notifications as read
       allow update: if isAuthenticated() &&

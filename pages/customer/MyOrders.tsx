@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { collection, query, where, onSnapshot, orderBy, doc, getDoc, getDocs, limit } from 'firebase/firestore';
-import { db } from '../../services/firebase';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
 import { useToast } from '../../context/ToastContext';
@@ -14,6 +15,7 @@ import { RatingModal } from '../../components/rating/RatingModal';
 import { ChatWindow } from '../../components/chat/ChatWindow';
 import { logger } from '../../utils/logger';
 import { GuestConversionBanner } from '../../components/customer/common/GuestConversionBanner';
+import { formatCOP } from '../../utils/formatters';
 
 export const MyOrders: React.FC = () => {
     const navigate = useNavigate();
@@ -69,64 +71,93 @@ export const MyOrders: React.FC = () => {
         return () => unsubscribe();
     }, [user?.id]);
 
+    const findExistingOrderChatId = async (orderId: string): Promise<string | null> => {
+        const chatsSnapshot = await getDocs(query(
+            collection(db, 'chats'),
+            where('participants', 'array-contains', user?.id || ''),
+            limit(100)
+        ));
+        const existingChat = chatsSnapshot.docs.find(d => (d.data().orderId || '') === orderId);
+        return existingChat?.id || null;
+    };
+
     const handleChatWithVenue = async (order: Order) => {
         try {
-            // Primero, obtener los datos del restaurante
-            const venueDoc = await getDoc(doc(db, 'venues', order.venueId));
-            if (!venueDoc.exists()) {
-                showError('No se pudo encontrar el restaurante');
+            if (!user?.id) {
+                showError('Debes iniciar sesión para abrir el chat.');
                 return;
             }
 
-            const venueData = venueDoc.data() as Venue;
-
-            // Intentar encontrar al usuario dueño del restaurante asociado
-            const usersRef = collection(db, 'users');
-            const q = query(
-                usersRef,
-                where('venueId', '==', order.venueId),
-                where('role', '==', UserRole.VENUE_OWNER)
-            );
-
-            const venueOwnerSnapshot = await getDocs(q);
-
-            let chat;
-
-            if (venueOwnerSnapshot.empty) {
-                // FALLBACK: Si no existe el dueño, crear chat directamente con el venueId
-                // Esto sucede cuando se crean sedes sin ejecutar el seeder
-                logger.warn(`No owner found for venue ${order.venueId}, creating chat with venue ID`);
-
-                chat = await createChat(
-                    order.venueId,        // Usar venueId como fallback
-                    venueData.name,       // Nombre del venue
-                    UserRole.VENUE_OWNER, // Rol simulado
-                    'customer-venue',     // Tipo de chat
-                    order.id              // ID de la orden
-                );
-            } else {
-                // NORMAL: Usar el usuario real dueño del restaurante
-                const venueOwnerDoc = venueOwnerSnapshot.docs[0];
-                const venueOwner = { id: venueOwnerDoc.id, ...venueOwnerDoc.data() };
-
-                chat = await createChat(
-                    venueOwner.id,        // ID del dueño del venue (usuario real)
-                    venueData.name,       // Nombre del venue
-                    UserRole.VENUE_OWNER, // Rol del venue owner
-                    'customer-venue',     // Tipo de chat
-                    order.id              // ID de la orden
-                );
+            // Prioridad 1: reutilizar un chat ya abierto para esta orden.
+            const existingChatId = await findExistingOrderChatId(order.id);
+            if (existingChatId) {
+                await openChat(existingChatId);
+                setShowChatWindow(true);
+                success('Chat abierto');
+                return;
             }
 
-            // Abrir el chat
-            await openChat(chat.id);
+            const metadata = (order.metadata || {}) as Record<string, any>;
+            let venueContactUserId: string | null =
+                metadata.venueOwnerId ||
+                metadata.venueContactUserId ||
+                null;
+            let venueContactName: string =
+                metadata.venueName ||
+                metadata.venueDisplayName ||
+                'Restaurante';
 
-            // Mostrar ventana de chat
+            // Prioridad 2: resolver por backend (fuente de verdad basada en la orden).
+            if (!venueContactUserId) {
+                try {
+                    const resolveVenueChatTarget = httpsCallable(functions, 'resolveVenueChatTarget');
+                    const targetResult: any = await resolveVenueChatTarget({ orderId: order.id });
+                    venueContactUserId = targetResult?.data?.userId || null;
+                    venueContactName = targetResult?.data?.userName || venueContactName;
+                } catch (resolveErr) {
+                    logger.warn('No se pudo resolver el contacto de chat del restaurante:', resolveErr);
+                }
+            }
+
+            // Prioridad 3: fallback a documento de sede cuando existe.
+            if (!venueContactUserId) {
+                const venueDoc = await getDoc(doc(db, 'venues', order.venueId));
+                if (venueDoc.exists()) {
+                    const venueData = venueDoc.data() as Venue;
+                    venueContactUserId =
+                        (venueData as any).ownerId ||
+                        (venueData as any).ownerUid ||
+                        (venueData as any).managerId ||
+                        (venueData as any).userId ||
+                        null;
+                    venueContactName = venueData.name || venueContactName;
+                }
+            }
+
+            if (!venueContactUserId || typeof venueContactUserId !== 'string') {
+                showError('Este pedido aún no tiene un contacto de chat disponible.');
+                return;
+            }
+
+            const newChat = await createChat(
+                venueContactUserId,
+                venueContactName,
+                UserRole.VENUE_OWNER,
+                'customer-venue',
+                order.id
+            );
+
+            await openChat(newChat.id);
             setShowChatWindow(true);
-            success('Chat abierto con ' + venueData.name);
-        } catch (error) {
+            success(`Chat abierto con ${venueContactName}`);
+        } catch (error: any) {
             logger.error('Error opening chat:', error);
-            showError('Error al abrir el chat');
+            const code = String(error?.code || '');
+            if (code.includes('permission-denied')) {
+                showError('No tienes permisos para abrir este chat.');
+                return;
+            }
+            showError('Error al abrir el chat. Intenta de nuevo.');
         }
     };
 
@@ -137,23 +168,26 @@ export const MyOrders: React.FC = () => {
         }
 
         try {
-            const driverDoc = await getDoc(doc(db, 'users', order.driverId));
-            if (!driverDoc.exists()) {
-                showError('No se pudo encontrar al conductor');
-                return;
-            }
+            const chatsSnapshot = await getDocs(query(
+                collection(db, 'chats'),
+                where('participants', 'array-contains', user?.id || ''),
+                limit(100)
+            ));
+            const existingChat = chatsSnapshot.docs.find(d => (d.data().orderId || '') === order.id);
 
-            const driverData = driverDoc.data();
-
-            const chat = await createChat(
-                order.driverId,
-                driverData.fullName,
-                UserRole.DRIVER,
-                'customer-driver',
-                order.id
-            );
+            const driverName = (order as any).driverName || 'Conductor';
+            const chat = existingChat
+                ? { id: existingChat.id }
+                : await createChat(
+                    order.driverId,
+                    driverName,
+                    UserRole.DRIVER,
+                    'customer-driver',
+                    order.id
+                );
 
             await openChat(chat.id);
+            setShowChatWindow(true);
             success('Chat abierto');
         } catch (error) {
             logger.error('Error opening chat:', error);
@@ -353,7 +387,7 @@ export const MyOrders: React.FC = () => {
                                                 Pedido #{order.id.slice(0, 8)}
                                             </p>
                                             <p className="text-xs text-gray-500">
-                                                {new Date(order.createdAt).toLocaleDateString('es-ES', {
+                                                {new Date(order.createdAt).toLocaleDateString('es-CO', {
                                                     year: 'numeric',
                                                     month: 'long',
                                                     day: 'numeric',
@@ -374,7 +408,7 @@ export const MyOrders: React.FC = () => {
                                                         {product.quantity}x {product.name}
                                                     </span>
                                                     <span className="font-semibold">
-                                                        ${((product.price || product.originalPrice) * product.quantity).toFixed(2)}
+                                                        {formatCOP((product.price || product.originalPrice) * product.quantity)}
                                                     </span>
                                                 </div>
                                             ))}
@@ -384,11 +418,11 @@ export const MyOrders: React.FC = () => {
                                     <div className="border-t border-gray-100 pt-4 pb-4 space-y-2">
                                         <div className="flex justify-between items-center text-sm text-gray-600">
                                             <span>Subtotal</span>
-                                            <span>${order.subtotal?.toFixed(2) || '0.00'}</span>
+                                            <span>{formatCOP(order.subtotal || 0)}</span>
                                         </div>
                                         <div className="flex justify-between items-center text-sm text-gray-600">
                                             <span>Domicilio</span>
-                                            <span>${order.deliveryFee?.toFixed(2) || '0.00'}</span>
+                                            <span>{formatCOP(order.deliveryFee || 0)}</span>
                                         </div>
                                         <div className="flex justify-between items-center pt-2 border-t border-gray-50">
                                             <div className="text-sm text-gray-600">
@@ -398,7 +432,7 @@ export const MyOrders: React.FC = () => {
                                             <div className="text-right">
                                                 <p className="text-sm text-gray-500">Total</p>
                                                 <p className="text-2xl font-bold text-emerald-600">
-                                                    ${order.totalAmount.toFixed(2)}
+                                                    {formatCOP(order.totalAmount)}
                                                 </p>
                                             </div>
                                         </div>
@@ -483,7 +517,7 @@ export const MyOrders: React.FC = () => {
                     onClick={() => setShowChatWindow(false)}
                 >
                     <div
-                        className="w-full max-w-2xl h-[600px] mx-4 rounded-2xl overflow-hidden shadow-2xl cursor-default"
+                        className="w-full max-w-2xl h-[min(78vh,600px)] mx-3 sm:mx-4 rounded-2xl overflow-hidden shadow-2xl cursor-default"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <ChatWindow onClose={() => setShowChatWindow(false)} />

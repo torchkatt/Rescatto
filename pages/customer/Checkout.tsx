@@ -16,12 +16,14 @@ import { calculateDeliveryFee, DeliveryCalculationResult } from '../../utils/del
 import { logger } from '../../utils/logger';
 import { GuestConversionBanner } from '../../components/customer/common/GuestConversionBanner';
 import { NotificationPermissionModal, hasAskedForNotifications } from '../../components/customer/common/NotificationPermissionModal';
+import { isProductExpired } from '../../utils/productAvailability';
+import { formatCOP, formatKgCO2 } from '../../utils/formatters';
 
 type DeliveryMethod = 'delivery' | 'pickup' | 'donation';
 
 export const Checkout: React.FC = () => {
     const navigate = useNavigate();
-    const { items, clearCart, getCartByVenue } = useCart();
+    const { items, clearCart, removeFromCart, getCartByVenue } = useCart();
     const { user, loginAsGuest, isAuthenticated, isLoading: authLoading } = useAuth();
     const { city, latitude, longitude } = useLocation();
     const { success, error } = useToast();
@@ -42,6 +44,8 @@ export const Checkout: React.FC = () => {
     const [pendingNavPath, setPendingNavPath] = useState<string>('/app/orders');
     // Canje de puntos seleccionado para aplicar en esta compra
     const [selectedRedemption, setSelectedRedemption] = useState<ActiveRedemption | null>(null);
+    const phoneDigits = phone.replace(/\D/g, '');
+    const isPhoneValid = phoneDigits.length >= 7 && phoneDigits.length <= 15;
 
     // After order success: show notification modal on first order if not asked yet,
     // then navigate. On subsequent orders, navigate immediately.
@@ -219,10 +223,50 @@ export const Checkout: React.FC = () => {
         return `/app/orders?orderId=${orderId}`;
     };
 
+    const handleUnavailableProductsError = (err: any): boolean => {
+        const products = Array.isArray(err?.details?.products) ? err.details.products : [];
+        if (products.length === 0) return false;
+
+        const productIds = new Set<string>();
+        const productNames: string[] = [];
+
+        for (const product of products) {
+            if (typeof product?.productId === 'string' && product.productId.length > 0) {
+                productIds.add(product.productId);
+            }
+            if (typeof product?.name === 'string' && product.name.length > 0) {
+                productNames.push(product.name);
+            }
+        }
+
+        if (productIds.size === 0) return false;
+
+        items.forEach(item => {
+            if (productIds.has(item.id)) {
+                removeFromCart(item.id);
+            }
+        });
+
+        const uniqueNames = Array.from(new Set(productNames));
+        const preview = uniqueNames.slice(0, 2).join(', ');
+        const hasMore = uniqueNames.length > 2;
+        error(`Actualizamos tu carrito: ${preview || 'algunos productos'} ya no están disponibles${hasMore ? '...' : ''}.`);
+        navigate('/app/cart');
+        return true;
+    };
+
 
     const handlePlaceOrder = async () => {
         if (!user) {
             error('Debes iniciar sesión para realizar pedidos.');
+            return;
+        }
+
+        const expiredItems = items.filter(item => isProductExpired(item.availableUntil));
+        if (expiredItems.length > 0) {
+            expiredItems.forEach(item => removeFromCart(item.id));
+            error('Se eliminaron productos expirados de tu carrito. Revísalo antes de continuar.');
+            navigate('/app/cart');
             return;
         }
 
@@ -231,8 +275,8 @@ export const Checkout: React.FC = () => {
             return;
         }
 
-        if (!phone) {
-            error('Por favor ingresa un número de teléfono.');
+        if (!isPhoneValid) {
+            error('Ingresa un teléfono válido (7 a 15 dígitos).');
             return;
         }
 
@@ -258,15 +302,6 @@ export const Checkout: React.FC = () => {
             }
         }
 
-        // Validate product availability — block if any item's availableUntil has passed
-        const now = new Date();
-        const expiredItems = items.filter(item => item.availableUntil && new Date(item.availableUntil) < now);
-        if (expiredItems.length > 0) {
-            const names = expiredItems.map(i => i.name).join(', ');
-            error(`Los siguientes productos ya no están disponibles: ${names}. Por favor actualiza tu carrito.`);
-            return;
-        }
-
         setLoading(true);
 
         try {
@@ -286,7 +321,7 @@ export const Checkout: React.FC = () => {
                     deliveryFee,
                     address: address,
                     city: city || 'Bogotá',
-                    phone: phone,
+                    phone: phoneDigits,
                     transactionId: null,
                     isDonation: deliveryMethod === 'donation',
                     donationCenterId: selectedDonationCenter?.id,
@@ -294,7 +329,6 @@ export const Checkout: React.FC = () => {
                     estimatedCo2: calculateCo2Impact() / venueGroups.size,
                     // Canje de puntos aplicado
                     redemptionId: selectedRedemption?.id ?? null,
-                    discountAmount: selectedRedemption ? Math.round(activeDiscount / venueGroups.size) : 0,
                 };
                 const result: any = await createOrderFn(payload);
                 return result.data.orderId;
@@ -309,6 +343,9 @@ export const Checkout: React.FC = () => {
 
         } catch (err: any) {
             logger.error("Error creating order:", err);
+            if (handleUnavailableProductsError(err)) {
+                return;
+            }
             error(err.message || 'Error al procesar el pedido. Intenta nuevamente.');
         } finally {
             setLoading(false);
@@ -317,6 +354,19 @@ export const Checkout: React.FC = () => {
 
     const handleCardPaymentSuccess = async (transactionId: string) => {
         if (!user) return;
+
+        const expiredItems = items.filter(item => isProductExpired(item.availableUntil));
+        if (expiredItems.length > 0) {
+            expiredItems.forEach(item => removeFromCart(item.id));
+            error('No se pudo continuar: había productos expirados y fueron retirados del carrito.');
+            navigate('/app/cart');
+            return;
+        }
+
+        if (!isPhoneValid) {
+            error('Ingresa un teléfono válido (7 a 15 dígitos).');
+            return;
+        }
 
         setLoading(true);
         try {
@@ -336,7 +386,7 @@ export const Checkout: React.FC = () => {
                     deliveryFee,
                     address: address,
                     city: city || 'Bogotá',
-                    phone: phone,
+                    phone: phoneDigits,
                     transactionId,
                     isDonation: deliveryMethod === 'donation',
                     donationCenterId: selectedDonationCenter?.id,
@@ -344,7 +394,6 @@ export const Checkout: React.FC = () => {
                     estimatedCo2: calculateCo2Impact() / venueGroups.size, // Split impact across orders
                     // Canje de puntos aplicado
                     redemptionId: selectedRedemption?.id ?? null,
-                    discountAmount: selectedRedemption ? Math.round(activeDiscount / venueGroups.size) : 0,
                 };
                 const result: any = await createOrderFn(payload);
                 return result.data.orderId;
@@ -357,6 +406,9 @@ export const Checkout: React.FC = () => {
             navigateAfterOrder(getRedirectPath(orderIds));
         } catch (err: any) {
             logger.error('Error creating paid order:', err);
+            if (handleUnavailableProductsError(err)) {
+                return;
+            }
             error('Error al crear el pedido pagado. Contacta a soporte.');
         } finally {
             setLoading(false);
@@ -409,7 +461,7 @@ export const Checkout: React.FC = () => {
                             <h1 className="text-4xl font-bold mb-2 drop-shadow-lg">¡Casi listo!</h1>
                             <p className="text-lg opacity-90 flex items-center gap-2">
                                 <Leaf size={20} className="text-emerald-300" />
-                                Con este rescate ahorrarás aprox. <strong>{estimatedCo2}kg de CO2</strong>
+                                Con este rescate ahorrarás aprox. <strong>{formatKgCO2(estimatedCo2)}</strong>
                             </p>
                         </div>
                     </div>
@@ -472,7 +524,7 @@ export const Checkout: React.FC = () => {
                                                 value={address}
                                                 onChange={(e) => setAddress(e.target.value)}
                                                 placeholder="Ej: Calle 123 #45-67, Bogotá"
-                                                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-base transition-all"
+                                                className="w-full bg-white px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-base transition-all"
                                                 required
                                             />
                                         </div>
@@ -514,14 +566,21 @@ export const Checkout: React.FC = () => {
                                         <input
                                             type="tel"
                                             value={phone}
-                                            onChange={(e) => setPhone(e.target.value)}
+                                            onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 15))}
+                                            inputMode="numeric"
+                                            pattern="[0-9]*"
+                                            autoComplete="tel"
                                             placeholder="Ej: 3001234567"
-                                            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-base transition-all"
+                                            className={`w-full bg-white px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-base transition-all ${phone.length > 0 && !isPhoneValid ? 'border-red-300' : 'border-gray-200'}`}
                                             required
                                         />
-                                        <p className="text-xs text-gray-500 mt-1">
-                                            Te contactaremos si hay novedades con tu {deliveryMethod === 'delivery' ? 'entrega' : 'pedido'}.
-                                        </p>
+                                        {phone.length > 0 && !isPhoneValid ? (
+                                            <p className="text-xs text-red-500 mt-1">Ingresa entre 7 y 15 dígitos.</p>
+                                        ) : (
+                                            <p className="text-xs text-gray-500 mt-1">
+                                                Te contactaremos si hay novedades con tu {deliveryMethod === 'delivery' ? 'entrega' : 'pedido'}.
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -575,9 +634,9 @@ export const Checkout: React.FC = () => {
                             {paymentMethod === 'card' && (
                                 <div className="bg-white rounded-xl p-6 shadow-sm border border-emerald-100 ring-1 ring-emerald-50">
                                     <h3 className="font-bold text-lg mb-4 text-emerald-800">Detalles del Pago</h3>
-                                    {((deliveryMethod === 'delivery' && !address) || !phone || !!cityError) ? (
+                                    {((deliveryMethod === 'delivery' && !address) || !isPhoneValid || !!cityError) ? (
                                         <div className="text-yellow-600 bg-yellow-50 p-4 rounded-lg text-sm mb-4">
-                                            ⚠️ {cityError ? 'No es posible procesar el pago debido al error de ciudad.' : `Por favor completa ${deliveryMethod === 'delivery' ? 'la dirección y' : ''} el teléfono antes de ingresar tu tarjeta.`}
+                                            ⚠️ {cityError ? 'No es posible procesar el pago debido al error de ciudad.' : `Por favor completa ${deliveryMethod === 'delivery' ? 'la dirección y' : ''} un teléfono válido antes de ingresar tu tarjeta.`}
                                         </div>
                                     ) : (
                                         <PaymentForm
@@ -602,15 +661,15 @@ export const Checkout: React.FC = () => {
                                                         {item.quantity}x {item.name}
                                                     </span>
                                                     <span className="font-semibold">
-                                                        ${(item.discountedPrice * item.quantity).toFixed(2)}
+                                                        {formatCOP(item.discountedPrice * item.quantity)}
                                                     </span>
                                                 </div>
                                             ))}
                                         </div>
                                         {/* Subtotal per venue */}
                                         <div className="mt-2 text-right text-xs text-gray-500">
-                                            Subtotal: ${calculateOrderTotals(venueId, venueItems).subtotal.toFixed(2)} |
-                                            Envío: ${calculateOrderTotals(venueId, venueItems).deliveryFee.toFixed(2)} ({(deliveryCosts[venueId]?.distance || 0).toFixed(1)}km)
+                                            Subtotal: {formatCOP(calculateOrderTotals(venueId, venueItems).subtotal)} |
+                                            Envío: {formatCOP(calculateOrderTotals(venueId, venueItems).deliveryFee)} ({(deliveryCosts[venueId]?.distance || 0).toFixed(1)} km)
                                         </div>
                                     </div>
                                 ))}
@@ -624,13 +683,13 @@ export const Checkout: React.FC = () => {
                                 <div className="space-y-2 mb-4">
                                     <div className="flex justify-between text-gray-600">
                                         <span>Subtotal</span>
-                                        <span>${Array.from(venueGroups.entries()).reduce((sum, [vid, vitems]) => sum + calculateOrderTotals(vid, vitems).subtotal, 0).toFixed(2)}</span>
+                                        <span>{formatCOP(Array.from(venueGroups.entries()).reduce((sum, [vid, vitems]) => sum + calculateOrderTotals(vid, vitems).subtotal, 0))}</span>
                                     </div>
                                     <div className="flex justify-between text-gray-600">
                                         <span>Domicilio ({venueGroups.size} negocios)</span>
                                         {deliveryMethod === 'delivery' ? (
                                             // Sum up all delivery fees 
-                                            <span>${Array.from(venueGroups.keys()).reduce((sum, vid) => sum + (calculateOrderTotals(vid, venueGroups.get(vid) || []).deliveryFee), 0).toFixed(2)}</span>
+                                            <span>{formatCOP(Array.from(venueGroups.keys()).reduce((sum, vid) => sum + (calculateOrderTotals(vid, venueGroups.get(vid) || []).deliveryFee), 0))}</span>
                                         ) : (
                                             <span className="text-emerald-600 font-semibold">GRATIS  ({deliveryMethod === 'pickup' ? 'Recogida' : 'Donación'})</span>
                                         )}
@@ -672,11 +731,11 @@ export const Checkout: React.FC = () => {
                                     )}
                                     <div className="border-t pt-2 mt-2 flex justify-between font-bold text-lg">
                                         <span>Total</span>
-                                        <span className="text-emerald-600">${getGrandTotal().toFixed(2)}</span>
+                                        <span className="text-emerald-600">{formatCOP(getGrandTotal())}</span>
                                     </div>
                                     <div className="flex justify-end mt-1">
                                         <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full flex items-center gap-1">
-                                            <Leaf size={10} /> Impacto: -{estimatedCo2}kg CO2
+                                            <Leaf size={10} /> Impacto: -{formatKgCO2(estimatedCo2)}
                                         </span>
                                     </div>
                                 </div>
@@ -684,7 +743,7 @@ export const Checkout: React.FC = () => {
                                 {paymentMethod === 'cash' ? (
                                     <button
                                         onClick={handlePlaceOrder}
-                                        disabled={loading || (deliveryMethod === 'delivery' && !address) || !phone || !!cityError}
+                                        disabled={loading || (deliveryMethod === 'delivery' && !address) || !isPhoneValid || !!cityError}
                                         className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white font-bold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-lg flex items-center justify-center gap-2 active:scale-95"
                                     >
                                         {loading ? (

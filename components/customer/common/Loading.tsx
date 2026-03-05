@@ -63,7 +63,7 @@ const Bone: React.FC<{ className?: string }> = ({ className = '' }) => (
 export const HomeSkeletonLoader: React.FC = () => (
     <div className="pb-20 bg-gray-50 min-h-screen">
         {/* Header */}
-        <div className="bg-white sticky top-0 z-50 shadow-sm border-b border-gray-100 px-4 py-3 flex items-center justify-between">
+        <div className="bg-white sticky top-safe z-50 shadow-sm border-b border-gray-100 px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
                 <Bone className="w-9 h-9 rounded-full" />
                 <div className="space-y-1.5">

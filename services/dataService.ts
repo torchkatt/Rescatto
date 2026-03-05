@@ -294,15 +294,22 @@ export const dataService = {
      */
     subscribeToAvailableOrders: (callback: (orders: Order[]) => void): Unsubscribe => {
         const ordersRef = collection(db, 'orders');
-        // Filtro: Estados que el conductor puede ver para prepararse
+        // Solo pedidos de domicilio sin conductor asignado.
+        // El filtrado por estado permitido se hace en memoria para simplificar índices y reglas.
         const q = query(
             ordersRef,
-            where('status', 'in', [OrderStatus.PAID, OrderStatus.IN_PREPARATION, OrderStatus.READY_PICKUP]),
-            orderBy('createdAt', 'desc'),
-            limit(100)
+            where('deliveryMethod', '==', 'delivery'),
+            where('driverId', '==', null),
+            limit(200)
         );
 
         return onSnapshot(q, (snapshot) => {
+            const allowedStatuses = new Set<OrderStatus>([
+                OrderStatus.PAID,
+                OrderStatus.IN_PREPARATION,
+                OrderStatus.READY_PICKUP,
+            ]);
+
             const orders = snapshot.docs.map(doc => {
                 const data = doc.data();
                 return {
@@ -321,7 +328,8 @@ export const dataService = {
                     phone: data.phone || '',
                     paymentMethod: data.paymentMethod || 'cash',
                 } as Order;
-            });
+            }).filter(order => allowedStatuses.has(order.status as OrderStatus))
+                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
             callback(orders);
         }, (error) => logger.error("Error suscribiéndose a pedidos disponibles:", error));
     },

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { collection, query, where, orderBy, onSnapshot, limit, addDoc, updateDoc, doc, Timestamp } from 'firebase/firestore';
-import { db } from '../services/firebase';
+import { collection, query, where, orderBy, onSnapshot, limit, updateDoc, doc } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from '../services/firebase';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { logger } from '../utils/logger';
@@ -214,16 +215,15 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         await Promise.all(batchPromises);
     };
 
-    // Helper to send notifications (usually done by backend, but we do it client-side for now)
+    // Helper to send notifications through backend callable authz checks
     const sendNotification = async (userId: string, title: string, message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info', link?: string) => {
         try {
-            await addDoc(collection(db, 'notifications'), {
+            const createNotification = httpsCallable(functions, 'createNotification');
+            await createNotification({
                 userId,
                 title,
                 message,
                 type,
-                read: false,
-                createdAt: Timestamp.now(),
                 link: link || null
             });
         } catch (error) {

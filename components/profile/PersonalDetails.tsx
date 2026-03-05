@@ -93,7 +93,7 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ user, onSave }
                         </label>
                         <div className="bg-gray-50 px-4 py-2 rounded-lg text-gray-500 border border-gray-100 min-h-[42px] flex items-center justify-between">
                             <span>{user.email}</span>
-                            <span className="text-[10px] bg-gray-200 px-2 py-0.5 rounded text-gray-600 font-medium">LOCKED</span>
+                            <span className="text-[10px] bg-gray-200 px-2 py-0.5 rounded text-gray-600 font-medium">Bloqueado</span>
                         </div>
                     </div>
 

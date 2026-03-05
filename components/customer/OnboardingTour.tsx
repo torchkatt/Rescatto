@@ -23,7 +23,7 @@ const slides = [
     {
         icon: <Leaf size={48} className="text-green-500 mb-6 mx-auto animate-spin-slow" />,
         title: "Tu Impacto es Real 🌱",
-        description: "Cada rescate que haces evita emisiones de CO2. Gana puntos, sube de nivel y canjea increíbles recompensas mientras salvas al planeta.",
+        description: "Cada rescate que haces evita emisiones de CO₂. Gana puntos, sube de nivel y canjea increíbles recompensas mientras salvas al planeta.",
         image: "https://images.unsplash.com/photo-1497436072909-60f360e1d4b1?q=80&w=2056&auto=format&fit=crop"
     },
     {

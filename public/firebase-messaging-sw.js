@@ -24,7 +24,7 @@ onBackgroundMessage(messaging, (payload) => {
     const notificationOptions = {
         body: payload.notification?.body,
         icon: '/pwa-192x192.png',
-        badge: '/icons/badge-72x72.png',
+        badge: '/pwa-192x192.png',
         data: { orderId }
     };
 

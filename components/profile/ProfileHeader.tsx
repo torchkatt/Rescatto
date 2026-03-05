@@ -93,6 +93,9 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ user }) => {
     };
 
     const avatarSrc = previewUrl ?? user.avatarUrl;
+    const memberSinceLabel = user.createdAt
+        ? new Date(user.createdAt).toLocaleDateString('es-CO')
+        : 'Reciente';
 
     return (
         <div className="relative mb-20">
@@ -173,7 +176,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ user }) => {
                         )}
 
                         <span className="text-xs text-gray-500 font-medium px-2 py-1 bg-white/50 rounded-lg backdrop-blur-sm">
-                            Miembro desde {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
+                            Miembro desde {memberSinceLabel}
                         </span>
                     </div>
                 </div>

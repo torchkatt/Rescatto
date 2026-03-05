@@ -46,7 +46,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) 
         {
             icon: <Leaf size={64} className="text-emerald-500" />,
             title: "Ayuda al Planeta",
-            desc: "Cada pack sorpresa que rescatas evita emisiones de CO2. ¡Comer rico nunca se sintió tan bien!",
+            desc: "Cada pack sorpresa que rescatas evita emisiones de CO₂. ¡Comer rico nunca se sintió tan bien!",
             color: "bg-emerald-50"
         },
         {

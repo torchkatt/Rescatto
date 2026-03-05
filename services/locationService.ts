@@ -1,5 +1,17 @@
 // Fórmula de Haversine para calcular la distancia entre dos puntos en la Tierra
 export const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const isValidCoordinate = (value: number, min: number, max: number): boolean =>
+        Number.isFinite(value) && value >= min && value <= max;
+
+    if (
+        !isValidCoordinate(lat1, -90, 90) ||
+        !isValidCoordinate(lat2, -90, 90) ||
+        !isValidCoordinate(lon1, -180, 180) ||
+        !isValidCoordinate(lon2, -180, 180)
+    ) {
+        return Number.POSITIVE_INFINITY;
+    }
+
     const R = 6371; // Radio de la tierra en km
     const dLat = deg2rad(lat2 - lat1);
     const dLon = deg2rad(lon2 - lon1);

@@ -86,6 +86,278 @@ const validateEmail = (email) => {
         );
 };
 
+const normalizeVenueIds = (userData) => {
+    const values = [];
+    if (userData && Array.isArray(userData.venueIds)) {
+        values.push(...userData.venueIds.filter(v => typeof v === "string" && v.length > 0));
+    }
+    if (userData && typeof userData.venueId === "string" && userData.venueId.length > 0) {
+        values.push(userData.venueId);
+    }
+    return [...new Set(values)];
+};
+
+const isAdminRole = (role) => role === "SUPER_ADMIN" || role === "ADMIN";
+
+const REFERRAL_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+function generateReferralCode() {
+    let code = "";
+    for (let i = 0; i < 8; i++) {
+        code += REFERRAL_CHARS.charAt(Math.floor(Math.random() * REFERRAL_CHARS.length));
+    }
+    return code;
+}
+
+async function createUniqueReferralCode(db, maxAttempts = 10) {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const candidate = generateReferralCode();
+        const snap = await db.collection("users")
+            .where("referralCode", "==", candidate)
+            .limit(1)
+            .get();
+        if (snap.empty) return candidate;
+    }
+    throw new functions.https.HttpsError("resource-exhausted", "No se pudo generar un código único.");
+}
+
+async function hasOrderRelationship(db, callerId, callerRole, callerData, recipientUserId) {
+    if (callerRole === "DRIVER") {
+        const snap = await db.collection("orders")
+            .where("driverId", "==", callerId)
+            .limit(200)
+            .get();
+        return snap.docs.some(d => d.data().customerId === recipientUserId);
+    }
+
+    if (callerRole === "VENUE_OWNER" || callerRole === "KITCHEN_STAFF") {
+        const venueIds = normalizeVenueIds(callerData);
+        if (venueIds.length === 0) return false;
+
+        const chunks = [];
+        for (let i = 0; i < venueIds.length; i += 30) {
+            chunks.push(venueIds.slice(i, i + 30));
+        }
+        for (const chunk of chunks) {
+            const snap = await db.collection("orders")
+                .where("venueId", "in", chunk)
+                .limit(200)
+                .get();
+            if (snap.docs.some(d => d.data().customerId === recipientUserId)) return true;
+        }
+        return false;
+    }
+
+    if (callerRole === "CUSTOMER") {
+        const snap = await db.collection("orders")
+            .where("customerId", "==", callerId)
+            .limit(200)
+            .get();
+        return snap.docs.some((d) => {
+            const data = d.data();
+            return data.driverId === recipientUserId;
+        });
+    }
+
+    return false;
+}
+
+async function hasChatRelationship(db, link, callerId, recipientUserId) {
+    if (!link || typeof link !== "string") return false;
+    const match = /^\/chat\?id=([A-Za-z0-9_-]{6,})$/.exec(link);
+    if (!match) return false;
+
+    const chatId = match[1];
+    const chatDoc = await db.collection("chats").doc(chatId).get();
+    if (!chatDoc.exists) return false;
+
+    const chatData = chatDoc.data() || {};
+    const participants = Array.isArray(chatData.participants) ? chatData.participants : [];
+    return participants.includes(callerId) && participants.includes(recipientUserId);
+}
+
+/**
+ * createNotification
+ * Creates an in-app notification with backend authorization checks.
+ */
+exports.createNotification = functions.https.onCall(async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError("unauthenticated", "User must be logged in.");
+    }
+
+    const callerId = context.auth.uid;
+    const userId = data && typeof data.userId === "string" ? data.userId.trim() : "";
+    const title = data && typeof data.title === "string" ? data.title.trim() : "";
+    const message = data && typeof data.message === "string" ? data.message.trim() : "";
+    const type = data && typeof data.type === "string" ? data.type : "info";
+    const link = data && typeof data.link === "string" && data.link.trim().length > 0 ? data.link.trim() : null;
+
+    if (!userId || !title || !message) {
+        throw new functions.https.HttpsError("invalid-argument", "userId, title and message are required.");
+    }
+    if (title.length > 120 || message.length > 500) {
+        throw new functions.https.HttpsError("invalid-argument", "Notification content is too long.");
+    }
+    if (link && (!link.startsWith("/") || link.length > 300)) {
+        throw new functions.https.HttpsError("invalid-argument", "Invalid link.");
+    }
+
+    const allowedTypes = ["info", "success", "warning", "error"];
+    const safeType = allowedTypes.includes(type) ? type : "info";
+
+    const allowed = await checkRateLimit(`${callerId}:createNotification`, 40, 60 * 1000);
+    if (!allowed) {
+        throw new functions.https.HttpsError("resource-exhausted", "Too many notifications. Try again later.");
+    }
+
+    const db = admin.firestore();
+    const [callerDoc, recipientDoc] = await Promise.all([
+        db.collection("users").doc(callerId).get(),
+        db.collection("users").doc(userId).get(),
+    ]);
+
+    if (!callerDoc.exists) {
+        throw new functions.https.HttpsError("permission-denied", "Caller profile not found.");
+    }
+    if (!recipientDoc.exists) {
+        throw new functions.https.HttpsError("not-found", "Recipient user not found.");
+    }
+
+    const callerData = callerDoc.data() || {};
+    const callerRole = callerData.role || "CUSTOMER";
+
+    // Authorization:
+    // 1) Admins can notify anyone.
+    // 2) Users can notify themselves.
+    // 3) Non-admins can notify related users via order relationship or active chat link.
+    if (!isAdminRole(callerRole) && userId !== callerId) {
+        const [orderRelation, chatRelation] = await Promise.all([
+            hasOrderRelationship(db, callerId, callerRole, callerData, userId),
+            hasChatRelationship(db, link, callerId, userId),
+        ]);
+
+        if (!orderRelation && !chatRelation) {
+            throw new functions.https.HttpsError("permission-denied", "Not allowed to notify this user.");
+        }
+    }
+
+    const notificationRef = await db.collection("notifications").add({
+        userId,
+        title,
+        message,
+        type: safeType,
+        read: false,
+        link: link || null,
+        senderId: callerId,
+        senderRole: callerRole,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return { success: true, notificationId: notificationRef.id };
+});
+
+/**
+ * ensureReferralCode
+ * Ensures the authenticated user has a referral code.
+ */
+exports.ensureReferralCode = functions.https.onCall(async (_data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError("unauthenticated", "User must be logged in.");
+    }
+
+    const userId = context.auth.uid;
+    const allowed = await checkRateLimit(`${userId}:ensureReferralCode`, 8, 60 * 1000);
+    if (!allowed) {
+        throw new functions.https.HttpsError("resource-exhausted", "Too many requests.");
+    }
+
+    const db = admin.firestore();
+    const userRef = db.collection("users").doc(userId);
+    const userSnap = await userRef.get();
+    if (!userSnap.exists) {
+        throw new functions.https.HttpsError("not-found", "User profile not found.");
+    }
+
+    const userData = userSnap.data() || {};
+    if (typeof userData.referralCode === "string" && userData.referralCode.trim().length >= 6) {
+        return { referralCode: userData.referralCode.trim(), created: false };
+    }
+
+    const referralCode = await createUniqueReferralCode(db);
+    await userRef.set({
+        referralCode,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    return { referralCode, created: true };
+});
+
+/**
+ * resolveVenueChatTarget
+ * Resolves the venue owner userId for a customer's order chat.
+ */
+exports.resolveVenueChatTarget = functions.https.onCall(async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError("unauthenticated", "User must be logged in.");
+    }
+
+    const callerId = context.auth.uid;
+    const orderId = data && typeof data.orderId === "string" ? data.orderId.trim() : "";
+    if (!orderId) {
+        throw new functions.https.HttpsError("invalid-argument", "orderId is required.");
+    }
+
+    const allowed = await checkRateLimit(`${callerId}:resolveVenueChatTarget`, 20, 60 * 1000);
+    if (!allowed) {
+        throw new functions.https.HttpsError("resource-exhausted", "Too many requests.");
+    }
+
+    const db = admin.firestore();
+    const [orderSnap, callerSnap] = await Promise.all([
+        db.collection("orders").doc(orderId).get(),
+        db.collection("users").doc(callerId).get(),
+    ]);
+    if (!orderSnap.exists) {
+        throw new functions.https.HttpsError("not-found", "Order not found.");
+    }
+    if (!callerSnap.exists) {
+        throw new functions.https.HttpsError("permission-denied", "Caller profile not found.");
+    }
+
+    const orderData = orderSnap.data() || {};
+    const callerRole = (callerSnap.data() || {}).role || "CUSTOMER";
+    const isOrderOwner = orderData.customerId === callerId;
+    if (!isOrderOwner && !isAdminRole(callerRole)) {
+        throw new functions.https.HttpsError("permission-denied", "Not allowed to resolve this order.");
+    }
+
+    const venueId = orderData.venueId;
+    if (!venueId || typeof venueId !== "string") {
+        throw new functions.https.HttpsError("failed-precondition", "Order has no venueId.");
+    }
+
+    const ownerCandidates = await db.collection("users")
+        .where("role", "==", "VENUE_OWNER")
+        .limit(500)
+        .get();
+
+    const ownerDoc = ownerCandidates.docs.find((docSnap) => {
+        const data = docSnap.data() || {};
+        const venueIds = normalizeVenueIds(data);
+        return venueIds.includes(venueId);
+    });
+
+    if (!ownerDoc) {
+        throw new functions.https.HttpsError("not-found", "Venue owner not found for this order.");
+    }
+
+    const ownerData = ownerDoc.data() || {};
+    return {
+        userId: ownerDoc.id,
+        userName: ownerData.fullName || "Restaurante",
+        venueId,
+    };
+});
+
 /**
  * generateWompiSignature
  * Generates the SHA-256 integrity signature required by Wompi.
@@ -157,22 +429,42 @@ exports.createOrder = functions.https.onCall(async (data, context) => {
         );
     }
 
-    const { venueId, products, paymentMethod, deliveryMethod, address, phone, transactionId, isDonation, donationCenterId, donationCenterName } = data;
+    const {
+        venueId,
+        products,
+        paymentMethod,
+        deliveryMethod,
+        address,
+        phone,
+        transactionId,
+        isDonation,
+        donationCenterId,
+        donationCenterName,
+    } = data || {};
+    const normalizedPaymentMethod = paymentMethod === "card" || paymentMethod === "cash"
+        ? paymentMethod
+        : null;
+    const normalizedDeliveryMethod = deliveryMethod === "delivery" || deliveryMethod === "pickup" || deliveryMethod === "donation"
+        ? deliveryMethod
+        : null;
     // Validate and cap estimatedCo2 from client (max 10kg per order, must be non-negative)
-    const estimatedCo2 = Math.max(0, Math.min(Number(data.estimatedCo2) || 0, 10));
+    const estimatedCo2 = Math.max(0, Math.min(Number(data && data.estimatedCo2) || 0, 10));
     // Accept client's distance-based delivery fee but clamp to [0, 25000] COP to prevent manipulation
-    const rawClientFee = Number(data.deliveryFee);
+    const rawClientFee = Number(data && data.deliveryFee);
     const clientDeliveryFee = (!isNaN(rawClientFee) && rawClientFee >= 0 && rawClientFee <= 25000)
         ? Math.round(rawClientFee)
         : null; // null = fall back to CONFIG.deliveryFee
-    // Canje de puntos seleccionado — clamp a [0, 15000] COP para prevenir manipulación del cliente
-    const redemptionId = typeof data.redemptionId === "string" ? data.redemptionId : null;
-    const clientDiscountAmount = Math.max(0, Math.min(Number(data.discountAmount) || 0, 15000));
+    // El redemptionId se valida exclusivamente en backend (ownership, estado y expiración).
+    const redemptionId = data && typeof data.redemptionId === "string" && data.redemptionId.trim().length > 0
+        ? data.redemptionId.trim()
+        : null;
     const userEmail = context.auth.token.email || "";
     const userName = context.auth.token.name || "Usuario";
 
     // Strict Input Validation
     if (!venueId || typeof venueId !== "string") throw new functions.https.HttpsError("invalid-argument", "Invalid venueId.");
+    if (!normalizedPaymentMethod) throw new functions.https.HttpsError("invalid-argument", "Invalid payment method.");
+    if (!normalizedDeliveryMethod) throw new functions.https.HttpsError("invalid-argument", "Invalid delivery method.");
     if (!products || !Array.isArray(products) || products.length === 0) throw new functions.https.HttpsError("invalid-argument", "Products must be a non-empty array.");
 
     // Validate individual products
@@ -181,14 +473,20 @@ exports.createOrder = functions.https.onCall(async (data, context) => {
         if (!p.quantity || typeof p.quantity !== "number" || p.quantity <= 0) throw new functions.https.HttpsError("invalid-argument", `Product at index ${index} has invalid quantity.`);
     });
 
-    if (deliveryMethod === "delivery" && (!address || typeof address !== "string")) {
+    if (normalizedDeliveryMethod === "delivery" && (!address || typeof address !== "string")) {
         throw new functions.https.HttpsError("invalid-argument", "Address is required for delivery.");
+    }
+    if (normalizedDeliveryMethod === "donation" && !donationCenterId) {
+        throw new functions.https.HttpsError("invalid-argument", "Donation center is required for donation delivery.");
+    }
+    if (normalizedPaymentMethod === "card" && (!transactionId || typeof transactionId !== "string")) {
+        throw new functions.https.HttpsError("invalid-argument", "Valid transactionId is required for card payments.");
     }
 
     const db = admin.firestore();
 
     // Validate transactionId uniqueness to prevent double-billing
-    if (paymentMethod === "card" && transactionId) {
+    if (normalizedPaymentMethod === "card" && transactionId) {
         const existingOrder = await db.collection("orders")
             .where("transactionId", "==", transactionId)
             .limit(1)
@@ -203,6 +501,28 @@ exports.createOrder = functions.https.onCall(async (data, context) => {
 
     try {
         return await db.runTransaction(async (transaction) => {
+            let cardApprovedBeforeOrder = false;
+            if (normalizedPaymentMethod === "card") {
+                const approvedRef = db.collection("webhook_dedup").doc(`${transactionId}-APPROVED`);
+                const declinedRef = db.collection("webhook_dedup").doc(`${transactionId}-DECLINED`);
+                const errorRef = db.collection("webhook_dedup").doc(`${transactionId}-ERROR`);
+
+                const [approvedSnap, declinedSnap, errorSnap] = await Promise.all([
+                    transaction.get(approvedRef),
+                    transaction.get(declinedRef),
+                    transaction.get(errorRef),
+                ]);
+
+                if (declinedSnap.exists || errorSnap.exists) {
+                    throw new functions.https.HttpsError(
+                        "failed-precondition",
+                        "La transacción reporta estado fallido y no puede crear una orden."
+                    );
+                }
+
+                cardApprovedBeforeOrder = approvedSnap.exists;
+            }
+
             // 2. Fetch Venue and Products to validate prices and stock
             const venueRef = db.collection("venues").doc(venueId);
             const venueDoc = await transaction.get(venueRef);
@@ -215,6 +535,8 @@ exports.createOrder = functions.https.onCall(async (data, context) => {
             let totalOriginalPrice = 0;
             const productUpdates = [];
             const orderProducts = [];
+            const unavailableProducts = [];
+            const nowMs = Date.now();
 
             // Read all product docs
             for (const item of products) {
@@ -225,11 +547,21 @@ exports.createOrder = functions.https.onCall(async (data, context) => {
                     throw new functions.https.HttpsError("not-found", `Product ${item.productId} not found.`);
                 }
 
-                const productData = productDoc.data();
+                const productData = productDoc.data() || {};
+                const stockQuantity = Number(productData.quantity) || 0;
+                const availableUntilMs = productData.availableUntil ? Date.parse(productData.availableUntil) : NaN;
+                const isExpired = Number.isFinite(availableUntilMs) && availableUntilMs <= nowMs;
 
-                // Check Stock
-                if (productData.quantity < item.quantity) {
-                    throw new functions.https.HttpsError("failed-precondition", `Insufficient stock for ${productData.name}. Available: ${productData.quantity}`);
+                // Validate availability (stock + expiry) and aggregate all invalid products.
+                if (stockQuantity < item.quantity || isExpired) {
+                    unavailableProducts.push({
+                        productId: item.productId,
+                        name: productData.name || "Producto",
+                        availableQuantity: stockQuantity,
+                        requestedQuantity: item.quantity,
+                        reason: isExpired ? "expired" : "insufficient_stock",
+                    });
+                    continue;
                 }
 
                 // Use SERVER price, ignore client price
@@ -255,7 +587,18 @@ exports.createOrder = functions.https.onCall(async (data, context) => {
                 });
 
                 // queue stock update
-                productUpdates.push({ ref: productRef, newQuantity: productData.quantity - item.quantity });
+                productUpdates.push({ ref: productRef, newQuantity: stockQuantity - item.quantity });
+            }
+
+            if (unavailableProducts.length > 0) {
+                throw new functions.https.HttpsError(
+                    "failed-precondition",
+                    "Algunos productos ya no están disponibles. Actualiza tu carrito.",
+                    {
+                        code: "PRODUCT_UNAVAILABLE",
+                        products: unavailableProducts,
+                    }
+                );
             }
 
             // 3. Pre-fetch Wallet (MUST be before any writes)
@@ -263,13 +606,40 @@ exports.createOrder = functions.https.onCall(async (data, context) => {
             const walletDoc = await transaction.get(walletRef);
 
             // 4. Calculate Fees — use client's distance-based fee when valid, else fall back to flat CONFIG rate
-            const effectiveDeliveryFee = deliveryMethod === "delivery"
+            const effectiveDeliveryFee = normalizedDeliveryMethod === "delivery"
                 ? (clientDeliveryFee !== null ? clientDeliveryFee : CONFIG.deliveryFee)
                 : 0;
             const platformFee = Math.round((subtotal * CONFIG.platformCommissionRate) * 100) / 100;
             const venueEarnings = Math.round((subtotal - platformFee) * 100) / 100;
-            // Aplicar descuento de canje (clamped) — no puede reducir el total por debajo de 0
-            const effectiveDiscount = Math.min(clientDiscountAmount, subtotal + effectiveDeliveryFee);
+            // Descuento por canje: se valida solo contra redemptions del usuario en backend.
+            let effectiveDiscount = 0;
+            let validatedRedemptionId = null;
+            let redemptionDocRef = null;
+            if (redemptionId) {
+                redemptionDocRef = db.collection("redemptions").doc(redemptionId);
+                const redemptionDoc = await transaction.get(redemptionDocRef);
+                if (!redemptionDoc.exists) {
+                    throw new functions.https.HttpsError("failed-precondition", "El canje seleccionado no existe.");
+                }
+
+                const redemptionData = redemptionDoc.data() || {};
+                if (redemptionData.userId !== userId) {
+                    throw new functions.https.HttpsError("permission-denied", "Este canje no pertenece al usuario autenticado.");
+                }
+                if (redemptionData.status !== "PENDING" || redemptionData.usedAt) {
+                    throw new functions.https.HttpsError("failed-precondition", "Este canje ya fue utilizado.");
+                }
+
+                const expiresAtMs = Date.parse(redemptionData.expiresAt || "");
+                if (!Number.isFinite(expiresAtMs) || expiresAtMs <= Date.now()) {
+                    throw new functions.https.HttpsError("failed-precondition", "El canje seleccionado ha expirado.");
+                }
+
+                const discountAmount = Math.max(0, Math.min(Number(redemptionData.discountAmount) || 0, 15000));
+                effectiveDiscount = Math.min(discountAmount, subtotal + effectiveDeliveryFee);
+                validatedRedemptionId = redemptionId;
+            }
+
             const totalAmount = Math.max(0, subtotal + effectiveDeliveryFee - effectiveDiscount);
 
             // 5. Create Order Internal Object
@@ -284,21 +654,23 @@ exports.createOrder = functions.https.onCall(async (data, context) => {
                 platformFee,
                 deliveryFee: effectiveDeliveryFee,
                 venueEarnings,
-                status: paymentMethod === "card" ? "PAID" : "PENDING",
-                paymentMethod,
-                paymentStatus: paymentMethod === "card" ? "paid" : "pending",
-                transactionId: transactionId || null,
+                // Tarjeta queda en pending, salvo cuando webhook APPROVED llegó antes que createOrder.
+                status: (normalizedPaymentMethod === "card" && cardApprovedBeforeOrder) ? "PAID" : "PENDING",
+                paymentMethod: normalizedPaymentMethod,
+                paymentStatus: (normalizedPaymentMethod === "card" && cardApprovedBeforeOrder) ? "paid" : "pending",
+                transactionId: normalizedPaymentMethod === "card" ? transactionId : null,
+                paidAt: (normalizedPaymentMethod === "card" && cardApprovedBeforeOrder) ? new Date().toISOString() : null,
                 totalOriginalPrice,
                 moneySaved: totalOriginalPrice - subtotal,
-                deliveryMethod,
-                deliveryAddress: isDonation ? `DONACIÓN: ${donationCenterName || "Centro por definir"}` : (deliveryMethod === "delivery" ? address : "RECOGER EN TIENDA"),
+                deliveryMethod: normalizedDeliveryMethod,
+                deliveryAddress: isDonation ? `DONACIÓN: ${donationCenterName || "Centro por definir"}` : (normalizedDeliveryMethod === "delivery" ? address : "RECOGER EN TIENDA"),
                 phone: phone || "",
                 isDonation: Boolean(isDonation),
                 donationCenterId: donationCenterId || null,
                 donationCenterName: donationCenterName || null,
                 estimatedCo2: estimatedCo2 || 0,
                 // Canje aplicado
-                redemptionId: redemptionId || null,
+                redemptionId: validatedRedemptionId || null,
                 discountApplied: effectiveDiscount,
                 createdAt: new Date().toISOString(),
                 pickupDeadline: new Date(Date.now() + 30 * 60000).toISOString()
@@ -316,20 +688,19 @@ exports.createOrder = functions.https.onCall(async (data, context) => {
             }
 
             // Marcar canje como USED si viene un redemptionId válido
-            if (redemptionId && effectiveDiscount > 0) {
+            if (validatedRedemptionId && redemptionDocRef) {
                 const usedAt = new Date().toISOString();
                 const userRef2 = db.collection("users").doc(userId);
                 // Leer el array de redemptions actual para actualizarlo
                 const userDoc2 = await transaction.get(userRef2);
                 if (userDoc2.exists) {
-                    const currentRedemptions = userDoc2.data().redemptions || [];
+                    const currentRedemptions = Array.isArray(userDoc2.data().redemptions) ? userDoc2.data().redemptions : [];
                     const updatedRedemptions = currentRedemptions.map(r =>
-                        r.id === redemptionId ? { ...r, usedAt } : r
+                        r && r.id === validatedRedemptionId ? { ...r, usedAt } : r
                     );
                     transaction.update(userRef2, { redemptions: updatedRedemptions });
                 }
                 // Marcar también en la colección redemptions
-                const redemptionDocRef = db.collection("redemptions").doc(redemptionId);
                 transaction.update(redemptionDocRef, {
                     status: "USED",
                     usedAt,
@@ -338,55 +709,48 @@ exports.createOrder = functions.https.onCall(async (data, context) => {
             }
 
             // 7. Wallet Transaction Logic
-            let currentBalance = 0;
-            if (walletDoc.exists) {
-                currentBalance = walletDoc.data().balance || 0;
+            // Efectivo: se debita comisión inmediatamente.
+            // Tarjeta: se acredita al aprobar webhook (o aquí si ya llegó APPROVED antes).
+            if (normalizedPaymentMethod === "cash" || (normalizedPaymentMethod === "card" && cardApprovedBeforeOrder)) {
+                let currentBalance = 0;
+                if (walletDoc.exists) {
+                    currentBalance = walletDoc.data().balance || 0;
+                }
+
+                const walletAdjustment = normalizedPaymentMethod === "cash"
+                    ? -platformFee
+                    : venueEarnings;
+                const newBalance = currentBalance + walletAdjustment;
+
+                transaction.set(walletRef, {
+                    venueId,
+                    balance: newBalance,
+                    updatedAt: new Date().toISOString()
+                }, { merge: true });
+
+                const walletTxRef = normalizedPaymentMethod === "cash"
+                    ? db.collection("wallet_transactions").doc()
+                    : db.collection("wallet_transactions").doc(`order_${orderRef.id}_online_credit`);
+                transaction.set(walletTxRef, {
+                    venueId,
+                    orderId: orderRef.id,
+                    type: normalizedPaymentMethod === "cash" ? "DEBIT" : "CREDIT",
+                    amount: Math.abs(walletAdjustment), // Store absolute amount
+                    description: normalizedPaymentMethod === "cash"
+                        ? `Comisión pedido efectivo (${normalizedDeliveryMethod === "pickup" ? "Recogida" : "Domicilio"})`
+                        : `Ganancia pedido online (${normalizedDeliveryMethod === "pickup" ? "Recogida" : "Domicilio"})`,
+                    referenceType: normalizedPaymentMethod === "cash" ? "ORDER_CASH" : "ORDER_ONLINE",
+                    source: normalizedPaymentMethod === "cash" ? "createOrder" : "createOrder_preApprovedWebhook",
+                    createdAt: new Date().toISOString()
+                });
             }
-
-            let walletAdjustment = 0;
-            let transactionType = "";
-            let transactionDesc = "";
-
-            if (paymentMethod === "cash") {
-                // Cash Order: Venue receives full cash, Owes commission to platform
-                // DEBIT the platformFee from wallet
-                walletAdjustment = -platformFee;
-                transactionType = "DEBIT";
-                transactionDesc = `Comisión pedido efectivo (${deliveryMethod === "pickup" ? "Recogida" : "Domicilio"})`;
-            } else {
-                // Card Order: Platform receives money, Owes net earnings to Venue
-                // CREDIT the venueEarnings to wallet
-                walletAdjustment = venueEarnings;
-                transactionType = "CREDIT";
-                transactionDesc = `Ganancia pedido online (${deliveryMethod === "pickup" ? "Recogida" : "Domicilio"})`;
-            }
-
-            const newBalance = currentBalance + walletAdjustment;
-
-            transaction.set(walletRef, {
-                venueId,
-                balance: newBalance,
-                updatedAt: new Date().toISOString()
-            }, { merge: true });
-
-            const walletTxRef = db.collection("wallet_transactions").doc();
-            transaction.set(walletTxRef, {
-                venueId,
-                orderId: orderRef.id,
-                type: transactionType,
-                amount: Math.abs(walletAdjustment), // Store absolute amount
-                description: transactionDesc,
-                referenceType: paymentMethod === "cash" ? "ORDER_CASH" : "ORDER_ONLINE",
-                createdAt: new Date().toISOString()
-            });
 
             return { success: true, orderId: orderRef.id };
         });
 
     } catch (error) {
         console.error("Create Order Error:", error);
-        // Throw specific error if known, else internal
-        if (error.code && error.code.startsWith("functions/")) throw error;
+        if (error instanceof functions.https.HttpsError) throw error;
         throw new functions.https.HttpsError("internal", error.message);
     }
 });
@@ -465,7 +829,7 @@ exports.onOrderUpdated = functions.firestore
                             token: fcmToken,
                             webpush: {
                                 fcmOptions: { link: `/#/app/orders?highlight=${change.after.id}` },
-                                notification: { icon: "/icons/icon-192x192.png", badge: "/icons/badge-72x72.png" }
+                                notification: { icon: "/pwa-192x192.png", badge: "/pwa-192x192.png" }
                             },
                             data: {
                                 orderId: change.after.id,
@@ -647,21 +1011,27 @@ exports.redeemPoints = functions.https.onCall(async (data, context) => {
         );
     }
 
-    const { rewardId, cost } = data;
-
-    if (!rewardId || !cost || cost <= 0) {
-        throw new functions.https.HttpsError("invalid-argument", "Reward ID and a positive cost are required.");
+    const rewardId = data && typeof data.rewardId === "string" ? data.rewardId : null;
+    if (!rewardId) {
+        throw new functions.https.HttpsError("invalid-argument", "Reward ID is required.");
     }
 
-    // Map rewardId → descuento en COP y etiqueta amigable
+    // Catálogo de recompensas controlado por backend (fuente de verdad)
     const REWARD_CONFIG = {
-        "discount_5k": { discountAmount: 5000, label: "5.000 COP de descuento" },
-        "discount_10k": { discountAmount: 10000, label: "10.000 COP de descuento" },
-        "free_pack": { discountAmount: 15000, label: "Pack Sorpresa Gratis (hasta $15.000 COP)" },
-        "donation_meal": { discountAmount: 0, label: "Donación de comida" },
+        "discount_5k": { cost: 50, discountAmount: 5000, label: "5.000 COP de descuento" },
+        "discount_10k": { cost: 90, discountAmount: 10000, label: "10.000 COP de descuento" },
+        "free_pack": { cost: 150, discountAmount: 15000, label: "Pack Sorpresa Gratis (hasta $15.000 COP)" },
+        "donation_meal": { cost: 100, discountAmount: 0, label: "Donación de comida" },
+        // Compatibilidad con rewards antiguas del perfil
+        "free_shipping": { cost: 50, discountAmount: 5000, label: "Envío Gratis (equivalente 5.000 COP)" },
+        "discount_10": { cost: 150, discountAmount: 10000, label: "10% Descuento Extra (tope 10.000 COP)" },
     };
 
-    const rewardConfig = REWARD_CONFIG[rewardId] || { discountAmount: 0, label: rewardId };
+    const rewardConfig = REWARD_CONFIG[rewardId];
+    if (!rewardConfig) {
+        throw new functions.https.HttpsError("invalid-argument", "Reward ID is not valid.");
+    }
+    const cost = rewardConfig.cost;
 
     const db = admin.firestore();
     const userRef = db.collection("users").doc(userId);
@@ -724,11 +1094,13 @@ exports.redeemPoints = functions.https.onCall(async (data, context) => {
             return {
                 success: true,
                 newBalance: currentPoints - cost,
+                chargedCost: cost,
                 redemption: activeRedemption
             };
         });
     } catch (error) {
         console.error("Redemption error:", error);
+        if (error instanceof functions.https.HttpsError) throw error;
         throw new functions.https.HttpsError("internal", error.message);
     }
 });
@@ -928,14 +1300,62 @@ exports.wompiWebhook = functions.https.onRequest((req, res) => {
 
                 if (!q.empty) {
                     const orderDoc = q.docs[0];
-                    if (orderDoc.data().paymentStatus !== "paid") {
-                        await orderDoc.ref.update({
+                    const txResult = await db.runTransaction(async (t) => {
+                        const freshOrderSnap = await t.get(orderDoc.ref);
+                        if (!freshOrderSnap.exists) {
+                            return { updated: false, reason: "missing_order" };
+                        }
+
+                        const orderData = freshOrderSnap.data() || {};
+                        if (orderData.paymentStatus === "paid") {
+                            return { updated: false, reason: "already_paid" };
+                        }
+
+                        t.update(orderDoc.ref, {
                             paymentStatus: "paid",
                             status: "PAID",
                             paidAt: admin.firestore.FieldValue.serverTimestamp(),
                             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                         });
+
+                        const venueId = orderData.venueId || null;
+                        const venueEarnings = Math.max(0, Number(orderData.venueEarnings) || 0);
+                        if (venueId && venueEarnings > 0) {
+                            const walletRef = db.collection("wallets").doc(venueId);
+                            const walletTxRef = db.collection("wallet_transactions").doc(`order_${orderDoc.id}_online_credit`);
+                            const walletTxSnap = await t.get(walletTxRef);
+
+                            // Idempotent wallet credit: only if this deterministic tx doc doesn't exist.
+                            if (!walletTxSnap.exists) {
+                                const walletSnap = await t.get(walletRef);
+                                const currentBalance = walletSnap.exists ? (Number(walletSnap.data().balance) || 0) : 0;
+
+                                t.set(walletRef, {
+                                    venueId,
+                                    balance: currentBalance + venueEarnings,
+                                    updatedAt: new Date().toISOString(),
+                                }, { merge: true });
+
+                                t.set(walletTxRef, {
+                                    venueId,
+                                    orderId: orderDoc.id,
+                                    type: "CREDIT",
+                                    amount: venueEarnings,
+                                    description: `Ganancia pedido online (${orderData.deliveryMethod === "pickup" ? "Recogida" : "Domicilio"})`,
+                                    referenceType: "ORDER_ONLINE",
+                                    source: "wompiWebhook",
+                                    createdAt: new Date().toISOString(),
+                                });
+                            }
+                        }
+
+                        return { updated: true, reason: "ok" };
+                    });
+
+                    if (txResult.updated) {
                         console.log(`Order ${orderDoc.id} confirmed PAID via webhook`);
+                    } else {
+                        console.log(`Order ${orderDoc.id} skipped on APPROVED webhook (${txResult.reason})`);
                     }
                 } else {
                     console.error(`Wompi webhook: order not found for transaction ${transactionData.id}`);
@@ -957,12 +1377,30 @@ exports.wompiWebhook = functions.https.onRequest((req, res) => {
                     .get();
 
                 if (!q.empty) {
-                    await q.docs[0].ref.update({
-                        paymentStatus: "failed",
-                        status: "CANCELLED",
-                        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    const orderRef = q.docs[0].ref;
+                    const txResult = await db.runTransaction(async (t) => {
+                        const orderSnap = await t.get(orderRef);
+                        if (!orderSnap.exists) return { updated: false, reason: "missing_order" };
+
+                        const orderData = orderSnap.data() || {};
+                        if (orderData.paymentStatus === "paid") {
+                            // Never downgrade an already-paid order.
+                            return { updated: false, reason: "already_paid" };
+                        }
+
+                        t.update(orderRef, {
+                            paymentStatus: "failed",
+                            status: "CANCELLED",
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        });
+                        return { updated: true, reason: "ok" };
                     });
-                    console.log(`Order ${q.docs[0].id} marked FAILED via webhook`);
+
+                    if (txResult.updated) {
+                        console.log(`Order ${q.docs[0].id} marked FAILED via webhook`);
+                    } else {
+                        console.log(`Order ${q.docs[0].id} not updated on failed webhook (${txResult.reason})`);
+                    }
                 }
             }
 
@@ -1192,7 +1630,7 @@ exports.notifyBeforePickup = functions.pubsub
                                 token: fcmToken,
                                 webpush: {
                                     fcmOptions: { link: `/#/app/orders?highlight=${docSnap.id}` },
-                                    notification: { icon: "/icons/icon-192x192.png", badge: "/icons/badge-72x72.png" }
+                                    notification: { icon: "/pwa-192x192.png", badge: "/pwa-192x192.png" }
                                 },
                                 data: {
                                     orderId: docSnap.id,
@@ -1227,7 +1665,7 @@ exports.notifyBeforePickup = functions.pubsub
  * aggregateAdminStats
  * Firestore Trigger: onUpdate('orders/{orderId}')
  * Listens for order status changes to COMPLETED.
- * When an order is completed, increments the global revenue and total orders.
+ * When an order is completed, increments global and per-venue counters.
  */
 exports.aggregateAdminStats = functions.firestore
     .document("orders/{orderId}")
@@ -1240,8 +1678,11 @@ exports.aggregateAdminStats = functions.firestore
             const db = admin.firestore();
             const totalAmount = newValue.totalAmount || 0;
             const venueId = newValue.venueId;
-            // Co2 saved per order is generally 2.5 kg as per MVP logic, but fallback to field if available
-            const co2Saved = newValue.co2Saved || 2.5;
+            // Prefer estimatedCo2 saved on order; fallback for legacy orders.
+            const co2Base = newValue.estimatedCo2 !== undefined
+                ? newValue.estimatedCo2
+                : (newValue.co2Saved !== undefined ? newValue.co2Saved : 0.5);
+            const co2Saved = Number(co2Base) || 0.5;
 
             // 1. Update Global Stats
             const globalRef = db.collection("stats").doc("global");
@@ -1270,81 +1711,7 @@ exports.aggregateAdminStats = functions.firestore
                 }, { merge: true });
             }
 
-            // 3. Update User Impact & Streak
-            const customerId = newValue.customerId;
-            if (customerId) {
-                const userRef = db.collection("users").doc(customerId);
-
-                try {
-                    await db.runTransaction(async (transaction) => {
-                        const userDoc = await transaction.get(userRef);
-                        if (userDoc.exists) {
-                            const userData = userDoc.data();
-                            const currentImpact = userData.impact || { co2Saved: 0, moneySaved: 0, totalRescues: 0, points: 0, level: "NOVICE" };
-                            const currentStreak = userData.streak || { current: 0, longest: 0, lastOrderDate: "", multiplier: 1.0 };
-
-                            // 1. Calculate base values
-                            const pointsEarned = Math.floor(totalAmount / 100);
-                            const discountAmount = newValue.discountAmount || 0;
-                            const moneySaved = discountAmount > 0 ? discountAmount : Math.floor(totalAmount * 0.2);
-
-                            // 2. Streak Logic
-                            const todayStr = new Date().toISOString().split("T")[0];
-                            let newStreakCurrent = currentStreak.current;
-                            let newStreakLongest = currentStreak.longest;
-                            let newMultiplier = currentStreak.multiplier;
-
-                            if (currentStreak.lastOrderDate === todayStr) {
-                                // Already ordered today, keep streak
-                            } else {
-                                const lastDate = new Date(currentStreak.lastOrderDate || 0);
-                                const today = new Date(todayStr);
-                                const diffTime = Math.abs(today.getTime() - lastDate.getTime());
-                                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-                                if (diffDays === 1) {
-                                    // Consecutive day
-                                    newStreakCurrent += 1;
-                                } else {
-                                    // Broken streak
-                                    newStreakCurrent = 1;
-                                }
-
-                                if (newStreakCurrent > newStreakLongest) {
-                                    newStreakLongest = newStreakCurrent;
-                                }
-
-                                // Multiplier Logic (up to 3.0x max)
-                                newMultiplier = Math.min(1.0 + (newStreakCurrent * 0.1), 3.0);
-                            }
-
-                            // Calculate final points with streak
-                            const finalPointsEarned = Math.floor(pointsEarned * newMultiplier);
-
-                            // 3. Level Logic
-                            const newTotalRescues = (currentImpact.totalRescues || 0) + 1;
-                            let newLevel = currentImpact.level;
-                            if (newTotalRescues >= 50) newLevel = "GUARDIAN";
-                            else if (newTotalRescues >= 10) newLevel = "HERO";
-
-                            // 4. Update Document
-                            transaction.update(userRef, {
-                                "impact.co2Saved": (currentImpact.co2Saved || 0) + co2Saved,
-                                "impact.moneySaved": (currentImpact.moneySaved || 0) + moneySaved,
-                                "impact.totalRescues": newTotalRescues,
-                                "impact.points": (currentImpact.points || 0) + finalPointsEarned,
-                                "impact.level": newLevel,
-                                "streak.current": newStreakCurrent,
-                                "streak.longest": newStreakLongest,
-                                "streak.lastOrderDate": todayStr,
-                                "streak.multiplier": newMultiplier
-                            });
-                        }
-                    });
-                } catch (userErr) {
-                    console.error(`Failed to update user impact/streak for ${customerId}:`, userErr);
-                }
-            }
+            // Impact/streak updates are handled in onOrderUpdated.
 
             try {
                 await batch.commit();

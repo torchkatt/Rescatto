@@ -47,7 +47,10 @@ export const UnifiedProfile: React.FC = () => {
         const rewardCosts: Record<string, number> = {
             'free_shipping': 50,
             'discount_10': 150,
-            'free_pack': 500
+            'free_pack': 150,
+            'discount_5k': 50,
+            'discount_10k': 90,
+            'donation_meal': 100,
         };
         const cost = rewardCosts[rewardId] || 0;
 
@@ -67,7 +70,7 @@ export const UnifiedProfile: React.FC = () => {
 
         try {
             const redeemFn = httpsCallable(functions, 'redeemPoints');
-            await redeemFn({ rewardId, cost });
+            await redeemFn({ rewardId });
             success(`¡Canje exitoso! Disfruta tu recompensa.`);
         } catch (err: any) {
             logger.error('Redeem error:', err);
@@ -86,10 +89,10 @@ export const UnifiedProfile: React.FC = () => {
                 <ProfileHeader user={user} onEditAvatar={handleEditAvatar} />
 
                 {/* Navigation Tabs */}
-                <div className="flex overflow-x-auto pb-4 mb-6 gap-2 no-scrollbar px-1">
+                <div className="grid grid-cols-2 sm:flex sm:overflow-x-auto pb-4 mb-6 gap-2 no-scrollbar px-1">
                     <button
                         onClick={() => setActiveTab('details')}
-                        className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-sm transition-all whitespace-nowrap active:scale-95 ${activeTab === 'details'
+                        className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-bold text-sm text-center leading-tight transition-all whitespace-normal sm:whitespace-nowrap active:scale-95 ${activeTab === 'details'
                             ? 'bg-gray-900 text-white shadow-lg shadow-gray-900/20'
                             : 'bg-white text-gray-600 hover:bg-gray-100'
                             }`}
@@ -102,7 +105,7 @@ export const UnifiedProfile: React.FC = () => {
                     {(user.role === UserRole.CUSTOMER || user.role === UserRole.DRIVER || user.role === UserRole.VENUE_OWNER || user.role === UserRole.KITCHEN_STAFF) && (
                         <button
                             onClick={() => setActiveTab('stats')}
-                            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-sm transition-all whitespace-nowrap active:scale-95 ${activeTab === 'stats'
+                            className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-bold text-sm text-center leading-tight transition-all whitespace-normal sm:whitespace-nowrap active:scale-95 ${activeTab === 'stats'
                                 ? 'bg-gray-900 text-white shadow-lg shadow-gray-900/20'
                                 : 'bg-white text-gray-600 hover:bg-gray-100'
                                 }`}
@@ -116,7 +119,7 @@ export const UnifiedProfile: React.FC = () => {
 
                     <button
                         onClick={() => setActiveTab('security')}
-                        className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-sm transition-all whitespace-nowrap active:scale-95 ${activeTab === 'security'
+                        className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-bold text-sm text-center leading-tight transition-all whitespace-normal sm:whitespace-nowrap active:scale-95 ${activeTab === 'security'
                             ? 'bg-gray-900 text-white shadow-lg shadow-gray-900/20'
                             : 'bg-white text-gray-600 hover:bg-gray-100'
                             }`}
@@ -128,7 +131,7 @@ export const UnifiedProfile: React.FC = () => {
                     {user.role === UserRole.CUSTOMER && (
                         <button
                             onClick={() => setActiveTab('referrals')}
-                            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-sm transition-all whitespace-nowrap active:scale-95 ${activeTab === 'referrals'
+                            className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-bold text-sm text-center leading-tight transition-all whitespace-normal sm:whitespace-nowrap active:scale-95 ${activeTab === 'referrals'
                                 ? 'bg-gradient-to-r from-emerald-600 to-teal-500 text-white shadow-lg shadow-emerald-500/30 border border-emerald-400'
                                 : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-100'
                                 }`}

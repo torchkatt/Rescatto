@@ -13,7 +13,7 @@ export const UserWallet: React.FC<UserWalletProps> = ({ points, onRedeem }) => {
     const rewards = [
         { id: 'free_shipping', name: 'Envío Gratis', cost: 50, icon: <Gift size={18} /> },
         { id: 'discount_10', name: '10% Descuento Extra', cost: 150, icon: <Sparkles size={18} /> },
-        { id: 'free_pack', name: 'Pack Gratis', cost: 500, icon: <CreditCard size={18} /> },
+        { id: 'free_pack', name: 'Pack Gratis', cost: 150, icon: <CreditCard size={18} /> },
     ];
 
     return (

@@ -8,8 +8,8 @@ export const FloatingCartButton: React.FC = () => {
     const location = useLocation();
     const { items } = useCart();
 
-    // Don't show on checkout, cart page, or login
-    if (['/app/cart', '/app/checkout', '/login'].includes(location.pathname)) {
+    // Show only on customer home to avoid covering forms/actions in critical flows.
+    if (!(location.pathname === '/app' || location.pathname === '/app/')) {
         return null;
     }
 
@@ -20,8 +20,7 @@ export const FloatingCartButton: React.FC = () => {
     return (
         <button
             onClick={() => navigate('/app/cart')}
-            className="fixed top-3 right-16 z-50 bg-white text-emerald-600 p-2.5 rounded-full shadow-lg border border-gray-100 hover:bg-emerald-50 transition-all active:scale-95 animate-in fade-in zoom-in duration-300"
-            style={{ marginRight: '8px' }} // Extra spacing from the edge/avatar
+            className="fixed bottom-safe left-4 z-50 bg-white text-emerald-600 p-2.5 rounded-full shadow-lg border border-gray-100 hover:bg-emerald-50 transition-all active:scale-95 animate-in fade-in zoom-in duration-300"
             title="Ver Carrito"
         >
             <div className="relative">

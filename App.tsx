@@ -121,7 +121,7 @@ const CustomerLayout: React.FC = () => {
     }, [navigate]);
 
     return (
-        <div className="min-h-screen bg-gray-50 pb-[calc(5rem+env(safe-area-inset-bottom))] overflow-x-hidden">
+        <div className="pt-safe-top min-h-screen bg-gray-50 pb-[calc(5rem+env(safe-area-inset-bottom))] overflow-x-hidden">
             <Outlet />
             {/* Global Floating Chat Button */}
             <ChatButton />

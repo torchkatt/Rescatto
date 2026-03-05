@@ -10,6 +10,8 @@ import { Countdown } from '../../components/customer/common/Countdown';
 import { ArrowLeft, MapPin, Clock, Star, ShoppingCart, Flame, Users, Search, X } from 'lucide-react';
 import { getRatingStats } from '../../services/ratingService';
 import { logger } from '../../utils/logger';
+import { isProductAvailable, isProductExpired } from '../../utils/productAvailability';
+import { formatCOP } from '../../utils/formatters';
 
 // ── Product FOMO helpers ──────────────────────────────────────────────────────
 function getStockUrgency(quantity: number): { label: string; color: string; bg: string } | null {
@@ -31,7 +33,7 @@ export const VenueDetail: React.FC = () => {
     const { venueId } = useParams<{ venueId: string }>();
     const navigate = useNavigate();
     const { addToCart } = useCart();
-    const { success } = useToast();
+    const { success, error } = useToast();
     const [venue, setVenue] = useState<Venue | null>(null);
     const [products, setProducts] = useState<Product[]>([]);
     const [ratingStats, setRatingStats] = useState<RatingStats | null>(null);
@@ -78,6 +80,10 @@ export const VenueDetail: React.FC = () => {
 
     const handleAddToCart = (product: Product) => {
         if (!venue) return;
+        if (!isProductAvailable(product)) {
+            error(`"${product.name}" ya no está disponible.`);
+            return;
+        }
         // If dynamic pricing is active, cart uses the dynamic price
         const cartProduct = product.isDynamicPricing && product.dynamicDiscountedPrice
             ? { ...product, discountedPrice: product.dynamicDiscountedPrice }
@@ -287,13 +293,15 @@ export const VenueDetail: React.FC = () => {
                             const discountBadge = getDiscountBadge(product.originalPrice, activePrice);
                             const discountPct = Math.round((1 - activePrice / product.originalPrice) * 100);
                             const isSoldOut = (product.quantity || 0) <= 0;
+                            const isExpired = isProductExpired(product.availableUntil);
+                            const isUnavailable = isSoldOut || isExpired;
                             const isMegaDeal = discountPct >= 50;
                             const isDynamic = product.isDynamicPricing && !!product.dynamicDiscountedPrice;
 
                             return (
                                 <div
                                     key={product.id}
-                                    className={`bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all border cursor-pointer group ${isSoldOut ? 'opacity-60 border-gray-100' : isMegaDeal ? 'border-red-200 hover:border-red-300' : 'border-gray-100 hover:border-emerald-200'}`}
+                                    className={`bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all border cursor-pointer group ${isUnavailable ? 'opacity-60 border-gray-100' : isMegaDeal ? 'border-red-200 hover:border-red-300' : 'border-gray-100 hover:border-emerald-200'}`}
                                     onClick={() => navigate(`/app/product/${product.id}`)}
                                 >
                                     <div className="relative">
@@ -308,7 +316,7 @@ export const VenueDetail: React.FC = () => {
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
 
                                         {/* Countdown — all products with availableUntil */}
-                                        {product.availableUntil && !isSoldOut && (
+                                        {product.availableUntil && !isUnavailable && (
                                             <div className="absolute top-2 left-2">
                                                 <Countdown targetTime={product.availableUntil} />
                                             </div>
@@ -320,7 +328,7 @@ export const VenueDetail: React.FC = () => {
                                         </div>
 
                                         {/* Stock urgency badge — bottom left */}
-                                        {stockUrgency && !isSoldOut && (
+                                        {stockUrgency && !isUnavailable && (
                                             <div className={`absolute bottom-2 left-2 flex items-center gap-1 ${stockUrgency.bg} text-white px-2 py-0.5 rounded-full text-[10px] font-black shadow-md`}>
                                                 <Flame size={10} />
                                                 {stockUrgency.label}
@@ -328,10 +336,10 @@ export const VenueDetail: React.FC = () => {
                                         )}
 
                                         {/* Sold out overlay */}
-                                        {isSoldOut && (
+                                        {isUnavailable && (
                                             <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                                                 <span className="bg-white/90 text-gray-700 font-black text-sm px-3 py-1 rounded-full">
-                                                    Agotado
+                                                    No disponible
                                                 </span>
                                             </div>
                                         )}
@@ -364,19 +372,19 @@ export const VenueDetail: React.FC = () => {
                                         <div className="flex items-end justify-between mb-3">
                                             <div>
                                                 <p className={`text-2xl font-black ${isDynamic ? 'text-orange-600' : 'text-emerald-600'}`}>
-                                                    ${activePrice.toLocaleString('es-CO')}
+                                                    {formatCOP(activePrice)}
                                                 </p>
                                                 <p className="text-xs text-gray-400 line-through">
-                                                    ${product.originalPrice.toLocaleString('es-CO')}
+                                                    {formatCOP(product.originalPrice)}
                                                 </p>
                                                 {isDynamic && (
                                                     <p className="text-[10px] text-gray-400 line-through">
-                                                        ${product.discountedPrice.toLocaleString('es-CO')} antes
+                                                        {formatCOP(product.discountedPrice)} antes
                                                     </p>
                                                 )}
                                             </div>
                                             <div className={`text-xs font-bold px-2 py-1 rounded-lg ${isMegaDeal ? 'bg-red-100 text-red-600' : isDynamic ? 'bg-orange-100 text-orange-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                                                Ahorras ${(product.originalPrice - activePrice).toLocaleString('es-CO')}
+                                                Ahorras {formatCOP(product.originalPrice - activePrice)}
                                             </div>
                                         </div>
 
@@ -394,10 +402,10 @@ export const VenueDetail: React.FC = () => {
                                                 handleAddToCart(product);
                                             }}
                                             className="w-full relative z-10"
-                                            disabled={isSoldOut}
+                                            disabled={isUnavailable}
                                         >
                                             <ShoppingCart size={16} />
-                                            {isSoldOut ? 'Agotado' : 'Agregar al Carrito'}
+                                            {isUnavailable ? 'No disponible' : 'Agregar al Carrito'}
                                         </Button>
                                     </div>
                                 </div>

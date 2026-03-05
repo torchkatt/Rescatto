@@ -112,21 +112,34 @@ const CustomerHome: React.FC = () => {
 
     const { address, city, latitude, longitude } = useLocation();
     const [showLocationSelector, setShowLocationSelector] = useState(false);
+    const hasUserLocation = latitude !== null && longitude !== null;
+    const MAX_VENUE_DISTANCE_KM = 80;
 
     // Sort Venues by Distance
     const sortedVenues = React.useMemo(() => {
-        if (!latitude || !longitude) return venues;
+        if (!hasUserLocation) return venues;
 
         return [...venues].sort((a, b) => {
-            const distA = calculateDistance(latitude, longitude, a.latitude, a.longitude);
-            const distB = calculateDistance(latitude, longitude, b.latitude, b.longitude);
-            return distA - distB;
+            const distA = calculateDistance(latitude as number, longitude as number, a.latitude, a.longitude);
+            const distB = calculateDistance(latitude as number, longitude as number, b.latitude, b.longitude);
+            const safeDistA = Number.isFinite(distA) ? distA : Number.POSITIVE_INFINITY;
+            const safeDistB = Number.isFinite(distB) ? distB : Number.POSITIVE_INFINITY;
+            return safeDistA - safeDistB;
         });
-    }, [venues, latitude, longitude]);
+    }, [venues, hasUserLocation, latitude, longitude]);
 
     // Memoized: only recalculates when a filter dependency changes
     const filteredVenues = useMemo(() => sortedVenues.filter(venue => {
-        const matchesCity = (city && venue.city) ? venue.city === city : true;
+        const normalizedUserCity = city?.trim().toLowerCase() || null;
+        const normalizedVenueCity = venue.city?.trim().toLowerCase() || null;
+        const distance = hasUserLocation
+            ? calculateDistance(latitude as number, longitude as number, venue.latitude, venue.longitude)
+            : null;
+
+        const matchesDistance = distance === null || !Number.isFinite(distance) || distance <= MAX_VENUE_DISTANCE_KM;
+        const matchesCity = normalizedUserCity
+            ? (!normalizedVenueCity || normalizedVenueCity === normalizedUserCity)
+            : true;
 
         const matchesCategory = selectedCategory === 'all' ||
             (venue.categories?.includes(selectedCategory) ?? true);
@@ -139,8 +152,8 @@ const CustomerHome: React.FC = () => {
                 return venue.dietaryTags?.includes(tag);
             });
 
-        return matchesCity && matchesCategory && matchesSearch && matchesDietary;
-    }), [sortedVenues, city, selectedCategory, searchQuery, selectedDietaryTags]);
+        return matchesCity && matchesDistance && matchesCategory && matchesSearch && matchesDietary;
+    }), [sortedVenues, city, hasUserLocation, latitude, longitude, selectedCategory, searchQuery, selectedDietaryTags]);
 
     // Trending venues: have expiring products AND high rating or high orders
     const trendingVenueIds = useMemo(() => {
@@ -190,7 +203,7 @@ const CustomerHome: React.FC = () => {
     return (
         <div className="pb-20 bg-gray-50 min-h-screen">
             {/* Header */}
-            <header className="bg-white sticky top-0 z-50 shadow-sm border-b border-gray-100 overflow-x-hidden pt-[env(safe-area-inset-top,0px)]">
+            <header className="bg-white sticky top-safe z-50 shadow-sm border-b border-gray-100 overflow-x-hidden">
                 <div className="px-4 py-3 flex items-center justify-between">
                     <button
                         type="button"
@@ -363,18 +376,18 @@ const CustomerHome: React.FC = () => {
                 {platformStats.totalStock > 0 && (
                     <div className="grid grid-cols-3 gap-2">
                         <div className="bg-white rounded-xl p-3 text-center shadow-sm border border-gray-50">
-                            <p className="text-lg font-black text-emerald-600">{platformStats.totalStock}</p>
+                            <p className="text-lg font-black text-emerald-600">{platformStats.totalStock.toLocaleString('es-CO')}</p>
                             <p className="text-[10px] text-gray-500 font-medium leading-tight">porciones<br />disponibles</p>
                         </div>
                         <div className="bg-white rounded-xl p-3 text-center shadow-sm border border-gray-50">
-                            <p className="text-lg font-black text-orange-500">{platformStats.activeVenues}</p>
+                            <p className="text-lg font-black text-orange-500">{platformStats.activeVenues.toLocaleString('es-CO')}</p>
                             <p className="text-[10px] text-gray-500 font-medium leading-tight">lugares<br />activos hoy</p>
                         </div>
                         <div className="bg-white rounded-xl p-3 text-center shadow-sm border border-gray-50">
                             <p className="text-lg font-black text-blue-600">
-                                {(platformStats.totalStock * 0.4).toFixed(0)}kg
+                                {Math.round(platformStats.totalStock * 0.4).toLocaleString('es-CO')} kg
                             </p>
-                            <p className="text-[10px] text-gray-500 font-medium leading-tight">CO₂ por<br />salvar hoy</p>
+                            <p className="text-[10px] text-gray-500 font-medium leading-tight">de CO₂ por<br />salvar hoy</p>
                         </div>
                     </div>
                 )}
@@ -416,7 +429,7 @@ const CustomerHome: React.FC = () => {
                                 <div key={venue.id} className="flex-shrink-0 w-[200px]">
                                     <VenueCard
                                         venue={venue}
-                                        userLocation={latitude && longitude ? { lat: latitude, lng: longitude } : undefined}
+                                        userLocation={hasUserLocation ? { lat: latitude as number, lng: longitude as number } : undefined}
                                         soonestExpiry={venueExpiryMap.get(venue.id)}
                                         totalStock={venueStockMap.get(venue.id)}
                                         isTrending={trendingVenueIds.has(venue.id)}
@@ -442,7 +455,7 @@ const CustomerHome: React.FC = () => {
                                     <div key={venue.id} className="flex-shrink-0 w-[220px]">
                                         <VenueCard
                                             venue={venue}
-                                            userLocation={latitude && longitude ? { lat: latitude, lng: longitude } : undefined}
+                                            userLocation={hasUserLocation ? { lat: latitude as number, lng: longitude as number } : undefined}
                                             soonestExpiry={venueExpiryMap.get(venue.id)}
                                             totalStock={venueStockMap.get(venue.id)}
                                             isTrending
@@ -462,7 +475,7 @@ const CustomerHome: React.FC = () => {
                             {selectedCategory === 'all' ? 'Todos los lugares' : selectedCategory}
                         </h2>
                         <span className="text-emerald-600 text-sm font-medium">
-                            {filteredVenues.length} lugares
+                            {filteredVenues.length.toLocaleString('es-CO')} lugares
                         </span>
                     </div>
 
@@ -472,7 +485,7 @@ const CustomerHome: React.FC = () => {
                                 <VenueCard
                                     key={venue.id}
                                     venue={venue}
-                                    userLocation={latitude && longitude ? { lat: latitude, lng: longitude } : undefined}
+                                    userLocation={hasUserLocation ? { lat: latitude as number, lng: longitude as number } : undefined}
                                     soonestExpiry={
                                         venueExpiryMap.get(venue.id) ?? getUrgentExpiryFallback(venue.closingTime)
                                     }

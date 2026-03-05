@@ -53,9 +53,14 @@ export const VenueCard: React.FC<VenueCardProps> = ({
     const { isFavorite, toggleFavorite } = useFavorites();
     const isFav = isFavorite(venue.id);
 
-    const distance = userLocation
+    const rawDistance = userLocation
         ? calculateDistance(userLocation.lat, userLocation.lng, venue.latitude, venue.longitude)
         : null;
+    const distance = rawDistance !== null && Number.isFinite(rawDistance) ? rawDistance : null;
+    const showDistanceBadge = distance !== null && distance <= 120;
+    const distanceLabel = distance !== null
+        ? (distance < 1 ? '<1 km' : `${distance} km`)
+        : '';
 
     const dealScore = computeDealScore(venue, soonestExpiry, totalStock);
     const isHotDeal = dealScore >= 60;
@@ -136,9 +141,9 @@ export const VenueCard: React.FC<VenueCardProps> = ({
                 />
 
                 {/* Distance Badge — shifts down when urgency countdown is shown */}
-                {distance !== null && (
+                {showDistanceBadge && (
                     <div className={`absolute ${soonestExpiry ? 'top-10' : (isTrending || isHotDeal) ? 'top-10' : 'top-2'} left-2 z-20 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full text-xs font-bold shadow-md flex items-center gap-1 transition-all`}>
-                        <span className="text-emerald-600">📍</span> {distance} km
+                        <span className="text-emerald-600">📍</span> {distanceLabel}
                     </div>
                 )}
 
@@ -152,7 +157,7 @@ export const VenueCard: React.FC<VenueCardProps> = ({
                 {/* Low stock badge — bottom left */}
                 {isLowStock && (
                     <div className="absolute bottom-10 left-2 z-20 bg-red-600 text-white px-2 py-0.5 rounded-full text-[10px] font-black shadow-md flex items-center gap-1">
-                        🔥 ¡Solo {totalStock} disponibles!
+                        🔥 {totalStock === 1 ? '¡Solo 1 disponible!' : `¡Solo ${totalStock} disponibles!`}
                     </div>
                 )}
 
