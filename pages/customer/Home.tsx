@@ -10,7 +10,7 @@ import { HomeSkeletonLoader } from '../../components/customer/common/Loading';
 import { CategoriesBar } from '../../components/customer/home/CategoriesBar';
 import {
     Search, MapPin, User, ShoppingBag, LogOut, ChevronDown,
-    Heart, Leaf, Flame, TrendingUp, Zap
+    Heart, Leaf, Flame, TrendingUp, Zap, RefreshCw
 } from 'lucide-react';
 import { Logo } from '../../components/common/Logo';
 import { useLocation } from '../../context/LocationContext';
@@ -86,6 +86,27 @@ const CustomerHome: React.FC = () => {
         } catch (error) {
             logger.error('CustomerHome: Logout failed', error);
             window.location.href = '/#/login';
+        }
+    };
+
+    const handleForceUpdate = async () => {
+        try {
+            if ('serviceWorker' in navigator) {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                for (const registration of registrations) {
+                    await registration.unregister();
+                }
+            }
+            if ('caches' in window) {
+                const keys = await caches.keys();
+                for (const key of keys) {
+                    await caches.delete(key);
+                }
+            }
+            window.location.reload();
+        } catch (error) {
+            logger.error('Error updating app:', error);
+            window.location.reload();
         }
     };
 
@@ -243,6 +264,14 @@ const CustomerHome: React.FC = () => {
                                         >
                                             <Leaf size={20} className="text-emerald-600" />
                                             <span className="font-bold text-sm">Mi Impacto 🌱</span>
+                                        </button>
+
+                                        <button
+                                            onClick={() => { setShowUserMenu(false); handleForceUpdate(); }}
+                                            className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-gray-50 transition-colors text-gray-700 active:bg-gray-100"
+                                        >
+                                            <RefreshCw size={20} className="text-blue-500" />
+                                            <span className="font-bold text-sm">Actualizar App</span>
                                         </button>
 
                                         <div className="border-t border-gray-100 my-1"></div>
