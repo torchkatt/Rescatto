@@ -149,59 +149,63 @@ export const VenueDetail: React.FC = () => {
                 {/* Venue Info */}
                 <div className="max-w-6xl mx-auto px-6 -mt-16 relative">
                     <div className="bg-white rounded-xl p-6 shadow-lg">
-                        <div className="flex items-start gap-6">
-                            {venue.logoUrl && (
-                                <img
-                                    src={venue.logoUrl}
-                                    alt={venue.name}
-                                    className="w-24 h-24 rounded-xl object-cover border-4 border-white shadow-md"
-                                />
-                            )}
-
-                            <div className="flex-1">
-                                <h1 className="text-3xl font-bold text-gray-800 mb-2">{venue.name}</h1>
-
-                                <div className="flex flex-wrap gap-4 text-sm text-gray-600 mb-3">
-                                    <div className="flex items-center gap-1">
-                                        <MapPin size={16} />
-                                        {venue.address}
-                                    </div>
-                                    <div className="flex items-center gap-1">
-                                        <Clock size={16} />
-                                        Cierra a las {venue.closingTime}
-                                    </div>
-                                    {ratingStats && ratingStats.totalRatings > 0 ? (
-                                        <div className="flex items-center gap-1">
-                                            <Star size={16} className="text-yellow-500 fill-yellow-500" />
-                                            <span>{ratingStats.averageRating.toFixed(1)}</span>
-                                            <span className="text-gray-400">({ratingStats.totalRatings} reseñas)</span>
-                                        </div>
-                                    ) : venue.rating > 0 ? (
-                                        <div className="flex items-center gap-1">
-                                            <Star size={16} className="text-yellow-500 fill-yellow-500" />
-                                            <span>{venue.rating}</span>
-                                        </div>
-                                    ) : null}
-                                </div>
-
-                                {venue.categories && venue.categories.length > 0 && (
-                                    <div className="flex gap-2">
-                                        {venue.categories.map(cat => (
-                                            <span
-                                                key={cat}
-                                                className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-medium"
-                                            >
-                                                {cat}
-                                            </span>
-                                        ))}
-                                    </div>
+                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-6">
+                            <div className="flex items-start gap-4 sm:gap-6 flex-1">
+                                {venue.logoUrl && (
+                                    <img
+                                        src={venue.logoUrl}
+                                        alt={venue.name}
+                                        className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl object-cover border-4 border-white shadow-md flex-shrink-0"
+                                    />
                                 )}
+
+                                <div className="flex-1 min-w-0">
+                                    <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-2 truncate">{venue.name}</h1>
+
+                                    <div className="flex flex-wrap gap-4 text-sm text-gray-600 mb-3">
+                                        <div className="flex items-center gap-1">
+                                            <MapPin size={16} />
+                                            {venue.address}
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <Clock size={16} />
+                                            Cierra a las {venue.closingTime}
+                                        </div>
+                                        {ratingStats && ratingStats.totalRatings > 0 ? (
+                                            <div className="flex items-center gap-1">
+                                                <Star size={16} className="text-yellow-500 fill-yellow-500" />
+                                                <span>{ratingStats.averageRating.toFixed(1)}</span>
+                                                <span className="text-gray-400">({ratingStats.totalRatings} reseñas)</span>
+                                            </div>
+                                        ) : venue.rating > 0 ? (
+                                            <div className="flex items-center gap-1">
+                                                <Star size={16} className="text-yellow-500 fill-yellow-500" />
+                                                <span>{venue.rating.toFixed(1)}</span>
+                                            </div>
+                                        ) : null}
+                                    </div>
+
+                                    {venue.categories && venue.categories.length > 0 && (
+                                        <div className="flex gap-2">
+                                            {venue.categories.map(cat => (
+                                                <span
+                                                    key={cat}
+                                                    className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-medium"
+                                                >
+                                                    {cat}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
-                            <Button onClick={() => navigate('/app/cart')}>
-                                <ShoppingCart size={18} />
-                                Ver Carrito
-                            </Button>
+                            <div className="w-full sm:w-auto flex-shrink-0">
+                                <Button onClick={() => navigate('/app/cart')} className="w-full sm:w-auto flex items-center justify-center">
+                                    <ShoppingCart size={18} />
+                                    Ver Carrito
+                                </Button>
+                            </div>
                         </div>
                     </div>
                 </div>
