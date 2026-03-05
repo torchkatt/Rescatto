@@ -351,7 +351,7 @@ export const AuditLogs: React.FC = () => {
     if (loading && logs.length === 0) return <LoadingSpinner fullPage />;
 
     return (
-        <div className="p-8 max-w-7xl mx-auto relative">
+        <div className="p-8 max-w-7xl mx-auto relative overflow-x-hidden">
             <div className="mb-8">
                 <h1 className="text-3xl font-bold text-gray-900">Centro de Auditoría</h1>
                 <p className="text-gray-500 mt-2">Monitoreo forense y control de seguridad en tiempo real.</p>

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { collection, query, where, getDocs, doc, updateDoc, orderBy, getDoc } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
@@ -8,7 +8,7 @@ import { useToast } from '../../context/ToastContext';
 import { Order, OrderStatus, Permission, UserRole } from '../../types';
 import { PermissionGate } from '../../components/PermissionGate';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
-import { Package, Clock, CheckCircle, ChefHat, MessageSquare, Search, Bell, RotateCw, Heart, MapPin } from 'lucide-react';
+import { Package, Clock, CheckCircle, ChefHat, MessageSquare, Search, RotateCw, Heart, MapPin } from 'lucide-react';
 import { useNotifications } from '../../context/NotificationContext';
 import { dataService } from '../../services/dataService';
 import { logger } from '../../utils/logger';
@@ -204,8 +204,9 @@ export const OrderManagement: React.FC = () => {
     if (loading) return <LoadingSpinner fullPage />;
 
     return (
-        <div className="space-y-6">
-            <div className="flex justify-between items-center">
+        <div className="space-y-6 overflow-x-hidden">
+            {/* Fila 1: título + contador + botón refresh */}
+            <div className="flex justify-between items-start">
                 <div>
                     <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                         <ChefHat className="text-emerald-600" />
@@ -216,68 +217,67 @@ export const OrderManagement: React.FC = () => {
                     </p>
                 </div>
 
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={() => {
-                            if (user?.venueId) {
-                                setLoading(true);
-                                setTimeout(() => setLoading(false), 500);
-                            }
-                        }}
-                        className="bg-white border border-gray-200 text-gray-600 p-3 rounded-xl hover:bg-gray-50 transition shadow-sm flex items-center justify-center active:scale-95"
-                        title="Refrescar pedidos"
-                    >
-                        <RotateCw size={22} className={loading ? 'animate-spin' : ''} />
-                    </button>
+                <button
+                    onClick={() => {
+                        if (user?.venueId) {
+                            setLoading(true);
+                            setTimeout(() => setLoading(false), 500);
+                        }
+                    }}
+                    className="bg-white border border-gray-200 text-gray-600 p-3 rounded-xl hover:bg-gray-50 transition shadow-sm flex items-center justify-center active:scale-95 flex-shrink-0"
+                    title="Refrescar pedidos"
+                >
+                    <RotateCw size={22} className={loading ? 'animate-spin' : ''} />
+                </button>
+            </div>
 
-                    <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 -mr-4 sm:mr-0 pr-4 sm:pr-0">
-                        <button
-                            onClick={() => setFilter('all')}
-                            className={`whitespace-nowrap px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95 ${filter === 'all'
-                                ? 'bg-emerald-600 text-white'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                }`}
-                        >
-                            Todos
-                        </button>
-                        <button
-                            onClick={() => setFilter(OrderStatus.PENDING)}
-                            className={`whitespace-nowrap px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95 ${filter === OrderStatus.PENDING
-                                ? 'bg-yellow-500 text-white'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                }`}
-                        >
-                            Pendientes
-                        </button>
-                        <button
-                            onClick={() => setFilter(OrderStatus.PAID)}
-                            className={`whitespace-nowrap px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95 ${filter === OrderStatus.PAID
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                }`}
-                        >
-                            Pagados
-                        </button>
-                        <button
-                            onClick={() => setFilter(OrderStatus.IN_PREPARATION)}
-                            className={`whitespace-nowrap px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95 ${filter === OrderStatus.IN_PREPARATION
-                                ? 'bg-emerald-600 text-white'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                }`}
-                        >
-                            En Cocina
-                        </button>
-                        <button
-                            onClick={() => setFilter(OrderStatus.READY_PICKUP)}
-                            className={`whitespace-nowrap px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95 ${filter === OrderStatus.READY_PICKUP
-                                ? 'bg-green-600 text-white'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                }`}
-                        >
-                            Listos
-                        </button>
-                    </div>
-                </div>
+            {/* Fila 2: filtros — scroll horizontal propio, ancho completo */}
+            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                <button
+                    onClick={() => setFilter('all')}
+                    className={`whitespace-nowrap px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95 ${filter === 'all'
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                >
+                    Todos
+                </button>
+                <button
+                    onClick={() => setFilter(OrderStatus.PENDING)}
+                    className={`whitespace-nowrap px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95 ${filter === OrderStatus.PENDING
+                        ? 'bg-yellow-500 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                >
+                    Pendientes
+                </button>
+                <button
+                    onClick={() => setFilter(OrderStatus.PAID)}
+                    className={`whitespace-nowrap px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95 ${filter === OrderStatus.PAID
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                >
+                    Pagados
+                </button>
+                <button
+                    onClick={() => setFilter(OrderStatus.IN_PREPARATION)}
+                    className={`whitespace-nowrap px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95 ${filter === OrderStatus.IN_PREPARATION
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                >
+                    En Cocina
+                </button>
+                <button
+                    onClick={() => setFilter(OrderStatus.READY_PICKUP)}
+                    className={`whitespace-nowrap px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95 ${filter === OrderStatus.READY_PICKUP
+                        ? 'bg-green-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                >
+                    Listos
+                </button>
             </div>
 
             {/* Search Bar */}

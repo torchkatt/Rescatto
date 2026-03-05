@@ -71,7 +71,7 @@ export const FinanceManager: React.FC = () => {
     if (loading) return <LoadingSpinner fullPage />;
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-8 overflow-x-hidden">
             {/* Header */}
             <div className="flex justify-between items-center w-full">
                 <div>

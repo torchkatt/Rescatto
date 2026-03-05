@@ -169,7 +169,7 @@ const CustomerHome: React.FC = () => {
     return (
         <div className="pb-20 bg-gray-50 min-h-screen">
             {/* Header */}
-            <header className="bg-white sticky top-0 z-50 shadow-sm border-b border-gray-100">
+            <header className="bg-white sticky top-0 z-50 shadow-sm border-b border-gray-100 overflow-x-hidden">
                 <div className="px-4 py-3 flex items-center justify-between">
                     <button
                         type="button"
@@ -284,7 +284,7 @@ const CustomerHome: React.FC = () => {
                 />
 
                 {/* Dietary Filters */}
-                <div className="px-4 pb-3 flex gap-2 overflow-x-auto no-scrollbar py-2">
+                <div className="px-4 pb-3 flex gap-2 overflow-x-auto no-scrollbar py-2 min-w-0">
                     {DIETARY_OPTIONS.map(option => (
                         <button
                             key={option.id}
@@ -382,7 +382,7 @@ const CustomerHome: React.FC = () => {
                                 ¡Hoy!
                             </span>
                         </div>
-                        <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
+                        <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1 min-w-0">
                             {hotDealsVenues.map(venue => (
                                 <div key={venue.id} className="flex-shrink-0 w-[200px]">
                                     <VenueCard
@@ -406,7 +406,7 @@ const CustomerHome: React.FC = () => {
                             <TrendingUp size={18} className="text-emerald-600" />
                             <h2 className="text-base font-black text-gray-900">Trending ahora</h2>
                         </div>
-                        <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
+                        <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1 min-w-0">
                             {filteredVenues
                                 .filter(v => trendingVenueIds.has(v.id))
                                 .map(venue => (

@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { HashRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -104,8 +104,21 @@ import { FloatingCartButton } from './components/customer/common/FloatingCartBut
 
 // Wrapper for Customer Layout
 const CustomerLayout: React.FC = () => {
+    const navigate = useNavigate();
+
+    // FCM deep linking: navigate to the correct order when user taps a background notification
+    useEffect(() => {
+        const handleSWMessage = (event: MessageEvent) => {
+            if (event.data?.type === 'NOTIFICATION_CLICK' && event.data?.orderId) {
+                navigate(`/app/orders?highlight=${event.data.orderId}`);
+            }
+        };
+        navigator.serviceWorker?.addEventListener('message', handleSWMessage);
+        return () => navigator.serviceWorker?.removeEventListener('message', handleSWMessage);
+    }, [navigate]);
+
     return (
-        <div className="min-h-screen bg-gray-50 pb-[calc(5rem+env(safe-area-inset-bottom))]">
+        <div className="min-h-screen bg-gray-50 pb-[calc(5rem+env(safe-area-inset-bottom))] overflow-x-hidden">
             <Outlet />
             {/* Global Floating Chat Button */}
             <ChatButton />

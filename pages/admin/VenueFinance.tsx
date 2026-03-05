@@ -64,7 +64,7 @@ export const VenueFinance: React.FC = () => {
     const isDebt = balance < 0;
 
     return (
-        <div className="p-6 max-w-6xl mx-auto">
+        <div className="p-6 max-w-6xl mx-auto overflow-x-hidden">
             <h1 className="text-2xl font-bold mb-6 text-gray-800">Billetera del Negocio</h1>
 
             {/* Balance Card */}

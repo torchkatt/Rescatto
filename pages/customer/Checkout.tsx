@@ -384,7 +384,7 @@ export const Checkout: React.FC = () => {
 
     return (
         <>
-            <div className="min-h-screen bg-gradient-to-br from-gray-50 via-emerald-50/30 to-gray-50 p-6">
+            <div className="min-h-screen bg-gradient-to-br from-gray-50 via-emerald-50/30 to-gray-50 p-6 overflow-x-hidden">
                 <div className="max-w-4xl mx-auto">
                     <button
                         onClick={() => navigate('/app/cart')}

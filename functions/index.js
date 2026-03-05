@@ -166,7 +166,7 @@ exports.createOrder = functions.https.onCall(async (data, context) => {
         ? Math.round(rawClientFee)
         : null; // null = fall back to CONFIG.deliveryFee
     // Canje de puntos seleccionado — clamp a [0, 15000] COP para prevenir manipulación del cliente
-    const redemptionId = typeof data.redemptionId === 'string' ? data.redemptionId : null;
+    const redemptionId = typeof data.redemptionId === "string" ? data.redemptionId : null;
     const clientDiscountAmount = Math.max(0, Math.min(Number(data.discountAmount) || 0, 15000));
     const userEmail = context.auth.token.email || "";
     const userName = context.auth.token.name || "Usuario";
@@ -464,7 +464,7 @@ exports.onOrderUpdated = functions.firestore
                             notification: { title, body },
                             token: fcmToken,
                             webpush: {
-                                fcmOptions: { link: `/#/app/orders` },
+                                fcmOptions: { link: `/#/app/orders?highlight=${change.after.id}` },
                                 notification: { icon: "/icons/icon-192x192.png", badge: "/icons/badge-72x72.png" }
                             },
                             data: {
@@ -655,10 +655,10 @@ exports.redeemPoints = functions.https.onCall(async (data, context) => {
 
     // Map rewardId → descuento en COP y etiqueta amigable
     const REWARD_CONFIG = {
-        'discount_5k': { discountAmount: 5000, label: '5.000 COP de descuento' },
-        'discount_10k': { discountAmount: 10000, label: '10.000 COP de descuento' },
-        'free_pack': { discountAmount: 15000, label: 'Pack Sorpresa Gratis (hasta $15.000 COP)' },
-        'donation_meal': { discountAmount: 0, label: 'Donación de comida' },
+        "discount_5k": { discountAmount: 5000, label: "5.000 COP de descuento" },
+        "discount_10k": { discountAmount: 10000, label: "10.000 COP de descuento" },
+        "free_pack": { discountAmount: 15000, label: "Pack Sorpresa Gratis (hasta $15.000 COP)" },
+        "donation_meal": { discountAmount: 0, label: "Donación de comida" },
     };
 
     const rewardConfig = REWARD_CONFIG[rewardId] || { discountAmount: 0, label: rewardId };
@@ -1021,7 +1021,7 @@ exports.applyDynamicPricing = functions.pubsub
                 const availableUntil = data.availableUntil ? new Date(data.availableUntil) : null;
                 if (!availableUntil || availableUntil <= now) return;
 
-                const minutesLeft = (availableUntil.getTime() - now.getTime()) / 60_000;
+                const minutesLeft = (availableUntil.getTime() - now.getTime()) / 60000;
                 const tier = TIERS.find(t => minutesLeft <= t.maxMinutes);
 
                 if (tier) {
@@ -1191,7 +1191,7 @@ exports.notifyBeforePickup = functions.pubsub
                                 },
                                 token: fcmToken,
                                 webpush: {
-                                    fcmOptions: { link: `/#/app/orders` },
+                                    fcmOptions: { link: `/#/app/orders?highlight=${docSnap.id}` },
                                     notification: { icon: "/icons/icon-192x192.png", badge: "/icons/badge-72x72.png" }
                                 },
                                 data: {
@@ -1230,13 +1230,13 @@ exports.notifyBeforePickup = functions.pubsub
  * When an order is completed, increments the global revenue and total orders.
  */
 exports.aggregateAdminStats = functions.firestore
-    .document('orders/{orderId}')
+    .document("orders/{orderId}")
     .onUpdate(async (change, context) => {
         const newValue = change.after.data();
         const previousValue = change.before.data();
 
         // Only care if status changed to COMPLETED
-        if (previousValue.status !== 'COMPLETED' && newValue.status === 'COMPLETED') {
+        if (previousValue.status !== "COMPLETED" && newValue.status === "COMPLETED") {
             const db = admin.firestore();
             const totalAmount = newValue.totalAmount || 0;
             const venueId = newValue.venueId;
@@ -1244,10 +1244,10 @@ exports.aggregateAdminStats = functions.firestore
             const co2Saved = newValue.co2Saved || 2.5;
 
             // 1. Update Global Stats
-            const globalRef = db.collection('stats').doc('global');
+            const globalRef = db.collection("stats").doc("global");
 
             // 2. Update Venue Stats
-            const venueRef = venueId ? db.collection('stats_venues').doc(venueId) : null;
+            const venueRef = venueId ? db.collection("stats_venues").doc(venueId) : null;
 
             const batch = db.batch();
 
@@ -1273,14 +1273,14 @@ exports.aggregateAdminStats = functions.firestore
             // 3. Update User Impact & Streak
             const customerId = newValue.customerId;
             if (customerId) {
-                const userRef = db.collection('users').doc(customerId);
+                const userRef = db.collection("users").doc(customerId);
 
                 try {
                     await db.runTransaction(async (transaction) => {
                         const userDoc = await transaction.get(userRef);
                         if (userDoc.exists) {
                             const userData = userDoc.data();
-                            const currentImpact = userData.impact || { co2Saved: 0, moneySaved: 0, totalRescues: 0, points: 0, level: 'NOVICE' };
+                            const currentImpact = userData.impact || { co2Saved: 0, moneySaved: 0, totalRescues: 0, points: 0, level: "NOVICE" };
                             const currentStreak = userData.streak || { current: 0, longest: 0, lastOrderDate: "", multiplier: 1.0 };
 
                             // 1. Calculate base values
@@ -1289,7 +1289,7 @@ exports.aggregateAdminStats = functions.firestore
                             const moneySaved = discountAmount > 0 ? discountAmount : Math.floor(totalAmount * 0.2);
 
                             // 2. Streak Logic
-                            const todayStr = new Date().toISOString().split('T')[0];
+                            const todayStr = new Date().toISOString().split("T")[0];
                             let newStreakCurrent = currentStreak.current;
                             let newStreakLongest = currentStreak.longest;
                             let newMultiplier = currentStreak.multiplier;
@@ -1324,20 +1324,20 @@ exports.aggregateAdminStats = functions.firestore
                             // 3. Level Logic
                             const newTotalRescues = (currentImpact.totalRescues || 0) + 1;
                             let newLevel = currentImpact.level;
-                            if (newTotalRescues >= 50) newLevel = 'GUARDIAN';
-                            else if (newTotalRescues >= 10) newLevel = 'HERO';
+                            if (newTotalRescues >= 50) newLevel = "GUARDIAN";
+                            else if (newTotalRescues >= 10) newLevel = "HERO";
 
                             // 4. Update Document
                             transaction.update(userRef, {
-                                'impact.co2Saved': (currentImpact.co2Saved || 0) + co2Saved,
-                                'impact.moneySaved': (currentImpact.moneySaved || 0) + moneySaved,
-                                'impact.totalRescues': newTotalRescues,
-                                'impact.points': (currentImpact.points || 0) + finalPointsEarned,
-                                'impact.level': newLevel,
-                                'streak.current': newStreakCurrent,
-                                'streak.longest': newStreakLongest,
-                                'streak.lastOrderDate': todayStr,
-                                'streak.multiplier': newMultiplier
+                                "impact.co2Saved": (currentImpact.co2Saved || 0) + co2Saved,
+                                "impact.moneySaved": (currentImpact.moneySaved || 0) + moneySaved,
+                                "impact.totalRescues": newTotalRescues,
+                                "impact.points": (currentImpact.points || 0) + finalPointsEarned,
+                                "impact.level": newLevel,
+                                "streak.current": newStreakCurrent,
+                                "streak.longest": newStreakLongest,
+                                "streak.lastOrderDate": todayStr,
+                                "streak.multiplier": newMultiplier
                             });
                         }
                     });
@@ -1356,3 +1356,77 @@ exports.aggregateAdminStats = functions.firestore
 
         return null;
     });
+
+/**
+ * migrateVenueIdToVenueIds
+ * One-time callable admin function.
+ * Migrates users that have venueId (string) but not venueIds (array)
+ * to use venueIds: [venueId] so all code can rely on venueIds exclusively.
+ *
+ * Call via Firebase Admin SDK or curl:
+ *   firebase functions:call migrateVenueIdToVenueIds
+ *
+ * Idempotent: safe to run multiple times.
+ */
+exports.migrateVenueIdToVenueIds = functions.https.onCall(async (_data, context) => {
+    // Only callable by SUPER_ADMIN (check custom claims or role in Firestore)
+    const db = admin.firestore();
+
+    // Verify caller is an authenticated admin
+    if (!context.auth) {
+        throw new functions.https.HttpsError("unauthenticated", "Must be authenticated.");
+    }
+
+    const callerDoc = await db.collection("users").doc(context.auth.uid).get();
+    if (!callerDoc.exists) {
+        throw new functions.https.HttpsError("permission-denied", "Caller not found.");
+    }
+    const callerRole = callerDoc.data().role;
+    if (callerRole !== "SUPER_ADMIN" && callerRole !== "ADMIN") {
+        throw new functions.https.HttpsError("permission-denied", "Only admins can run migrations.");
+    }
+
+    // Find users with venueId but missing venueIds
+    const usersRef = db.collection("users");
+    const snapshot = await usersRef.get();
+
+    const batch = db.batch();
+    let migratedCount = 0;
+    let skippedCount = 0;
+
+    for (const userDoc of snapshot.docs) {
+        const data = userDoc.data();
+        const hasVenueId = typeof data.venueId === "string" && data.venueId.length > 0;
+        const hasVenueIds = Array.isArray(data.venueIds) && data.venueIds.length > 0;
+
+        if (hasVenueId && !hasVenueIds) {
+            // Migrate: set venueIds = [venueId]
+            batch.update(userDoc.ref, {
+                venueIds: [data.venueId]
+            });
+            migratedCount++;
+            console.log(`Migrating user ${userDoc.id}: venueId=${data.venueId} → venueIds=[${data.venueId}]`);
+        } else if (hasVenueId && hasVenueIds && !data.venueIds.includes(data.venueId)) {
+            // venueId not yet in venueIds array — add it
+            batch.update(userDoc.ref, {
+                venueIds: admin.firestore.FieldValue.arrayUnion(data.venueId)
+            });
+            migratedCount++;
+            console.log(`Adding missing venueId to venueIds for user ${userDoc.id}`);
+        } else {
+            skippedCount++;
+        }
+    }
+
+    if (migratedCount > 0) {
+        await batch.commit();
+    }
+
+    const result = {
+        migrated: migratedCount,
+        skipped: skippedCount,
+        total: snapshot.size
+    };
+    console.log("migrateVenueIdToVenueIds complete:", result);
+    return result;
+});

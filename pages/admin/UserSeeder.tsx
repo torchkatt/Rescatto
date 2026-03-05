@@ -181,7 +181,7 @@ const UserSeeder: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 p-8 font-mono text-sm">
+        <div className="min-h-screen bg-gray-50 p-8 font-mono text-sm overflow-x-hidden">
             <div className="max-w-2xl mx-auto bg-white rounded-xl shadow-lg overflow-hidden">
                 <div className="bg-gray-900 px-6 py-4 flex justify-between items-center text-white">
                     <h1 className="text-xl font-bold flex items-center gap-2">

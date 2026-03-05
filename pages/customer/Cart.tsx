@@ -71,7 +71,7 @@ export const Cart: React.FC = () => {
     }, [items]);
 
     return (
-        <div className="min-h-screen bg-gray-50 pb-20">
+        <div className="min-h-screen bg-gray-50 pb-20 overflow-x-hidden">
             <div className="max-w-6xl mx-auto px-4 py-6">
                 {/* Header */}
                 <button
@@ -111,70 +111,73 @@ export const Cart: React.FC = () => {
 
                                 <div className="p-6 space-y-5">
                                     {venueItems.map(item => (
-                                        <div key={item.id} className="flex items-center gap-5 pb-5 border-b border-gray-100 last:border-0 last:pb-0">
-                                            <img
-                                                src={item.imageUrl}
-                                                alt={item.name}
-                                                className="w-24 h-24 object-cover rounded-xl shadow-sm flex-shrink-0"
-                                            />
-
-                                            <div className="flex-1 min-w-0">
-                                                <h4 className="font-bold text-gray-900 text-lg mb-1 truncate">{item.name}</h4>
-                                                <p className="text-sm text-gray-500 mb-2">{item.category || item.type}</p>
-                                                <div className="flex items-baseline gap-2 mb-2">
-                                                    <p className="text-emerald-600 font-bold text-xl">
-                                                        ${item.discountedPrice}
-                                                    </p>
-                                                    <span className="text-sm text-gray-400 line-through">
-                                                        ${item.originalPrice}
-                                                    </span>
+                                        <div key={item.id} className="flex flex-col gap-3 pb-5 border-b border-gray-100 last:border-0 last:pb-0">
+                                            {/* Fila 1: imagen + info */}
+                                            <div className="flex items-start gap-4">
+                                                <img
+                                                    src={item.imageUrl}
+                                                    alt={item.name}
+                                                    className="w-20 h-20 object-cover rounded-xl shadow-sm flex-shrink-0"
+                                                />
+                                                <div className="flex-1 min-w-0">
+                                                    <h4 className="font-bold text-gray-900 text-base mb-0.5 truncate">{item.name}</h4>
+                                                    <p className="text-sm text-gray-500 mb-1">{item.category || item.type}</p>
+                                                    <div className="flex items-baseline gap-2">
+                                                        <p className="text-emerald-600 font-bold text-lg">
+                                                            ${item.discountedPrice}
+                                                        </p>
+                                                        <span className="text-sm text-gray-400 line-through">
+                                                            ${item.originalPrice}
+                                                        </span>
+                                                    </div>
+                                                    {/* Urgency indicators */}
+                                                    {item.availableUntil && (() => {
+                                                        const expiresAt = new Date(item.availableUntil).getTime();
+                                                        const twoHoursFromNow = Date.now() + 2 * 60 * 60 * 1000;
+                                                        if (expiresAt < Date.now()) {
+                                                            return <p className="text-xs font-bold text-red-600 flex items-center gap-1 mt-1"><AlertTriangle size={12} /> Producto expirado</p>;
+                                                        }
+                                                        if (expiresAt < twoHoursFromNow) {
+                                                            return <Countdown targetTime={item.availableUntil} />;
+                                                        }
+                                                        return null;
+                                                    })()}
+                                                    {item.quantity <= 3 && item.quantity > 0 && (
+                                                        <p className="text-xs font-bold text-orange-500 flex items-center gap-1 mt-1">
+                                                            <Clock size={12} /> ¡Solo {item.quantity} disponibles!
+                                                        </p>
+                                                    )}
                                                 </div>
-                                                {/* Urgency indicators */}
-                                                {item.availableUntil && (() => {
-                                                    const expiresAt = new Date(item.availableUntil).getTime();
-                                                    const twoHoursFromNow = Date.now() + 2 * 60 * 60 * 1000;
-                                                    if (expiresAt < Date.now()) {
-                                                        return <p className="text-xs font-bold text-red-600 flex items-center gap-1"><AlertTriangle size={12} /> Producto expirado</p>;
-                                                    }
-                                                    if (expiresAt < twoHoursFromNow) {
-                                                        return <Countdown targetTime={item.availableUntil} />;
-                                                    }
-                                                    return null;
-                                                })()}
-                                                {item.quantity <= 3 && item.quantity > 0 && (
-                                                    <p className="text-xs font-bold text-orange-500 flex items-center gap-1 mt-1">
-                                                        <Clock size={12} /> ¡Solo {item.quantity} disponibles!
-                                                    </p>
-                                                )}
                                             </div>
 
-                                            {/* Quantity Controls */}
-                                            <div className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-2 border border-gray-100 shadow-sm">
+                                            {/* Fila 2: controles de cantidad + eliminar */}
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-1.5 border border-gray-100 shadow-sm">
+                                                    <button
+                                                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                                                        className="w-9 h-9 flex items-center justify-center rounded-lg bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 shadow-sm transition-all active:scale-90"
+                                                        aria-label="Disminuir cantidad"
+                                                    >
+                                                        <Minus size={16} strokeWidth={3} />
+                                                    </button>
+                                                    <span className="w-8 text-center font-bold text-gray-900 text-lg">{item.quantity}</span>
+                                                    <button
+                                                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                                                        className="w-9 h-9 flex items-center justify-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-md transition-all active:scale-90"
+                                                        aria-label="Aumentar cantidad"
+                                                    >
+                                                        <Plus size={16} strokeWidth={3} />
+                                                    </button>
+                                                </div>
+
                                                 <button
-                                                    onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                                                    className="w-10 h-10 flex items-center justify-center rounded-xl bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 shadow-sm transition-all active:scale-90"
-                                                    aria-label="Disminuir cantidad"
+                                                    onClick={() => removeFromCart(item.id)}
+                                                    className="w-10 h-10 flex items-center justify-center rounded-xl text-red-500 hover:bg-red-50 hover:text-red-700 transition-all active:scale-90 border border-transparent hover:border-red-100"
+                                                    aria-label="Eliminar producto"
                                                 >
-                                                    <Minus size={18} strokeWidth={3} />
-                                                </button>
-                                                <span className="w-10 text-center font-bold text-gray-900 text-xl">{item.quantity}</span>
-                                                <button
-                                                    onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                                                    className="w-10 h-10 flex items-center justify-center rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-md transition-all active:scale-90"
-                                                    aria-label="Aumentar cantidad"
-                                                >
-                                                    <Plus size={18} strokeWidth={3} />
+                                                    <Trash2 size={20} />
                                                 </button>
                                             </div>
-
-                                            {/* Remove Button */}
-                                            <button
-                                                onClick={() => removeFromCart(item.id)}
-                                                className="w-12 h-12 flex items-center justify-center rounded-xl text-red-600 hover:bg-red-50 hover:text-red-700 transition-all active:scale-90 border border-transparent hover:border-red-100"
-                                                aria-label="Eliminar producto"
-                                            >
-                                                <Trash2 size={24} />
-                                            </button>
                                         </div>
                                     ))}
                                 </div>

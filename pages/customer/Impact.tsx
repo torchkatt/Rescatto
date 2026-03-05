@@ -440,7 +440,7 @@ const Impact: React.FC = () => {
     const isNotificationSupported = 'Notification' in window && Notification.permission !== 'granted';
 
     return (
-        <div className="min-h-screen bg-gray-50 pb-24">
+        <div className="min-h-screen bg-gray-50 pb-24 overflow-x-hidden">
             {/* Banner de invitado */}
             {showGuestBanner && (
                 <GuestPromptBanner

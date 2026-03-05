@@ -205,7 +205,7 @@ export const VenuesManager: React.FC = () => {
     if (loading && !isModalOpen) return <LoadingSpinner fullPage />;
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 overflow-x-hidden">
             {/* Header */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">

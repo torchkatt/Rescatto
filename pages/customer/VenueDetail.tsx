@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { venueService } from '../../services/venueService';
 import { Venue, Product, RatingStats } from '../../types';
@@ -7,7 +7,7 @@ import { useToast } from '../../context/ToastContext';
 import { VenueDetailSkeletonLoader } from '../../components/customer/common/Loading';
 import { Button } from '../../components/customer/common/Button';
 import { Countdown } from '../../components/customer/common/Countdown';
-import { ArrowLeft, MapPin, Clock, Star, ShoppingCart, Flame, Users } from 'lucide-react';
+import { ArrowLeft, MapPin, Clock, Star, ShoppingCart, Flame, Users, Search, X } from 'lucide-react';
 import { getRatingStats } from '../../services/ratingService';
 import { logger } from '../../utils/logger';
 
@@ -36,6 +36,8 @@ export const VenueDetail: React.FC = () => {
     const [products, setProducts] = useState<Product[]>([]);
     const [ratingStats, setRatingStats] = useState<RatingStats | null>(null);
     const [loading, setLoading] = useState(true);
+    const [productSearch, setProductSearch] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState('all');
 
     useEffect(() => {
         if (venueId) {
@@ -84,6 +86,25 @@ export const VenueDetail: React.FC = () => {
         success(`✅ ${product.name} agregado al carrito`);
     };
 
+    // Categorías únicas de los productos disponibles
+    const productCategories = useMemo(() => {
+        const cats = products
+            .map(p => p.category)
+            .filter((c): c is string => !!c);
+        return Array.from(new Set(cats));
+    }, [products]);
+
+    // Productos filtrados por búsqueda + categoría
+    const filteredProducts = useMemo(() => {
+        return products.filter(p => {
+            const matchesSearch = !productSearch ||
+                p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+                (p.category?.toLowerCase() ?? '').includes(productSearch.toLowerCase());
+            const matchesCategory = selectedCategory === 'all' || p.category === selectedCategory;
+            return matchesSearch && matchesCategory;
+        });
+    }, [products, productSearch, selectedCategory]);
+
     if (loading) {
         return <VenueDetailSkeletonLoader />;
     }
@@ -105,7 +126,7 @@ export const VenueDetail: React.FC = () => {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-gray-50 overflow-x-hidden">
             {/* Header */}
             <div className="relative">
                 {/* Cover Image */}
@@ -187,16 +208,73 @@ export const VenueDetail: React.FC = () => {
             </div>
 
             {/* Products */}
-            <div className="max-w-6xl mx-auto px-6 py-8">
-                <h2 className="text-2xl font-bold text-gray-800 mb-6">Productos Disponibles</h2>
+            <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+                <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-2xl font-bold text-gray-800">Productos Disponibles</h2>
+                    <span className="text-sm text-gray-500 font-medium">
+                        {filteredProducts.length} de {products.length}
+                    </span>
+                </div>
+
+                {/* Búsqueda */}
+                <div className="relative mb-3">
+                    <Search className="absolute left-3 top-3 text-gray-400" size={18} />
+                    <input
+                        type="text"
+                        placeholder="Buscar producto..."
+                        value={productSearch}
+                        onChange={e => setProductSearch(e.target.value)}
+                        className="w-full bg-white border border-gray-200 rounded-xl py-2.5 pl-10 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm"
+                    />
+                    {productSearch && (
+                        <button
+                            onClick={() => setProductSearch('')}
+                            className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                        >
+                            <X size={16} />
+                        </button>
+                    )}
+                </div>
+
+                {/* Filtros por categoría */}
+                {productCategories.length > 1 && (
+                    <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 mb-4 min-w-0">
+                        <button
+                            onClick={() => setSelectedCategory('all')}
+                            className={`whitespace-nowrap px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex-shrink-0 ${selectedCategory === 'all' ? 'bg-emerald-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-emerald-300'}`}
+                        >
+                            Todos
+                        </button>
+                        {productCategories.map(cat => (
+                            <button
+                                key={cat}
+                                onClick={() => setSelectedCategory(cat)}
+                                className={`whitespace-nowrap px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex-shrink-0 ${selectedCategory === cat ? 'bg-emerald-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-emerald-300'}`}
+                            >
+                                {cat}
+                            </button>
+                        ))}
+                    </div>
+                )}
 
                 {products.length === 0 ? (
                     <div className="bg-white rounded-xl p-12 text-center">
                         <p className="text-gray-500">No hay productos disponibles en este momento</p>
                     </div>
+                ) : filteredProducts.length === 0 ? (
+                    <div className="bg-white rounded-xl p-10 text-center">
+                        <Search size={36} className="mx-auto mb-3 text-gray-300" />
+                        <p className="text-gray-500 font-medium">Sin resultados para "{productSearch}"</p>
+                        <button
+                            onClick={() => { setProductSearch(''); setSelectedCategory('all'); }}
+                            className="mt-2 text-emerald-600 text-sm font-bold hover:underline"
+                        >
+                            Limpiar filtros
+                        </button>
+                    </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {products.map(product => {
+                        {filteredProducts.map(product => {
                             // Dynamic pricing: prefer dynamicDiscountedPrice when active
                             const activePrice = (product.isDynamicPricing && product.dynamicDiscountedPrice)
                                 ? product.dynamicDiscountedPrice
@@ -327,5 +405,6 @@ export const VenueDetail: React.FC = () => {
         </div>
     );
 };
+
 
 export default VenueDetail;

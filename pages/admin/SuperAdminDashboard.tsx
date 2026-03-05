@@ -23,7 +23,7 @@ export const SuperAdminDashboard: React.FC = () => {
     const { logout } = useAuth();
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 overflow-x-hidden">
             <div className="mb-6">
                 <h1 className="text-2xl font-bold text-gray-800">Panel de Super Administrador</h1>
                 <p className="text-gray-500">Vista general y control total de la plataforma.</p>

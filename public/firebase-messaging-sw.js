@@ -20,10 +20,38 @@ const messaging = getMessaging(app);
 onBackgroundMessage(messaging, (payload) => {
     console.log('[firebase-messaging-sw.js] Received background message ', payload);
     const notificationTitle = payload.notification?.title || 'Notificación de Rescatto';
+    const orderId = payload.data?.orderId;
     const notificationOptions = {
         body: payload.notification?.body,
-        icon: '/pwa-192x192.png'
+        icon: '/pwa-192x192.png',
+        badge: '/icons/badge-72x72.png',
+        data: { orderId }
     };
 
     self.registration.showNotification(notificationTitle, notificationOptions);
+});
+
+// Deep linking: al hacer clic en la notificación, abrir/enfocar la app y navegar a la orden
+self.addEventListener('notificationclick', (event) => {
+    event.notification.close();
+
+    const orderId = event.notification.data?.orderId;
+    const targetPath = orderId
+        ? `/#/app/orders?highlight=${orderId}`
+        : '/#/app/orders';
+
+    event.waitUntil(
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+            // Si ya hay una ventana abierta de la app, enfocarla y enviarle el orderId
+            for (const client of clientList) {
+                if ('focus' in client) {
+                    client.focus();
+                    client.postMessage({ type: 'NOTIFICATION_CLICK', orderId });
+                    return;
+                }
+            }
+            // Si no hay ventana abierta, abrir una nueva
+            return clients.openWindow(targetPath);
+        })
+    );
 });

@@ -423,13 +423,13 @@ export const DriverDashboard: React.FC = () => {
                             <div>
                                 <p className="text-[10px] font-bold text-gray-400 uppercase">Tu Ganancia</p>
                                 <p className="text-xl font-black text-emerald-600">
-                                    ${order.deliveryFee ? order.deliveryFee.toFixed(2) : '0.00'}
+                                    {formatCOP(order.deliveryFee ?? 0)}
                                 </p>
                             </div>
                             <div>
                                 <p className="text-[10px] font-bold text-gray-400 uppercase">Valor Pedido</p>
                                 <p className="text-xl font-black text-gray-700">
-                                    ${order.totalAmount.toFixed(2)}
+                                    {formatCOP(order.totalAmount)}
                                 </p>
                             </div>
                             <div className="text-right hidden lg:block">
@@ -478,7 +478,7 @@ export const DriverDashboard: React.FC = () => {
     if (loading) return <LoadingSpinner fullPage />;
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 overflow-x-hidden">
             <div className="flex justify-between items-center">
                 <div>
                     <h1 className="text-3xl font-extrabold text-gray-800 flex items-center gap-3">

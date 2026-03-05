@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { collection, query, where, getDocs, orderBy, doc, getDoc, limit } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, doc, getDoc, limit } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
@@ -9,7 +9,7 @@ import { Order, OrderStatus, Venue, UserRole, Product, ProductType } from '../..
 import { useCart } from '../../context/CartContext';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
 import { Sparkles } from 'lucide-react';
-import { Package, Clock, CheckCircle, XCircle, Truck, MessageSquare, Star, ArrowLeft, RotateCw, ShoppingCart, Share2 } from 'lucide-react';
+import { Package, Clock, CheckCircle, XCircle, Truck, MessageSquare, Star, ArrowLeft, ShoppingCart, Share2 } from 'lucide-react';
 import { RatingModal } from '../../components/rating/RatingModal';
 import { ChatWindow } from '../../components/chat/ChatWindow';
 import { logger } from '../../utils/logger';
@@ -19,6 +19,7 @@ export const MyOrders: React.FC = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const orderIdParam = searchParams.get('orderId');
+    const highlightParam = searchParams.get('highlight');
 
     const { user } = useAuth();
     const { createChat, openChat } = useChat();
@@ -28,39 +29,45 @@ export const MyOrders: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [ratingOrder, setRatingOrder] = useState<Order | null>(null);
     const [showChatWindow, setShowChatWindow] = useState(false);
+    const highlightRef = useRef<HTMLDivElement | null>(null);
 
+    // Scroll a la orden destacada cuando se navega desde una notificación FCM
     useEffect(() => {
-        if (user) {
-            loadOrders();
+        if (!highlightParam || loading || orders.length === 0) return;
+        if (highlightRef.current) {
+            highlightRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
-    }, [user]);
+    }, [highlightParam, loading, orders.length]);
 
-    const loadOrders = async () => {
+    // Suscripción en tiempo real — los pedidos se actualizan automáticamente
+    useEffect(() => {
         if (!user) return;
 
         setLoading(true);
-        try {
-            const ordersRef = collection(db, 'orders');
-            const q = query(
-                ordersRef,
-                where('customerId', '==', user.id),
-                orderBy('createdAt', 'desc'),
-                limit(20) // Optimización: Solo obtener los últimos 20 pedidos
-            );
+        const q = query(
+            collection(db, 'orders'),
+            where('customerId', '==', user.id),
+            orderBy('createdAt', 'desc'),
+            limit(20)
+        );
 
-            const snapshot = await getDocs(q);
-            const ordersData = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            })) as Order[];
+        const unsubscribe = onSnapshot(q,
+            (snapshot) => {
+                const ordersData = snapshot.docs.map(d => ({
+                    id: d.id,
+                    ...d.data()
+                })) as Order[];
+                setOrders(ordersData);
+                setLoading(false);
+            },
+            (error) => {
+                logger.error('Error en suscripción de pedidos:', error);
+                setLoading(false);
+            }
+        );
 
-            setOrders(ordersData);
-        } catch (error) {
-            logger.error('Error loading orders:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
+        return () => unsubscribe();
+    }, [user?.id]);
 
     const handleChatWithVenue = async (order: Order) => {
         try {
@@ -203,7 +210,7 @@ export const MyOrders: React.FC = () => {
     const unratedOrders = orders.filter(o => o.status === OrderStatus.COMPLETED && !o.rated);
 
     return (
-        <div className="min-h-screen bg-gray-50 p-6">
+        <div className="min-h-screen bg-gray-50 p-6 overflow-x-hidden">
             <div className="max-w-4xl mx-auto">
                 {/* Botón de Volver */}
                 <button
@@ -219,13 +226,10 @@ export const MyOrders: React.FC = () => {
                         <Package className="text-emerald-600" />
                         Mis Pedidos
                     </h1>
-                    <button
-                        onClick={() => loadOrders()}
-                        className="bg-white border border-gray-200 text-gray-600 p-2 rounded-lg hover:bg-gray-50 transition shadow-sm flex items-center justify-center"
-                        title="Refrescar pedidos"
-                    >
-                        <RotateCw size={22} className={loading ? 'animate-spin' : ''} />
-                    </button>
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-full">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
+                        En vivo
+                    </div>
                 </div>
 
                 {orderIdParam && (
@@ -338,7 +342,11 @@ export const MyOrders: React.FC = () => {
                         {orders
                             .filter(o => !orderIdParam || o.id === orderIdParam)
                             .map(order => (
-                                <div key={order.id} className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                                <div
+                                    key={order.id}
+                                    ref={order.id === highlightParam ? highlightRef : null}
+                                    className={`bg-white rounded-xl p-6 shadow-sm border transition-all duration-500 ${order.id === highlightParam ? 'border-emerald-400 ring-2 ring-emerald-300 shadow-emerald-100' : 'border-gray-100'}`}
+                                >
                                     <div className="flex justify-between items-start mb-4">
                                         <div>
                                             <p className="text-sm text-gray-500">
@@ -462,8 +470,8 @@ export const MyOrders: React.FC = () => {
                     order={ratingOrder}
                     onClose={() => setRatingOrder(null)}
                     onSuccess={() => {
-                        // Reload orders to reflect rated status
-                        loadOrders();
+                        // onSnapshot actualiza automáticamente; solo cerramos el modal
+                        setRatingOrder(null);
                     }}
                 />
             )}
