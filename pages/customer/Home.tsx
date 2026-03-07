@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { venueService } from '../../services/venueService';
-import { Venue } from '../../types';
+import { Venue, RatingStats } from '../../types';
 import { VenueCard } from '../../components/customer/venue/VenueCard';
+import { getRatingStats } from '../../services/ratingService';
 
 import { HomeSkeletonLoader } from '../../components/customer/common/Loading';
 import { CategoriesBar } from '../../components/customer/home/CategoriesBar';
@@ -29,6 +30,7 @@ const CustomerHome: React.FC = () => {
     const [venueExpiryMap, setVenueExpiryMap] = useState<Map<string, string>>(new Map());
     const [venueStockMap, setVenueStockMap] = useState<Map<string, number>>(new Map());
     const [dynamicVenueIds, setDynamicVenueIds] = useState<Set<string>>(new Set());
+    const [venueRatingMap, setVenueRatingMap] = useState<Map<string, RatingStats>>(new Map());
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedDietaryTags, setSelectedDietaryTags] = useState<string[]>([]);
@@ -50,6 +52,19 @@ const CustomerHome: React.FC = () => {
                 setVenueExpiryMap(expiryMap);
                 setVenueStockMap(stockMap);
                 setDynamicVenueIds(dynIds);
+
+                // Carga de rating stats en paralelo (una sola tanda, sin N+1)
+                const ratingResults = await Promise.allSettled(
+                    allVenues.map(v => getRatingStats(v.id, 'venue'))
+                );
+                const ratingMap = new Map<string, RatingStats>();
+                allVenues.forEach((v, i) => {
+                    const result = ratingResults[i];
+                    if (result.status === 'fulfilled' && result.value) {
+                        ratingMap.set(v.id, result.value);
+                    }
+                });
+                setVenueRatingMap(ratingMap);
             } catch (error) {
                 logger.error('Error fetching venues:', error);
             } finally {
@@ -203,155 +218,178 @@ const CustomerHome: React.FC = () => {
     return (
         <div className="pb-20 bg-gray-50 min-h-screen">
             {/* Header */}
-            <header className="bg-white sticky top-0 z-50 shadow-sm border-b border-gray-100 overflow-x-hidden pt-safe-top h-header-mobile flex items-center">
-                <div className="px-4 py-3 flex items-center justify-between">
-                    <button
-                        type="button"
-                        aria-label={`Cambiar ubicación. Actualmente: ${address}`}
-                        className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                        onClick={() => setShowLocationSelector(true)}
-                    >
-                        <div className="bg-emerald-100 p-2 rounded-full text-emerald-600">
-                            <MapPin size={18} />
-                        </div>
-                        <div className="flex flex-col text-left">
-                            <span className="text-xs text-gray-500">Ubicación Actual</span>
-                            <span className="font-bold text-sm text-gray-800 leading-none flex items-center gap-1">
-                                {address} <ChevronDown size={14} />
-                            </span>
-                        </div>
-                    </button>
-                    {user && (
-                        <div className="relative" ref={userMenuRef}>
-                            <button
-                                onClick={() => setShowUserMenu(!showUserMenu)}
-                                className="w-9 h-9 bg-emerald-600 rounded-full flex items-center justify-center text-white font-bold text-sm hover:bg-emerald-700 transition-colors shadow-md active:scale-95"
-                            >
-                                {user.fullName.charAt(0)}
-                            </button>
-
-                            {/* User Dropdown Menu */}
-                            {showUserMenu && (
-                                <>
-                                    {/* Backdrop for mobile to prevent scroll and allow closing */}
-                                    <div
-                                        className="fixed inset-0 bg-black/5 z-40 lg:hidden"
-                                        onClick={() => setShowUserMenu(false)}
-                                    />
-                                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50 animate-fadeIn">
-                                        {/* User Info Header */}
-                                        <div className="px-4 py-3 bg-gradient-to-r from-emerald-50 to-teal-50 border-b border-gray-100">
-                                            <p className="font-bold text-gray-900 truncate">{user.fullName}</p>
-                                            <p className="text-xs text-gray-500 truncate">{user.email}</p>
-                                            {/* Streak display in menu */}
-                                            {(user.streak?.current ?? 0) >= 2 && (
-                                                <p className="text-xs text-orange-600 font-bold mt-1 flex items-center gap-1">
-                                                    🔥 {user.streak?.current} días de racha
-                                                </p>
-                                            )}
-                                        </div>
-
-                                        {/* Menu Items */}
-                                        <div className="py-2">
-                                            <button
-                                                onClick={() => { setShowUserMenu(false); navigate('/profile'); }}
-                                                className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-gray-50 transition-colors text-gray-700 active:bg-gray-100"
-                                            >
-                                                <User size={20} className="text-emerald-600" />
-                                                <span className="font-bold text-sm">Mi Perfil</span>
-                                            </button>
-
-                                            <button
-                                                onClick={() => { setShowUserMenu(false); navigate('/app/orders'); }}
-                                                className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-gray-50 transition-colors text-gray-700 active:bg-gray-100"
-                                            >
-                                                <ShoppingBag size={20} className="text-emerald-600" />
-                                                <span className="font-bold text-sm">Mis Pedidos</span>
-                                            </button>
-
-                                            <button
-                                                onClick={() => { setShowUserMenu(false); navigate('/app/favorites'); }}
-                                                className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-gray-50 transition-colors text-gray-700 active:bg-gray-100"
-                                            >
-                                                <Heart size={20} className="text-red-500" />
-                                                <span className="font-bold text-sm">Mis Favoritos</span>
-                                            </button>
-
-                                            <button
-                                                onClick={() => { setShowUserMenu(false); navigate('/app/impact'); }}
-                                                className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-gray-50 transition-colors text-gray-700 active:bg-gray-100"
-                                            >
-                                                <Leaf size={20} className="text-emerald-600" />
-                                                <span className="font-bold text-sm">Mi Impacto 🌱</span>
-                                            </button>
-
-                                            <button
-                                                onClick={() => { setShowUserMenu(false); handleForceUpdate(); }}
-                                                className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-gray-50 transition-colors text-gray-700 active:bg-gray-100"
-                                            >
-                                                <RefreshCw size={20} className="text-blue-500" />
-                                                <span className="font-bold text-sm">Actualizar App</span>
-                                            </button>
-
-                                            <div className="border-t border-gray-100 my-1"></div>
-
-                                            <button
-                                                onClick={() => { setShowUserMenu(false); handleLogout(); }}
-                                                className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-red-50 transition-colors text-red-600 cursor-pointer active:bg-red-100"
-                                            >
-                                                <LogOut size={20} />
-                                                <span className="font-bold text-sm">Cerrar Sesión</span>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                    )}
-                </div>
-
-                {/* Search Bar */}
-                <div className="px-4 pb-3">
-                    <div className="relative">
-                        <Search className="absolute left-3 top-3.5 text-gray-400" size={20} />
-                        <input
-                            type="text"
-                            id="venue-search"
-                            aria-label="Buscar restaurantes y comida por nombre o dirección"
-                            placeholder="Buscar comida, restaurante..."
-                            className="w-full bg-gray-100 rounded-xl py-3 pl-10 pr-4 text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
-                    </div>
-                </div>
-
-                {/* Categories */}
-                <CategoriesBar
-                    selectedCategory={selectedCategory}
-                    onSelectCategory={setSelectedCategory}
-                />
-
-                {/* Dietary Filters */}
-                <div className="px-4 pb-3 flex gap-2 overflow-x-auto no-scrollbar py-2 min-w-0">
-                    {DIETARY_OPTIONS.map(option => (
+            <header className="bg-white sticky top-0 z-50 shadow-sm border-b border-gray-100 overflow-visible pt-safe-top flex flex-col">
+                <div className="max-w-7xl mx-auto w-full">
+                    {/* Tier 1: Location & Profile */}
+                    <div className="px-4 py-3 pb-2 flex items-center justify-between">
                         <button
-                            key={option.id}
-                            onClick={() => toggleDietaryTag(option.id)}
-                            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border active:scale-95 ${selectedDietaryTags.includes(option.id)
-                                ? 'bg-emerald-600 border-emerald-600 text-white shadow-md'
-                                : 'bg-white border-gray-200 text-gray-600 hover:border-emerald-300'
-                                }`}
+                            type="button"
+                            aria-label={`Cambiar ubicación. Actualmente: ${address}`}
+                            className="flex items-center gap-3 cursor-pointer p-1 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 max-w-[80%]"
+                            onClick={() => setShowLocationSelector(true)}
                         >
-                            <span>{option.icon}</span>
-                            {option.label}
+                            <div className="bg-emerald-100 p-2 rounded-full text-emerald-600 shrink-0">
+                                <MapPin size={18} />
+                            </div>
+                            <div className="flex flex-col text-left overflow-hidden">
+                                <span className="text-[11px] text-gray-500 font-medium uppercase tracking-wider">Ubicación Actual</span>
+                                <span className="font-bold text-[15px] text-gray-900 leading-tight flex items-center gap-1 truncate w-full">
+                                    {address} <ChevronDown size={14} className="shrink-0 text-emerald-600" />
+                                </span>
+                            </div>
                         </button>
-                    ))}
+                        {user && (
+                            <div className="relative z-[60]" ref={userMenuRef}>
+                                <button
+                                    onClick={() => setShowUserMenu(!showUserMenu)}
+                                    className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-full flex items-center justify-center text-white font-bold text-sm hover:from-emerald-600 hover:to-emerald-800 transition-all shadow-md active:scale-95 border-2 border-white ring-2 ring-emerald-100 shrink-0"
+                                >
+                                    {user.fullName.charAt(0)}
+                                </button>
+
+                                {/* User Dropdown Menu */}
+                                {showUserMenu && (
+                                    <>
+                                        {/* Backdrop for mobile to prevent scroll and allow closing */}
+                                        <div
+                                            className="fixed inset-0 bg-black/20 backdrop-blur-[2px] z-[60] lg:hidden"
+                                            onClick={() => setShowUserMenu(false)}
+                                        />
+                                        <div className="absolute right-0 mt-3 w-64 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-[70] animate-fadeIn origin-top-right">
+                                            {/* User Info Header */}
+                                            <div className="px-5 py-4 bg-gradient-to-br from-emerald-50 to-teal-50 border-b border-emerald-100/50">
+                                                <p className="font-black text-gray-900 text-base truncate">{user.fullName}</p>
+                                                <p className="text-xs text-gray-500 truncate font-medium mt-0.5">{user.email}</p>
+                                                {/* Streak display in menu */}
+                                                {(user.streak?.current ?? 0) >= 2 && (
+                                                    <div className="mt-2 inline-flex items-center gap-1.5 bg-orange-100/50 text-orange-700 px-2.5 py-1 rounded-full text-xs font-bold border border-orange-200">
+                                                        🔥 {user.streak?.current} días de racha
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Menu Items */}
+                                            <div className="py-2">
+                                                <button
+                                                    onClick={() => { setShowUserMenu(false); navigate('/profile'); }}
+                                                    className="w-full px-5 py-3 text-left flex items-center gap-3 hover:bg-emerald-50 transition-colors text-gray-700 active:bg-emerald-100 group"
+                                                >
+                                                    <div className="bg-emerald-50 p-2 rounded-xl group-hover:bg-emerald-100 transition-colors text-emerald-600">
+                                                        <User size={18} />
+                                                    </div>
+                                                    <span className="font-bold text-sm">Mi Perfil</span>
+                                                </button>
+
+                                                <button
+                                                    onClick={() => { setShowUserMenu(false); navigate('/app/orders'); }}
+                                                    className="w-full px-5 py-3 text-left flex items-center gap-3 hover:bg-emerald-50 transition-colors text-gray-700 active:bg-emerald-100 group"
+                                                >
+                                                    <div className="bg-emerald-50 p-2 rounded-xl group-hover:bg-emerald-100 transition-colors text-emerald-600">
+                                                        <ShoppingBag size={18} />
+                                                    </div>
+                                                    <span className="font-bold text-sm">Mis Pedidos</span>
+                                                </button>
+
+                                                <button
+                                                    onClick={() => { setShowUserMenu(false); navigate('/app/favorites'); }}
+                                                    className="w-full px-5 py-3 text-left flex items-center gap-3 hover:bg-red-50 transition-colors text-gray-700 active:bg-red-100 group"
+                                                >
+                                                    <div className="bg-red-50 p-2 rounded-xl group-hover:bg-red-100 transition-colors text-red-500">
+                                                        <Heart size={18} />
+                                                    </div>
+                                                    <span className="font-bold text-sm">Mis Favoritos</span>
+                                                </button>
+
+                                                <button
+                                                    onClick={() => { setShowUserMenu(false); navigate('/app/impact'); }}
+                                                    className="w-full px-5 py-3 text-left flex items-center gap-3 hover:bg-emerald-50 transition-colors text-gray-700 active:bg-emerald-100 group"
+                                                >
+                                                    <div className="bg-emerald-50 p-2 rounded-xl group-hover:bg-emerald-100 transition-colors text-emerald-600">
+                                                        <Leaf size={18} />
+                                                    </div>
+                                                    <span className="font-bold text-sm">Mi Impacto <span className="text-lg leading-none">🌱</span></span>
+                                                </button>
+
+                                                <button
+                                                    onClick={() => { setShowUserMenu(false); handleForceUpdate(); }}
+                                                    className="w-full px-5 py-3 text-left flex items-center gap-3 hover:bg-blue-50 transition-colors text-gray-700 active:bg-blue-100 group"
+                                                >
+                                                    <div className="bg-blue-50 p-2 rounded-xl group-hover:bg-blue-100 transition-colors text-blue-500">
+                                                        <RefreshCw size={18} />
+                                                    </div>
+                                                    <span className="font-bold text-sm">Actualizar App</span>
+                                                </button>
+
+                                                <div className="border-t border-gray-100 my-2 mx-5"></div>
+
+                                                <button
+                                                    onClick={() => { setShowUserMenu(false); handleLogout(); }}
+                                                    className="w-full px-5 py-3 text-left flex items-center gap-3 hover:bg-red-50 transition-colors text-red-600 cursor-pointer active:bg-red-100 group"
+                                                >
+                                                    <div className="bg-red-50 p-2 rounded-xl group-hover:bg-red-100 transition-colors text-red-600">
+                                                        <LogOut size={18} />
+                                                    </div>
+                                                    <span className="font-bold text-sm">Cerrar Sesión</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Tier 2: Search Bar */}
+                    <div className="px-4 pb-2 relative z-[40]">
+                        <div className="relative group">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-emerald-500 transition-colors" size={20} />
+                            <input
+                                type="text"
+                                id="venue-search"
+                                aria-label="Buscar restaurantes y comida por nombre o dirección"
+                                placeholder="Buscar comida o restaurante..."
+                                className="w-full bg-gray-100/80 rounded-2xl py-3.5 pl-12 pr-4 text-[15px] font-medium placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all shadow-inner"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Tier 3: Categories & Filters (Scrollable Row) */}
+                    <div className="relative z-30 pb-3">
+                        <div className="flex gap-2.5 overflow-x-auto no-scrollbar px-4 pb-1 min-w-0 snap-x hide-scroll">
+                            <div className="shrink-0 snap-start">
+                                <CategoriesBar
+                                    selectedCategory={selectedCategory}
+                                    onSelectCategory={setSelectedCategory}
+                                />
+                            </div>
+
+                            {/* Dietary Filters incorporated into the same horizontal scroll */}
+                            {DIETARY_OPTIONS.map(option => (
+                                <button
+                                    key={option.id}
+                                    onClick={() => toggleDietaryTag(option.id)}
+                                    className={`shrink-0 snap-start flex items-center gap-1.5 px-4 h-10 rounded-full text-[13px] font-bold whitespace-nowrap transition-all border active:scale-95 ${selectedDietaryTags.includes(option.id)
+                                        ? 'bg-emerald-600 border-emerald-600 text-white shadow-md'
+                                        : 'bg-white border-gray-200 text-gray-600 hover:border-emerald-300 hover:bg-emerald-50'
+                                        }`}
+                                >
+                                    <span className="text-[15px] leading-none">{option.icon}</span>
+                                    {option.label}
+                                </button>
+                            ))}
+                            {/* Spacer for scroll padding */}
+                            <div className="w-1 shrink-0"></div>
+                        </div>
+                        {/* Fade effect at the edge of scroll */}
+                        <div className="absolute right-0 top-0 bottom-4 w-12 bg-gradient-to-l from-white to-transparent pointer-events-none"></div>
+                    </div>
                 </div>
             </header>
 
             {/* Main Content */}
-            <main className="p-4 space-y-6">
+            <main className="p-4 space-y-6 max-w-7xl mx-auto w-full">
 
                 {/* Hero Banner */}
                 <div className="bg-gradient-to-r from-emerald-600 to-teal-500 rounded-2xl p-4 text-white shadow-lg relative overflow-hidden">
@@ -381,20 +419,27 @@ const CustomerHome: React.FC = () => {
 
                 {/* Social Proof: Live Stats */}
                 {platformStats.totalStock > 0 && (
-                    <div className="grid grid-cols-3 gap-2">
-                        <div className="bg-white rounded-xl p-3 text-center shadow-sm border border-gray-50">
-                            <p className="text-lg font-black text-emerald-600">{platformStats.totalStock.toLocaleString('es-CO')}</p>
-                            <p className="text-[10px] text-gray-500 font-medium leading-tight">porciones<br />disponibles</p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6 items-stretch">
+                        <div className="bg-white rounded-[24px] p-6 flex flex-col justify-center items-center text-center shadow-sm border border-gray-100 h-full hover:shadow-md transition-shadow md:col-span-1 min-h-[140px] relative overflow-hidden group">
+                            <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-emerald-50 rounded-full blur-2xl group-hover:bg-emerald-100 transition-colors duration-500"></div>
+                            <p className="text-4xl lg:text-5xl font-black text-emerald-600 mb-1 leading-none relative z-10">{platformStats.totalStock.toLocaleString('es-CO')}</p>
+                            <p className="text-xs lg:text-sm text-gray-500 font-bold uppercase tracking-widest leading-snug relative z-10">porciones<br />disponibles</p>
                         </div>
-                        <div className="bg-white rounded-xl p-3 text-center shadow-sm border border-gray-50">
-                            <p className="text-lg font-black text-orange-500">{platformStats.activeVenues.toLocaleString('es-CO')}</p>
-                            <p className="text-[10px] text-gray-500 font-medium leading-tight">lugares<br />activos hoy</p>
-                        </div>
-                        <div className="bg-white rounded-xl p-3 text-center shadow-sm border border-gray-50">
-                            <p className="text-lg font-black text-blue-600">
-                                {Math.round(platformStats.totalStock * 0.4).toLocaleString('es-CO')} kg
-                            </p>
-                            <p className="text-[10px] text-gray-500 font-medium leading-tight">de CO₂ por<br />salvar hoy</p>
+                        <div className="grid grid-cols-2 md:grid-cols-1 md:grid-rows-2 gap-3 md:col-span-2 md:gap-4 lg:gap-6">
+                            <div className="bg-white rounded-2xl p-4 lg:p-5 flex items-center justify-between shadow-sm border border-gray-100 hover:shadow-md transition-shadow h-full cursor-default group">
+                                <div>
+                                    <p className="text-[10px] lg:text-xs text-gray-400 font-bold uppercase tracking-wider leading-tight text-left mb-0.5">Lugares</p>
+                                    <p className="text-[13px] lg:text-sm font-black text-gray-700 leading-none">ACTIVOS HOY</p>
+                                </div>
+                                <p className="text-2xl lg:text-3xl font-black text-orange-500 group-hover:scale-110 transition-transform origin-right">{platformStats.activeVenues.toLocaleString('es-CO')}</p>
+                            </div>
+                            <div className="bg-white rounded-2xl p-4 lg:p-5 flex items-center justify-between shadow-sm border border-gray-100 hover:shadow-md transition-shadow h-full cursor-default group">
+                                <div>
+                                    <p className="text-[10px] lg:text-xs text-gray-400 font-bold uppercase tracking-wider leading-tight text-left mb-0.5">Kg CO₂ por</p>
+                                    <p className="text-[13px] lg:text-sm font-black text-gray-700 leading-none">SALVAR HOY</p>
+                                </div>
+                                <p className="text-2xl lg:text-3xl font-black text-blue-500 group-hover:scale-110 transition-transform origin-right">{Math.round(platformStats.totalStock * 0.4).toLocaleString('es-CO')}</p>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -441,6 +486,7 @@ const CustomerHome: React.FC = () => {
                                         totalStock={venueStockMap.get(venue.id)}
                                         isTrending={trendingVenueIds.has(venue.id)}
                                         hasDynamicPricing={dynamicVenueIds.has(venue.id)}
+                                        ratingStats={venueRatingMap.get(venue.id)}
                                     />
                                 </div>
                             ))}
@@ -467,6 +513,7 @@ const CustomerHome: React.FC = () => {
                                             totalStock={venueStockMap.get(venue.id)}
                                             isTrending
                                             hasDynamicPricing={dynamicVenueIds.has(venue.id)}
+                                            ratingStats={venueRatingMap.get(venue.id)}
                                         />
                                     </div>
                                 ))
@@ -499,6 +546,7 @@ const CustomerHome: React.FC = () => {
                                     totalStock={venueStockMap.get(venue.id)}
                                     isTrending={trendingVenueIds.has(venue.id)}
                                     hasDynamicPricing={dynamicVenueIds.has(venue.id)}
+                                    ratingStats={venueRatingMap.get(venue.id)}
                                 />
                             ))
                         ) : (

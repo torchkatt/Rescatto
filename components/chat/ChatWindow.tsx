@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useChat } from '../../context/ChatContext';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import { MessageBubble } from './MessageBubble';
 import { X, Send, Loader2, MessageSquare, MapPin } from 'lucide-react';
 import { LoadingSpinner } from '../customer/common/Loading';
@@ -13,6 +14,7 @@ interface ChatWindowProps {
 export const ChatWindow: React.FC<ChatWindowProps> = ({ onClose, className = '' }) => {
     const { currentChat, messages, loading, sending, sendMessage, closeChat } = useChat();
     const { user } = useAuth();
+    const { error: toastError } = useToast();
     const [messageText, setMessageText] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -55,7 +57,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onClose, className = '' 
                 }
             );
         } else {
-            alert('Geolocalización no soportada por el navegador.');
+            toastError('Geolocalización no soportada por el navegador.');
         }
     };
 

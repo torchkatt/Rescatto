@@ -11,6 +11,7 @@ interface WompiWidgetProps {
     email?: string; // Pre-fill email
     fullName?: string;
     phoneNumber?: string;
+    onSuccess?: (transaction: any) => void;
 }
 
 declare global {
@@ -29,6 +30,7 @@ export const WompiWidget: React.FC<WompiWidgetProps> = ({
     email,
     fullName,
     phoneNumber,
+    onSuccess,
 }) => {
     const scriptLoaded = useRef(false);
 
@@ -67,8 +69,7 @@ export const WompiWidget: React.FC<WompiWidgetProps> = ({
             logger.log('Transaction result:', transaction);
             // Handle valid response here if not using redirectUrl
             if (transaction.status === 'APPROVED') {
-                alert('Pago Aprobado!');
-                // connect to onSuccess logic
+                onSuccess?.(transaction);
             }
         });
     };

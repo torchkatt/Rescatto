@@ -14,6 +14,7 @@ import { useConfirm } from '../../context/ConfirmContext';
 import { Tooltip } from '../../components/common/Tooltip';
 import MobilePreview from '../../components/MobilePreview';
 import { logger } from '../../utils/logger';
+import { formatCOP } from '../../utils/formatters';
 
 export const ProductManager: React.FC = () => {
     const toast = useToast();
@@ -439,10 +440,10 @@ export const ProductManager: React.FC = () => {
                                         <div className="flex items-center justify-between mb-3">
                                             <div>
                                                 <p className="text-base font-bold text-emerald-600">
-                                                    ${product.discountedPrice.toLocaleString()}
+                                                    {formatCOP(product.discountedPrice)}
                                                 </p>
                                                 <p className="text-xs text-gray-400 line-through">
-                                                    ${product.originalPrice.toLocaleString()}
+                                                    {formatCOP(product.originalPrice)}
                                                 </p>
                                             </div>
                                             <span className="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded border border-blue-100 font-medium">

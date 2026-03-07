@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { venueService } from '../../services/venueService';
 import { Venue, Product } from '../../types';
 import { useCart } from '../../context/CartContext';
+import { useToast } from '../../context/ToastContext';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
 import { Button } from '../../components/customer/common/Button';
 import { ArrowLeft, ShoppingCart, Info, Store, Clock, MapPin, Star, ChevronRight } from 'lucide-react';
@@ -14,6 +15,7 @@ export const ProductDetail: React.FC = () => {
     const { productId } = useParams<{ productId: string }>();
     const navigate = useNavigate();
     const { addToCart } = useCart();
+    const { error } = useToast();
 
     const [product, setProduct] = useState<Product | null>(null);
     const [venue, setVenue] = useState<Venue | null>(null);
@@ -45,6 +47,7 @@ export const ProductDetail: React.FC = () => {
     const handleAddToCart = () => {
         if (product) {
             if (!isProductAvailable(product)) {
+                error(`"${product.name}" ya no está disponible.`);
                 return;
             }
             const cartProduct = product.isDynamicPricing && product.dynamicDiscountedPrice
@@ -148,8 +151,7 @@ export const ProductDetail: React.FC = () => {
                     <div className="mt-5 pt-5 border-t border-gray-100">
                         <h3 className="text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">Descripción</h3>
                         <p className="text-gray-600 text-sm leading-relaxed">
-                            Delicioso plato preparado con ingredientes frescos del día.
-                            Ayuda a rescatar esta comida de alta calidad antes de que cierre el local.
+                            {product.description || 'Ayuda a rescatar esta comida de alta calidad antes de que cierre el local.'}
                         </p>
                     </div>
 
@@ -189,7 +191,7 @@ export const ProductDetail: React.FC = () => {
                                         ))}
                                     </div>
                                     <span className="text-xs font-semibold text-gray-700">{venue.rating}</span>
-                                    <span className="text-xs text-gray-400">(50+ reseñas)</span>
+                                    <span className="text-xs text-gray-400">{venue.rating > 0 ? `${venue.rating} / 5` : 'Sin reseñas'}</span>
                                 </div>
 
                                 {/* Address */}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Clock, AlertCircle } from 'lucide-react';
 
 interface CountdownProps {
@@ -16,6 +16,9 @@ export const Countdown: React.FC<CountdownProps> = ({
 }) => {
     const [timeLeft, setTimeLeft] = useState<string>('');
     const [autoVariant, setAutoVariant] = useState<'normal' | 'warning' | 'critical'>(variant);
+    // Ref para evitar que onExpire inline recree el intervalo en cada render
+    const onExpireRef = useRef(onExpire);
+    useEffect(() => { onExpireRef.current = onExpire; }, [onExpire]);
 
     useEffect(() => {
         const calculateTimeLeft = () => {
@@ -25,9 +28,7 @@ export const Countdown: React.FC<CountdownProps> = ({
 
             if (difference <= 0) {
                 setTimeLeft('Expirado');
-                if (onExpire) {
-                    onExpire();
-                }
+                onExpireRef.current?.();
                 return;
             }
 
@@ -57,7 +58,7 @@ export const Countdown: React.FC<CountdownProps> = ({
         const interval = setInterval(calculateTimeLeft, 1000);
 
         return () => clearInterval(interval);
-    }, [targetTime, onExpire]);
+    }, [targetTime]); // onExpire excluido intencionalmente — se accede via ref para evitar loop
 
     const variantClasses = {
         normal: 'bg-emerald-100 text-emerald-700 border-emerald-300',

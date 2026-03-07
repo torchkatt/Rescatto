@@ -4,6 +4,7 @@ import { getFirestore } from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
 import { getStorage } from 'firebase/storage';
 import { getMessaging } from 'firebase/messaging';
+import { logger } from '../utils/logger';
 
 // Firebase configuration from environment variables
 const firebaseConfig = {
@@ -36,7 +37,7 @@ export const messaging = typeof window !== 'undefined' ? (async () => {
     try {
         return getMessaging(app);
     } catch (error) {
-        console.warn('Firebase Messaging no es soportado en este navegador/entorno:', error);
+        logger.warn('Firebase Messaging no es soportado en este navegador/entorno:', error);
         return null;
     }
 })() : null;

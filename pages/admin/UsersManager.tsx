@@ -112,7 +112,7 @@ export const UsersManager: React.FC = () => {
             await loadRoles();
         } catch (error) {
             logger.error('Error seeding roles', error);
-            alert('Error al migrar roles');
+            toast.error('Error al migrar roles');
         } finally {
             setLoadingRoles(false);
         }

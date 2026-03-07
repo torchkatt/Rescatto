@@ -12,6 +12,7 @@ import {
     Clock, Tag, Store, ChevronDown, X, AlertTriangle
 } from 'lucide-react';
 import { logger } from '../../utils/logger';
+import { formatCOP } from '../../utils/formatters';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -453,7 +454,7 @@ const DealModal: React.FC<ModalProps> = ({ form, setForm, products, editing, sav
                                 <option value="">— Sin producto específico —</option>
                                 {products.map(p => (
                                     <option key={p.id} value={p.id}>
-                                        {p.name} {p.discountedPrice ? `($${p.discountedPrice.toLocaleString()})` : ''}
+                                        {p.name} {p.discountedPrice ? `(${formatCOP(p.discountedPrice)})` : ''}
                                     </option>
                                 ))}
                             </select>
@@ -462,7 +463,7 @@ const DealModal: React.FC<ModalProps> = ({ form, setForm, products, editing, sav
                         {selectedProduct && (
                             <div className="mt-1.5 space-y-1">
                                 <p className="text-xs text-gray-500">
-                                    Precio actual: ${selectedProduct.originalPrice?.toLocaleString()} → ${selectedProduct.discountedPrice?.toLocaleString()}
+                                    Precio actual: {selectedProduct.originalPrice ? formatCOP(selectedProduct.originalPrice) : '—'} → {selectedProduct.discountedPrice ? formatCOP(selectedProduct.discountedPrice) : '—'}
                                 </p>
                                 {selectedProduct.quantity === 0 ? (
                                     <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-xs font-medium">

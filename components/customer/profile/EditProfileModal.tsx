@@ -4,6 +4,7 @@ import { Button } from '../common/Button';
 import { X, Save, User as UserIcon, Mail, Phone, MapPin, Loader2, Crosshair } from 'lucide-react';
 import { reverseGeocode } from '../../../services/locationService';
 import { logger } from '../../../utils/logger';
+import { useToast } from '../../../context/ToastContext';
 
 interface EditProfileModalProps {
     user: User;
@@ -12,6 +13,7 @@ interface EditProfileModalProps {
 }
 
 export const EditProfileModal: React.FC<EditProfileModalProps> = ({ user, onClose, onSave }) => {
+    const { error: toastError } = useToast();
     const [formData, setFormData] = useState({
         fullName: user.fullName || '',
         phone: user.phone || '',
@@ -23,7 +25,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ user, onClos
 
     const handleDetectLocation = () => {
         if (!navigator.geolocation) {
-            alert('Geolocalización no soportada en este navegador');
+            toastError('Geolocalización no soportada en este navegador');
             return;
         }
         setDetecting(true);
@@ -59,6 +61,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ user, onClos
             onClose();
         } catch (error) {
             logger.error(error);
+            toastError('No se pudieron guardar los cambios. Intenta de nuevo.');
         } finally {
             setSaving(false);
         }

@@ -9,6 +9,7 @@ import { useToast } from '../../context/ToastContext';
 import { OrderStatus, Venue, UserRole } from '../../types';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
 import { Truck, MapPin, Phone, Package, DollarSign, Star, Award, LogOut, Search, Filter, X, SlidersHorizontal, ArrowUpDown, PhoneCall, Navigation, MessageSquare } from 'lucide-react';
+import { formatCOP } from '../../utils/formatters';
 import { getRatingStats } from '../../services/ratingService';
 import { RatingDisplay } from '../../components/rating/RatingDisplay';
 import { RatingStats } from '../../types';
@@ -224,7 +225,7 @@ export const DriverDashboard: React.FC = () => {
             const usersRef = collection(db, 'users');
             const q = query(
                 usersRef,
-                where('venueId', '==', order.venueId),
+                where('venueIds', 'array-contains', order.venueId),
                 where('role', '==', UserRole.VENUE_OWNER)
             );
 
@@ -299,9 +300,6 @@ export const DriverDashboard: React.FC = () => {
     const totalEarningsAllTime = completedOrders.reduce((sum, o) => {
         return sum + ((o as any).deliveryFee ?? 0);
     }, 0);
-
-    const formatCOP = (v: number) =>
-        new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v);
 
     const filterAndSortOrders = (orders: DeliveryOrder[]) => {
         return orders

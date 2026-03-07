@@ -5,6 +5,7 @@ import { Truck, MapPin, Package, CheckCircle, Clock, RefreshCw, AlertCircle } fr
 import { User, Order, OrderStatus } from '../../../types';
 import { LoadingSpinner } from '../../../components/customer/common/Loading';
 import { logger } from '../../../utils/logger';
+import { formatCOP } from '../../../utils/formatters';
 
 export const AdminDeliveries: React.FC = () => {
     const [drivers, setDrivers] = useState<User[]>([]);
@@ -144,7 +145,7 @@ export const AdminDeliveries: React.FC = () => {
                                             {(order as any).deliveryAddress || 'Dirección no disponible'}
                                         </p>
                                         <p className="text-xs text-gray-400 mt-0.5 font-mono">
-                                            #{order.id.slice(0, 8)} · ${(order.totalAmount || 0).toLocaleString()} COP
+                                            #{order.id.slice(0, 8)} · {formatCOP(order.totalAmount || 0)}
                                         </p>
                                     </div>
                                 </div>

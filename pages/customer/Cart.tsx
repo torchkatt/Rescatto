@@ -15,6 +15,22 @@ export const Cart: React.FC = () => {
 
     const venueGroups = getCartByVenue();
 
+    // Hooks deben estar SIEMPRE antes de cualquier return condicional (Reglas de Hooks de React)
+    const expiredItems = useMemo(
+        () => items.filter(item => isProductExpired(item.availableUntil)),
+        [items]
+    );
+
+    const urgentItems = useMemo(() => {
+        const now = Date.now();
+        const twoHoursFromNow = now + 2 * 60 * 60 * 1000;
+        return items.filter(item => {
+            if (!item.availableUntil) return false;
+            const expiresAt = new Date(item.availableUntil).getTime();
+            return expiresAt > now && expiresAt < twoHoursFromNow;
+        });
+    }, [items]);
+
     if (items.length === 0) {
         return (
             <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -64,11 +80,6 @@ export const Cart: React.FC = () => {
         );
     }
 
-    const expiredItems = useMemo(
-        () => items.filter(item => isProductExpired(item.availableUntil)),
-        [items]
-    );
-
     const handleCheckout = () => {
         if (expiredItems.length > 0) {
             const names = expiredItems.map(item => item.name).slice(0, 2).join(', ');
@@ -77,17 +88,6 @@ export const Cart: React.FC = () => {
         }
         navigate('/app/checkout');
     };
-
-    // Urgency: detect items expiring within 2 hours (excluding already expired)
-    const urgentItems = useMemo(() => {
-        const now = Date.now();
-        const twoHoursFromNow = Date.now() + 2 * 60 * 60 * 1000;
-        return items.filter(item => {
-            if (!item.availableUntil) return false;
-            const expiresAt = new Date(item.availableUntil).getTime();
-            return expiresAt > now && expiresAt < twoHoursFromNow;
-        });
-    }, [items]);
 
     return (
         <div className="min-h-screen bg-gray-50 pb-20 overflow-x-hidden">
@@ -243,7 +243,7 @@ export const Cart: React.FC = () => {
                                     </div>
                                     <div className="flex justify-between text-gray-700">
                                         <span className="font-medium">Domicilio</span>
-                                        <span className="text-emerald-600 font-bold">Gratis</span>
+                                        <span className="text-gray-400 text-sm italic">Calculado al pagar</span>
                                     </div>
                                     <div className="border-t-2 border-gray-200 pt-3 flex justify-between items-baseline">
                                         <span className="font-bold text-gray-900 text-lg">Total</span>

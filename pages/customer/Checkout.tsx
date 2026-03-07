@@ -686,7 +686,7 @@ export const Checkout: React.FC = () => {
                                         <span>{formatCOP(Array.from(venueGroups.entries()).reduce((sum, [vid, vitems]) => sum + calculateOrderTotals(vid, vitems).subtotal, 0))}</span>
                                     </div>
                                     <div className="flex justify-between text-gray-600">
-                                        <span>Domicilio ({venueGroups.size} negocios)</span>
+                                        <span>Domicilio ({venueGroups.size} {venueGroups.size === 1 ? 'negocio' : 'negocios'})</span>
                                         {deliveryMethod === 'delivery' ? (
                                             // Sum up all delivery fees 
                                             <span>{formatCOP(Array.from(venueGroups.keys()).reduce((sum, vid) => sum + (calculateOrderTotals(vid, venueGroups.get(vid) || []).deliveryFee), 0))}</span>
@@ -726,7 +726,7 @@ export const Checkout: React.FC = () => {
                                             <span className="flex items-center gap-1">
                                                 <Tag size={13} /> Descuento canje
                                             </span>
-                                            <span>-${activeDiscount.toLocaleString('es-CO')} COP</span>
+                                            <span>-{formatCOP(activeDiscount)}</span>
                                         </div>
                                     )}
                                     <div className="border-t pt-2 mt-2 flex justify-between font-bold text-lg">

@@ -9,6 +9,7 @@ import { Order, OrderStatus, Permission, UserRole } from '../../types';
 import { PermissionGate } from '../../components/PermissionGate';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
 import { Package, Clock, CheckCircle, ChefHat, MessageSquare, Search, RotateCw, Heart, MapPin, Truck, X, User } from 'lucide-react';
+import { formatCOP } from '../../utils/formatters';
 import { useNotifications } from '../../context/NotificationContext';
 import { dataService } from '../../services/dataService';
 import { logger } from '../../utils/logger';
@@ -186,23 +187,27 @@ export const OrderManagement: React.FC = () => {
     };
 
     const getStatusLabel = (status: OrderStatus): string => {
-        const labels = {
+        const labels: Record<string, string> = {
             [OrderStatus.PENDING]: 'Pendiente',
             [OrderStatus.PAID]: 'Pagado',
+            [OrderStatus.IN_PREPARATION]: 'En Preparación',
             [OrderStatus.READY_PICKUP]: 'Listo para Recoger',
+            [OrderStatus.DRIVER_ACCEPTED]: 'Conductor Asignado',
             [OrderStatus.IN_TRANSIT]: 'En Camino',
             [OrderStatus.COMPLETED]: 'Completado',
             [OrderStatus.MISSED]: 'Perdido',
             [OrderStatus.DISPUTED]: 'Disputado',
         };
-        return labels[status];
+        return labels[status] ?? status;
     };
 
     const getStatusBadge = (status: OrderStatus) => {
-        const badges = {
+        const badges: Record<string, string> = {
             [OrderStatus.PENDING]: 'bg-yellow-100 text-yellow-800 border-yellow-300',
             [OrderStatus.PAID]: 'bg-blue-100 text-blue-800 border-blue-300',
+            [OrderStatus.IN_PREPARATION]: 'bg-amber-100 text-amber-800 border-amber-300',
             [OrderStatus.READY_PICKUP]: 'bg-green-100 text-green-800 border-green-300',
+            [OrderStatus.DRIVER_ACCEPTED]: 'bg-indigo-100 text-indigo-800 border-indigo-300',
             [OrderStatus.IN_TRANSIT]: 'bg-indigo-100 text-indigo-800 border-indigo-300',
             [OrderStatus.COMPLETED]: 'bg-gray-100 text-gray-800 border-gray-300',
             [OrderStatus.MISSED]: 'bg-red-100 text-red-800 border-red-300',
@@ -210,7 +215,7 @@ export const OrderManagement: React.FC = () => {
         };
 
         return (
-            <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border ${badges[status]}`}>
+            <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border ${badges[status] ?? 'bg-gray-100 text-gray-700 border-gray-200'}`}>
                 {getStatusLabel(status)}
             </span>
         );
@@ -380,7 +385,7 @@ export const OrderManagement: React.FC = () => {
                                                     {product.quantity}x {product.name}
                                                 </span>
                                                 <span className="font-semibold text-gray-800">
-                                                    ${(product.discountedPrice * product.quantity).toFixed(2)}
+                                                    {formatCOP(product.discountedPrice * product.quantity)}
                                                 </span>
                                             </div>
                                         ))}
@@ -406,7 +411,7 @@ export const OrderManagement: React.FC = () => {
                                 <div className="flex justify-between items-center mb-4 pb-4 border-b">
                                     <span className="font-semibold text-gray-700">Total</span>
                                     <span className="text-2xl font-bold text-emerald-600">
-                                        ${order.totalAmount.toFixed(2)}
+                                        {formatCOP(order.totalAmount)}
                                     </span>
                                 </div>
 

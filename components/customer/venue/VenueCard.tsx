@@ -1,9 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Venue, RatingStats } from '../../../types';
 import { Card } from '../common/Card';
 import { Star, Heart, Flame, TrendingUp, Zap } from 'lucide-react';
-import { getRatingStats } from '../../../services/ratingService';
 import { Countdown } from '../common/Countdown';
 import { calculateDistance } from '../../../services/locationService';
 import { useFavorites } from '../../../hooks/useFavorites';
@@ -15,6 +14,7 @@ interface VenueCardProps {
     totalStock?: number;    // Total units available across all products
     isTrending?: boolean;   // Venue has many orders recently
     hasDynamicPricing?: boolean; // At least one product has active dynamic (dropping) price
+    ratingStats?: RatingStats | null; // Pre-cargado desde el padre para evitar N+1 queries
     onClick?: (venue: Venue) => void;
 }
 
@@ -46,10 +46,9 @@ function computeDealScore(venue: Venue, soonestExpiry?: string, totalStock?: num
 }
 
 export const VenueCard: React.FC<VenueCardProps> = ({
-    venue, userLocation, soonestExpiry, totalStock, isTrending, hasDynamicPricing, onClick
+    venue, userLocation, soonestExpiry, totalStock, isTrending, hasDynamicPricing, ratingStats, onClick
 }) => {
     const navigate = useNavigate();
-    const [ratingStats, setRatingStats] = useState<RatingStats | null>(null);
     const { isFavorite, toggleFavorite } = useFavorites();
     const isFav = isFavorite(venue.id);
 
@@ -59,18 +58,12 @@ export const VenueCard: React.FC<VenueCardProps> = ({
     const distance = rawDistance !== null && Number.isFinite(rawDistance) ? rawDistance : null;
     const showDistanceBadge = distance !== null && distance <= 120;
     const distanceLabel = distance !== null
-        ? (distance < 1 ? '<1 km' : `${distance} km`)
+        ? (distance < 1 ? '<1 km' : `${distance.toFixed(1)} km`)
         : '';
 
     const dealScore = computeDealScore(venue, soonestExpiry, totalStock);
     const isHotDeal = dealScore >= 60;
     const isLowStock = totalStock !== undefined && totalStock <= 3;
-
-    useEffect(() => {
-        getRatingStats(venue.id, 'venue').then(stats => {
-            setRatingStats(stats);
-        });
-    }, [venue.id]);
 
     const handleFavoriteClick = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -220,7 +213,7 @@ export const VenueCard: React.FC<VenueCardProps> = ({
                             : 'bg-red-50 text-red-700'
                         }`}>
                         <div className={`w-1.5 h-1.5 rounded-full ${openStatus ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
-                        {openStatus ? `Abierto • Cierra ${venue.closingTime}` : `Cerrado • Abre ${venue.closingTime}`}
+                        {openStatus ? `Abierto • Cierra ${venue.closingTime}` : 'Cerrado'}
                     </div>
                 </div>
             </div>

@@ -3,6 +3,7 @@ import { Product } from '../../../types';
 import { Package, AlertTriangle, Search, RefreshCw } from 'lucide-react';
 import { LoadingSpinner } from '../../../components/customer/common/Loading';
 import { logger } from '../../../utils/logger';
+import { formatCOP } from '../../../utils/formatters';
 
 const PAGE_SIZE = 20;
 
@@ -150,8 +151,8 @@ export const AdminInventory: React.FC = () => {
                                     </td>
                                     <td className="p-4 text-gray-600">{product.category || '—'}</td>
                                     <td className="p-4 text-gray-800">
-                                        <span className="font-bold text-emerald-600">${product.discountedPrice?.toLocaleString()}</span>
-                                        <span className="text-xs text-gray-400 line-through ml-2">${product.originalPrice?.toLocaleString()}</span>
+                                        <span className="font-bold text-emerald-600">{product.discountedPrice != null ? formatCOP(product.discountedPrice) : '—'}</span>
+                                        <span className="text-xs text-gray-400 line-through ml-2">{product.originalPrice != null ? formatCOP(product.originalPrice) : '—'}</span>
                                     </td>
                                     <td className="p-4 text-center">
                                         <span className={`font-bold ${product.quantity === 0 ? 'text-red-600' : product.quantity < 5 ? 'text-yellow-600' : 'text-gray-800'}`}>

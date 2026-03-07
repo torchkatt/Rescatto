@@ -1,11 +1,12 @@
-import { getToken, onMessage, Messaging } from 'firebase/messaging';
+import { getToken, onMessage } from 'firebase/messaging';
 import { messaging, db } from './firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { logger } from '../utils/logger';
 
-// Reemplazar con el KEY correspondiente de la consola de Firebase > Configuración del Proyecto > Cloud Messaging > Certificados Web Push
-// Es crucial para recibir push notifications en la web (VAPID KEY).
-const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY || 'TU_VAPID_KEY_AQUI';
+// VAPID key (certificado Web Push).
+// Obtenerlo en: Firebase Console → Configuración del proyecto → Cloud Messaging → Certificados Web Push.
+// Si no se configura, Firebase usa el key por defecto del proyecto (funciona para la mayoría de casos).
+const VAPID_KEY: string | undefined = import.meta.env.VITE_FIREBASE_VAPID_KEY || undefined;
 
 export const messagingService = {
     /**
@@ -25,8 +26,9 @@ export const messagingService = {
                     return null;
                 }
 
-                // Obtener Token
-                const currentToken = await getToken(msgInstance, { vapidKey: VAPID_KEY });
+                // Obtener Token. Si VAPID_KEY no está configurado, Firebase usa el key por defecto.
+                const tokenOptions = VAPID_KEY ? { vapidKey: VAPID_KEY } : {};
+                const currentToken = await getToken(msgInstance, tokenOptions);
 
                 if (currentToken) {
                     logger.log('📲 FCM Token obtenido:', currentToken);
@@ -54,15 +56,20 @@ export const messagingService = {
     /**
      * Escucha activamente (en Foreground) si llega una notificación
      * mientras el usuario tiene la App Abierta.
+     * Retorna una función de cleanup para cancelar el listener.
      */
-    onForegroundMessage: (callback: (payload: any) => void) => {
-        messaging.then((msgInstance) => {
-            if (msgInstance) {
-                onMessage(msgInstance, (payload) => {
-                    logger.log('📩 Notificación recibida en Foreground:', payload);
-                    callback(payload);
-                });
-            }
-        });
+    onForegroundMessage: (callback: (payload: any) => void): (() => void) => {
+        let unsubscribe: (() => void) | null = null;
+        if (messaging) {
+            messaging.then((msgInstance) => {
+                if (msgInstance) {
+                    unsubscribe = onMessage(msgInstance, (payload) => {
+                        logger.log('📩 Notificación recibida en Foreground:', payload);
+                        callback(payload);
+                    });
+                }
+            });
+        }
+        return () => { unsubscribe?.(); };
     }
 };

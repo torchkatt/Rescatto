@@ -6,7 +6,10 @@
       "Bash(npx vitest run)",
       "Bash(npm run build)",
       "Bash(firebase deploy --only functions,firestore:rules,firestore:indexes)",
-      "Bash(firebase deploy --only hosting)"
+      "Bash(firebase deploy --only hosting)",
+      "Bash(grep -rn '\\\\${\\\\|toLocaleString.*COP\\\\|\\\\$\\\\${' /Users/alexandersandoval/Documents/PERSONAL/DESARROLLO/rescatto-business-dashboard/pages/)",
+      "Bash(gcloud auth application-default login --account=sandovaldiazalexander@gmail.com)",
+      "Bash(firebase --project rescatto-c8d2b apps:list)"
     ]
   }
 }

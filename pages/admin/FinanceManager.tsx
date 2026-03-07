@@ -5,6 +5,7 @@ import { Order, OrderStatus } from '../../types';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
 import { DollarSign, Search, Calendar, CreditCard, TrendingUp, RotateCw, Store } from 'lucide-react';
 import { logger } from '../../utils/logger';
+import { formatCOP } from '../../utils/formatters';
 
 type Period = 'today' | 'week' | 'month' | 'year';
 
@@ -164,7 +165,7 @@ export const FinanceManager: React.FC = () => {
                             <p className="text-gray-500 text-sm font-medium uppercase tracking-wide">Ingresos Plataforma</p>
                             {statsLoading
                                 ? <div className="h-9 w-32 bg-gray-100 animate-pulse rounded-lg mt-2" />
-                                : <h3 className="text-3xl font-bold text-gray-800 mt-2">${(globalStats?.totalPlatformFee || 0).toLocaleString()}</h3>
+                                : <h3 className="text-3xl font-bold text-gray-800 mt-2">{formatCOP(globalStats?.totalPlatformFee || 0)}</h3>
                             }
                             <p className="text-xs text-gray-400 mt-1">Comisión 10% de ventas brutas</p>
                         </div>
@@ -179,7 +180,7 @@ export const FinanceManager: React.FC = () => {
                             <p className="text-gray-500 text-sm font-medium uppercase tracking-wide">Ganancias Negocios</p>
                             {statsLoading
                                 ? <div className="h-9 w-32 bg-gray-100 animate-pulse rounded-lg mt-2" />
-                                : <h3 className="text-3xl font-bold text-gray-800 mt-2">${(globalStats?.totalVenueEarnings || 0).toLocaleString()}</h3>
+                                : <h3 className="text-3xl font-bold text-gray-800 mt-2">{formatCOP(globalStats?.totalVenueEarnings || 0)}</h3>
                             }
                             <p className="text-xs text-gray-400 mt-1">90% de ventas brutas acumuladas</p>
                         </div>
@@ -197,7 +198,7 @@ export const FinanceManager: React.FC = () => {
                                 : <h3 className="text-3xl font-bold text-gray-800 mt-2">{globalStats?.totalOrders || 0}</h3>
                             }
                             <p className="text-xs text-gray-400 mt-1">
-                                Ticket promedio: ${Number((globalStats?.averageOrderValue || 0).toFixed(0)).toLocaleString()}
+                                Ticket promedio: {formatCOP(Math.round(globalStats?.averageOrderValue || 0))}
                             </p>
                         </div>
                         <div className="p-3 bg-purple-50 rounded-lg text-purple-600"><Calendar size={24} /></div>
@@ -229,8 +230,8 @@ export const FinanceManager: React.FC = () => {
                                     </div>
                                 </div>
                                 <div className="text-right">
-                                    <p className="font-bold text-emerald-600">${venue.revenue.toLocaleString()}</p>
-                                    <p className="text-xs text-gray-400">Comisión: ${venue.platformFee.toLocaleString()}</p>
+                                    <p className="font-bold text-emerald-600">{formatCOP(venue.revenue)}</p>
+                                    <p className="text-xs text-gray-400">Comisión: {formatCOP(venue.platformFee)}</p>
                                 </div>
                             </div>
                         ))}
@@ -283,9 +284,9 @@ export const FinanceManager: React.FC = () => {
                                                 <span className="text-gray-400">{new Date(order.createdAt).toLocaleTimeString()}</span>
                                             </td>
                                             <td className="p-4 font-medium text-gray-800 text-sm">{order.customerName}</td>
-                                            <td className="p-4 text-right font-medium text-gray-800 bg-emerald-50/30">${(order.subtotal || 0).toLocaleString()}</td>
-                                            <td className="p-4 text-right font-bold text-emerald-600 bg-emerald-50/50">+${(order.platformFee || 0).toLocaleString()}</td>
-                                            <td className="p-4 text-right font-bold text-blue-600 bg-blue-50/50">${(order.venueEarnings || 0).toLocaleString()}</td>
+                                            <td className="p-4 text-right font-medium text-gray-800 bg-emerald-50/30">{formatCOP(order.subtotal || 0)}</td>
+                                            <td className="p-4 text-right font-bold text-emerald-600 bg-emerald-50/50">+{formatCOP(order.platformFee || 0)}</td>
+                                            <td className="p-4 text-right font-bold text-blue-600 bg-blue-50/50">{formatCOP(order.venueEarnings || 0)}</td>
                                             <td className="p-4 text-center">
                                                 <span className={`px-2 py-1 rounded-full text-xs font-bold ${
                                                     order.status === OrderStatus.COMPLETED || order.status === OrderStatus.PAID

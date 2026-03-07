@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { logger } from '../../../utils/logger';
+import { formatCOP } from '../../../utils/formatters';
 
 interface DashboardStats {
     totalUsers: number;
@@ -123,7 +124,7 @@ export const AdminOverview: React.FC = () => {
         },
         {
             label: 'Ventas del Día',
-            value: `$${stats.todaySales.toLocaleString()}`,
+            value: formatCOP(stats.todaySales),
             icon: DollarSign,
             color: 'bg-green-500',
             path: '/analytics'
@@ -190,7 +191,7 @@ export const AdminOverview: React.FC = () => {
                             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                             <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
                             <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v/1000).toFixed(0)}k`} />
-                            <Tooltip formatter={(v: number) => [`$${v.toLocaleString()}`, 'Ventas']} contentStyle={{ borderRadius: '10px', border: '1px solid #e5e7eb', fontSize: 12 }} />
+                            <Tooltip formatter={(v: number) => [formatCOP(v), 'Ventas']} contentStyle={{ borderRadius: '10px', border: '1px solid #e5e7eb', fontSize: 12 }} />
                             <Area type="monotone" dataKey="ventas" stroke="#10b981" strokeWidth={2.5} fill="url(#colorVentas)" dot={{ r: 3, fill: '#10b981' }} activeDot={{ r: 5 }} />
                         </AreaChart>
                     </ResponsiveContainer>

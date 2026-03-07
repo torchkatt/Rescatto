@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { dataService } from '../services/dataService';
 import { authService } from '../services/authService';
 import { Save, Zap, Building, Clock, Loader2, Store, Lock, Truck } from 'lucide-react';
+import { formatCOP } from '../utils/formatters';
 import { useToast } from '../context/ToastContext';
 import { Venue } from '../types';
 import { logger } from '../utils/logger';
@@ -374,9 +375,9 @@ const Settings: React.FC = () => {
                                 <Truck size={14} className="mt-0.5 shrink-0" />
                                 <p>
                                     <strong>Simulación:</strong> Para un cliente a 3km, el domicilio costaría{' '}
-                                    <strong>${(deliveryConfig.baseFee + deliveryConfig.pricePerKm * 3).toLocaleString('es-CO')} COP</strong>.
+                                    <strong>{formatCOP(deliveryConfig.baseFee + deliveryConfig.pricePerKm * 3)}</strong>.
                                     {deliveryConfig.freeDeliveryThreshold > 0 && (
-                                        <> Envío gratis si el pedido supera <strong>${deliveryConfig.freeDeliveryThreshold.toLocaleString('es-CO')} COP</strong>.</>
+                                        <> Envío gratis si el pedido supera <strong>{formatCOP(deliveryConfig.freeDeliveryThreshold)}</strong>.</>
                                     )}
                                 </p>
                             </div>

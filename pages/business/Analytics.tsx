@@ -18,6 +18,7 @@ import { TopProductsChart } from '../../components/analytics/TopProductsChart';
 import { DollarSign, ShoppingCart, TrendingUp, Package, Download, BarChart3 } from 'lucide-react';
 import * as Papa from 'papaparse';
 import { logger } from '../../utils/logger';
+import { formatCOP } from '../../utils/formatters';
 
 export const Analytics: React.FC = () => {
     const { user } = useAuth();
@@ -146,7 +147,7 @@ export const Analytics: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <MetricCard
                         title="Ingresos Totales"
-                        value={`$${revenueMetrics.totalRevenue.toFixed(2)}`}
+                        value={formatCOP(revenueMetrics.totalRevenue)}
                         icon={DollarSign}
                         trend={revenueMetrics.revenueGrowth}
                         subtitle="vs período anterior"
@@ -164,7 +165,7 @@ export const Analytics: React.FC = () => {
 
                     <MetricCard
                         title="Valor Promedio del Pedido"
-                        value={`$${revenueMetrics.averageOrderValue.toFixed(2)}`}
+                        value={formatCOP(revenueMetrics.averageOrderValue)}
                         icon={TrendingUp}
                         iconColor="text-purple-600"
                         iconBgColor="bg-purple-100"

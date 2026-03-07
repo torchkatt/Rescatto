@@ -216,17 +216,19 @@ export const MyOrders: React.FC = () => {
     };
 
     const getStatusBadge = (status: OrderStatus) => {
-        const badges = {
+        const badges: Record<string, { color: string; icon: React.ElementType; label: string }> = {
             [OrderStatus.PENDING]: { color: 'bg-yellow-100 text-yellow-800', icon: Clock, label: 'Pendiente' },
             [OrderStatus.PAID]: { color: 'bg-blue-100 text-blue-800', icon: CheckCircle, label: 'Pagado' },
+            [OrderStatus.IN_PREPARATION]: { color: 'bg-amber-100 text-amber-800', icon: Clock, label: 'En Preparación' },
             [OrderStatus.READY_PICKUP]: { color: 'bg-purple-100 text-purple-800', icon: Package, label: 'Listo para Recoger' },
+            [OrderStatus.DRIVER_ACCEPTED]: { color: 'bg-indigo-100 text-indigo-800', icon: Truck, label: 'Conductor Asignado' },
             [OrderStatus.IN_TRANSIT]: { color: 'bg-indigo-100 text-indigo-800', icon: Truck, label: 'En Camino' },
             [OrderStatus.COMPLETED]: { color: 'bg-green-100 text-green-800', icon: CheckCircle, label: 'Completado' },
             [OrderStatus.MISSED]: { color: 'bg-red-100 text-red-800', icon: XCircle, label: 'Perdido' },
             [OrderStatus.DISPUTED]: { color: 'bg-purple-100 text-purple-800', icon: XCircle, label: 'Disputado' },
         };
 
-        const badge = badges[status];
+        const badge = badges[status] ?? { color: 'bg-gray-100 text-gray-700', icon: Clock, label: status };
         const Icon = badge.icon;
 
         return (

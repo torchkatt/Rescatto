@@ -5,6 +5,7 @@ import { walletService, VenueWallet, WalletTransaction } from '../../services/wa
 import { LoadingSpinner } from '../../components/customer/common/Loading';
 import { DollarSign, ArrowUpRight, ArrowDownLeft, AlertCircle, Mail, Info } from 'lucide-react';
 import { logger } from '../../utils/logger';
+import { formatCOP } from '../../utils/formatters';
 
 export const VenueFinance: React.FC = () => {
     const { user } = useAuth();
@@ -73,7 +74,7 @@ export const VenueFinance: React.FC = () => {
                     <h2 className="text-lg font-medium opacity-90 mb-1">Saldo Actual</h2>
                     <div className="text-4xl font-bold flex items-center gap-2">
                         <DollarSign size={32} />
-                        {Math.abs(balance).toLocaleString()} COP
+                        {formatCOP(Math.abs(balance))}
                     </div>
                     <p className="mt-2 opacity-80 flex items-center gap-2">
                         {isDebt
@@ -141,7 +142,7 @@ export const VenueFinance: React.FC = () => {
                                         </td>
                                         <td className="p-4 text-sm text-gray-700">{tx.description}</td>
                                         <td className={`p-4 text-right font-bold ${tx.type === 'CREDIT' ? 'text-emerald-600' : 'text-red-600'}`}>
-                                            {tx.type === 'CREDIT' ? '+' : '-'}${tx.amount.toLocaleString()}
+                                            {tx.type === 'CREDIT' ? '+' : '-'}{formatCOP(tx.amount)}
                                         </td>
                                     </tr>
                                 ))

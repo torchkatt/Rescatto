@@ -8,6 +8,7 @@ import { AnalyticsData, UserRole } from '../types';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { logger } from '../utils/logger';
+import { formatCOP } from '../utils/formatters';
 
 const MetricCard: React.FC<{ title: string; value: string; icon: React.ReactNode; color: string; trend?: string }> = ({ title, value, icon, color, trend }) => (
   <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex items-start space-x-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 group relative overflow-hidden">
@@ -87,7 +88,7 @@ const Dashboard: React.FC = () => {
         {user?.role !== UserRole.KITCHEN_STAFF && (
           <MetricCard
             title="Ingresos Recuperados"
-            value={`$${metrics.revenue.toLocaleString()}`}
+            value={formatCOP(metrics.revenue)}
             icon={<DollarSign size={24} className="text-blue-600" />}
             color="bg-blue-500"
             trend="+12%"

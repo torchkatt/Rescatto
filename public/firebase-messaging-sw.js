@@ -1,37 +1,42 @@
-import { initializeApp } from 'firebase/app';
-import { getMessaging, onBackgroundMessage } from 'firebase/messaging/sw';
+// ============================================================
+// firebase-messaging-sw.js — Rescatto Push Notifications
+//
+// IMPORTANTE: Este archivo es un Service Worker clásico (no ES module).
+// No tiene acceso a import.meta.env ni a node_modules.
+// Usa importScripts con la API compat de Firebase por CDN.
+//
+// Las credenciales de Firebase son públicas (se exponen en el bundle
+// de la app de todas formas) y pueden hardcodearse aquí con seguridad.
+// ============================================================
 
-// Recuperar Variables de Entorno en un Worker puede ser complejo según el bundler.
-// Vite PWA inyecta este script así que usaremos variables globales inyectadas o hardcode string.
-// Lo más seguro es que el usuario las suministre reemplazando estas o usando el public/firebase-messaging-sw.js nativo.
-// Por favor reemplazar con la config en PROD.
+importScripts('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js');
 
-const firebaseConfig = {
-    apiKey: self.__VITE_FIREBASE_API_KEY || "YOUR_API_KEY",
-    authDomain: self.__VITE_FIREBASE_AUTH_DOMAIN || "YOUR_DOMAIN",
-    projectId: self.__VITE_FIREBASE_PROJECT_ID || "rescatto-app",
-    messagingSenderId: self.__VITE_FIREBASE_MESSAGING_SENDER_ID || "YOUR_ID",
-    appId: self.__VITE_FIREBASE_APP_ID || "YOUR_APP_ID",
-};
-
-const app = initializeApp(firebaseConfig);
-const messaging = getMessaging(app);
-
-onBackgroundMessage(messaging, (payload) => {
-    console.log('[firebase-messaging-sw.js] Received background message ', payload);
-    const notificationTitle = payload.notification?.title || 'Notificación de Rescatto';
-    const orderId = payload.data?.orderId;
-    const notificationOptions = {
-        body: payload.notification?.body,
-        icon: '/pwa-192x192.png',
-        badge: '/pwa-192x192.png',
-        data: { orderId }
-    };
-
-    self.registration.showNotification(notificationTitle, notificationOptions);
+firebase.initializeApp({
+    apiKey: 'AIzaSyDwyx4xTIZbZQ9lXXLQ_D5Q9tTS30_vvMo',
+    authDomain: 'rescatto-c8d2b.firebaseapp.com',
+    projectId: 'rescatto-c8d2b',
+    storageBucket: 'rescatto-c8d2b.firebasestorage.app',
+    messagingSenderId: '929924964651',
+    appId: '1:929924964651:web:7d0937f22a3f62eb5a256e',
 });
 
-// Deep linking: al hacer clic en la notificación, abrir/enfocar la app y navegar a la orden
+const messaging = firebase.messaging();
+
+// Maneja notificaciones recibidas mientras la app está en background o cerrada.
+messaging.onBackgroundMessage((payload) => {
+    const notificationTitle = payload.notification?.title || 'Rescatto';
+    const orderId = payload.data?.orderId || null;
+
+    self.registration.showNotification(notificationTitle, {
+        body: payload.notification?.body || '',
+        icon: '/pwa-192x192.png',
+        badge: '/pwa-192x192.png',
+        data: { orderId },
+    });
+});
+
+// Deep linking: al tocar la notificación, navegar a la orden correspondiente.
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();
 
@@ -42,15 +47,17 @@ self.addEventListener('notificationclick', (event) => {
 
     event.waitUntil(
         clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-            // Si ya hay una ventana abierta de la app, enfocarla y enviarle el orderId
+            // Si la app ya está abierta: enfocarla y comunicarle el orderId por postMessage.
             for (const client of clientList) {
                 if ('focus' in client) {
                     client.focus();
-                    client.postMessage({ type: 'NOTIFICATION_CLICK', orderId });
+                    if (orderId) {
+                        client.postMessage({ type: 'NOTIFICATION_CLICK', orderId });
+                    }
                     return;
                 }
             }
-            // Si no hay ventana abierta, abrir una nueva
+            // Si no hay ventana abierta: abrir una nueva en la ruta correcta.
             return clients.openWindow(targetPath);
         })
     );

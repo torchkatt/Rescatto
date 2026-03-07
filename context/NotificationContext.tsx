@@ -38,6 +38,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [activeLink, setActiveLink] = useState<string | null>(null);
+    // Ref para acceder al valor actualizado de activeLink dentro del snapshot
+    // sin recrear el listener en cada navegación.
+    const activeLinkRef = React.useRef<string | null>(null);
+    useEffect(() => { activeLinkRef.current = activeLink; }, [activeLink]);
 
     useEffect(() => {
         if (!user) {
@@ -56,28 +60,26 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
         const firstLoad = { current: true };
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            const newNotifications = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString()
+            const newNotifications = snapshot.docs.map(d => ({
+                id: d.id,
+                ...d.data(),
+                createdAt: d.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString()
             })) as Notification[];
 
-            // Logic for proactive toasts and sound
             if (!firstLoad.current && snapshot.docChanges().length > 0) {
                 snapshot.docChanges().forEach(change => {
                     if (change.type === 'added') {
                         const notif = change.doc.data() as Notification;
 
-                        // Si la notificación es para lo que el usuario está viendo actualmente, marcar como leída y no notificar
-                        if (notif.link && activeLink === notif.link) {
-                            markAsRead(change.doc.id);
+                        // Si el usuario ya está viendo la sección relacionada, solo marcar como leída
+                        if (notif.link && activeLinkRef.current === notif.link) {
+                            updateDoc(doc(db, 'notifications', change.doc.id), { read: true }).catch(() => {});
                         } else {
-                            // Solo notificar si es reciente (menos de 10 segundos) para evitar spam al cargar
+                            // Solo notificar si la notificación es reciente (< 10s) para evitar spam al cargar
                             const createdAt = (notif as any).createdAt?.toDate?.() || new Date(notif.createdAt);
                             const isRecent = (Date.now() - createdAt.getTime()) < 10000;
 
                             if (isRecent) {
-                                // Show "Title: Message" to include sender name
                                 const toastMessage = notif.title ? `${notif.title}: ${notif.message}` : notif.message;
                                 info(toastMessage);
                                 playNotificationSound();
@@ -88,13 +90,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             }
 
             setNotifications(newNotifications);
-            const unread = newNotifications.filter(n => !n.read).length;
-            setUnreadCount(unread);
+            setUnreadCount(newNotifications.filter(n => !n.read).length);
             firstLoad.current = false;
         });
 
         return () => unsubscribe();
-    }, [user, info, activeLink]);
+    // Solo se recrea cuando cambia el usuario o la función info (estable por useToast)
+    }, [user, info]);
 
     // Audio Context Management
     const audioCtxRef = React.useRef<AudioContext | null>(null);
@@ -181,18 +183,23 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         // Skip for unauthenticated or guest (anonymous) users
         if (!user || user.isGuest) return;
 
-        // Request browser permission + save token to Firestore (silently fails if denied)
-        messagingService.requestPermissionAndSaveToken(user.id).catch(e =>
-            logger.warn('FCM token request failed:', e)
-        );
+        // Si ya tiene permiso concedido, renueva el token silenciosamente.
+        // El prompt de permisos se muestra de forma contextual via NotificationPermissionModal.
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+            messagingService.requestPermissionAndSaveToken(user.id).catch(e =>
+                logger.warn('FCM token request failed:', e)
+            );
+        }
 
         // Show foreground push messages as toasts while the app is open
-        messagingService.onForegroundMessage((payload) => {
+        const unsubForeground = messagingService.onForegroundMessage((payload) => {
             const title = payload.notification?.title || 'Rescatto';
             const body = payload.notification?.body || '';
             info(body ? `${title}: ${body}` : title);
             playNotificationSound();
         });
+
+        return () => unsubForeground();
     // Re-run only when the logged-in user identity changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.id, user?.isGuest]);
