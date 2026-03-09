@@ -217,7 +217,7 @@ export const VenueCard: React.FC<VenueCardProps> = ({
                         {openStatus ? `Abierto • Cierra ${venue.closingTime}` : 'Cerrado'}
                     </div>
                     {productCount !== undefined && productCount > 0 && (
-                        <span className="text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-md">
+                        <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-md">
                             {productCount} {productCount === 1 ? 'producto' : 'productos'}
                         </span>
                     )}

@@ -36,6 +36,7 @@ const CustomerHome: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedDietaryTags, setSelectedDietaryTags] = useState<string[]>([]);
 
+    const [showOnlyActive, setShowOnlyActive] = useState(false);
     const [showUserMenu, setShowUserMenu] = useState(false);
     const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -169,8 +170,10 @@ const CustomerHome: React.FC = () => {
                 return venue.dietaryTags?.includes(tag);
             });
 
-        return matchesCity && matchesDistance && matchesCategory && matchesSearch && matchesDietary;
-    }), [sortedVenues, city, hasUserLocation, latitude, longitude, selectedCategory, searchQuery, selectedDietaryTags]);
+        const matchesActive = !showOnlyActive || venueStockMap.has(venue.id);
+
+        return matchesCity && matchesDistance && matchesCategory && matchesSearch && matchesDietary && matchesActive;
+    }), [sortedVenues, city, hasUserLocation, latitude, longitude, selectedCategory, searchQuery, selectedDietaryTags, showOnlyActive, venueStockMap]);
 
     // Trending venues: have expiring products AND high rating or high orders
     const trendingVenueIds = useMemo(() => {
@@ -223,7 +226,7 @@ const CustomerHome: React.FC = () => {
             <header className="bg-white sticky top-0 z-50 shadow-sm border-b border-gray-100 overflow-visible pt-safe-top flex flex-col">
                 <div className="max-w-7xl mx-auto w-full">
                     {/* Tier 1: Location & Profile */}
-                    <div className="px-4 py-3 pb-2 flex items-center justify-between">
+                    <div className="px-4 pt-1.5 pb-1.5 flex items-center justify-between">
                         <button
                             type="button"
                             aria-label={`Cambiar ubicación. Actualmente: ${address}`}
@@ -421,27 +424,39 @@ const CustomerHome: React.FC = () => {
 
                 {/* Social Proof: Live Stats */}
                 {platformStats.totalStock > 0 && (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6 items-stretch">
-                        <div className="bg-white rounded-[24px] p-6 flex flex-col justify-center items-center text-center shadow-sm border border-gray-100 h-full hover:shadow-md transition-shadow md:col-span-1 min-h-[140px] relative overflow-hidden group">
-                            <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-emerald-50 rounded-full blur-2xl group-hover:bg-emerald-100 transition-colors duration-500"></div>
-                            <p className="text-4xl lg:text-5xl font-black text-emerald-600 mb-1 leading-none relative z-10">{platformStats.totalStock.toLocaleString('es-CO')}</p>
-                            <p className="text-xs lg:text-sm text-gray-500 font-bold uppercase tracking-widest leading-snug relative z-10">porciones<br />disponibles</p>
-                        </div>
-                        <div className="grid grid-cols-2 md:grid-cols-1 md:grid-rows-2 gap-3 md:col-span-2 md:gap-4 lg:gap-6">
-                            <div className="bg-white rounded-2xl p-4 lg:p-5 flex items-center justify-between shadow-sm border border-gray-100 hover:shadow-md transition-shadow h-full cursor-default group">
-                                <div>
-                                    <p className="text-[10px] lg:text-xs text-gray-400 font-bold uppercase tracking-wider leading-tight text-left mb-0.5">Lugares</p>
-                                    <p className="text-[13px] lg:text-sm font-black text-gray-700 leading-none">ACTIVOS HOY</p>
-                                </div>
-                                <p className="text-2xl lg:text-3xl font-black text-orange-500 group-hover:scale-110 transition-transform origin-right">{platformStats.activeVenues.toLocaleString('es-CO')}</p>
-                            </div>
-                            <div className="bg-white rounded-2xl p-4 lg:p-5 flex items-center justify-between shadow-sm border border-gray-100 hover:shadow-md transition-shadow h-full cursor-default group">
-                                <div>
-                                    <p className="text-[10px] lg:text-xs text-gray-400 font-bold uppercase tracking-wider leading-tight text-left mb-0.5">Kg CO₂ por</p>
-                                    <p className="text-[13px] lg:text-sm font-black text-gray-700 leading-none">SALVAR HOY</p>
-                                </div>
-                                <p className="text-2xl lg:text-3xl font-black text-blue-500 group-hover:scale-110 transition-transform origin-right">{Math.round(platformStats.totalStock * 0.4).toLocaleString('es-CO')}</p>
-                            </div>
+                    <div className="flex gap-3">
+                        {/* Porciones disponibles — clickeable: muestra venues con stock */}
+                        <button
+                            onClick={() => {
+                                setShowOnlyActive(true);
+                                setTimeout(() => {
+                                    document.querySelector('.venues-grid')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                }, 100);
+                            }}
+                            className={`flex-1 bg-white rounded-2xl p-3 flex flex-col items-center justify-center text-center shadow-sm border transition-all active:scale-95 ${showOnlyActive ? 'border-emerald-400 ring-2 ring-emerald-200' : 'border-gray-100 hover:shadow-md'}`}
+                        >
+                            <p className="text-3xl font-black text-emerald-600 leading-none">{platformStats.totalStock.toLocaleString('es-CO')}</p>
+                            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mt-1 leading-tight">porciones<br />disponibles</p>
+                        </button>
+
+                        {/* Lugares activos — clickeable: filtra solo activos */}
+                        <button
+                            onClick={() => {
+                                setShowOnlyActive(v => !v);
+                                setTimeout(() => {
+                                    document.querySelector('.venues-grid')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                }, 100);
+                            }}
+                            className={`flex-1 bg-white rounded-2xl p-3 flex flex-col items-center justify-center text-center shadow-sm border transition-all active:scale-95 ${showOnlyActive ? 'border-orange-400 ring-2 ring-orange-200' : 'border-gray-100 hover:shadow-md'}`}
+                        >
+                            <p className="text-3xl font-black text-orange-500 leading-none">{platformStats.activeVenues.toLocaleString('es-CO')}</p>
+                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-1 leading-tight">lugares<br />activos hoy</p>
+                        </button>
+
+                        {/* CO₂ — informativo */}
+                        <div className="flex-1 bg-white rounded-2xl p-3 flex flex-col items-center justify-center text-center shadow-sm border border-gray-100">
+                            <p className="text-3xl font-black text-blue-500 leading-none">{Math.round(platformStats.totalStock * 0.4).toLocaleString('es-CO')}</p>
+                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-1 leading-tight">kg CO₂<br />por salvar</p>
                         </div>
                     </div>
                 )}
@@ -527,14 +542,24 @@ const CustomerHome: React.FC = () => {
                 )}
 
                 {/* All Venues */}
-                <div>
+                <div className="venues-grid">
                     <div className="flex justify-between items-end mb-3">
                         <h2 className="text-base font-black text-gray-900">
-                            {selectedCategory === 'all' ? 'Todos los lugares' : selectedCategory}
+                            {showOnlyActive ? 'Lugares con oferta activa' : (selectedCategory === 'all' ? 'Todos los lugares' : selectedCategory)}
                         </h2>
-                        <span className="text-emerald-600 text-sm font-medium">
-                            {filteredVenues.length.toLocaleString('es-CO')} lugares
-                        </span>
+                        <div className="flex items-center gap-2">
+                            {showOnlyActive && (
+                                <button
+                                    onClick={() => setShowOnlyActive(false)}
+                                    className="text-xs font-bold text-orange-600 bg-orange-50 border border-orange-200 px-2 py-1 rounded-full active:scale-95"
+                                >
+                                    Ver todos
+                                </button>
+                            )}
+                            <span className="text-emerald-600 text-sm font-medium">
+                                {filteredVenues.length.toLocaleString('es-CO')} lugares
+                            </span>
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
