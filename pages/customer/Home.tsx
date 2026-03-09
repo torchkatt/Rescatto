@@ -29,6 +29,7 @@ const CustomerHome: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [venueExpiryMap, setVenueExpiryMap] = useState<Map<string, string>>(new Map());
     const [venueStockMap, setVenueStockMap] = useState<Map<string, number>>(new Map());
+    const [venueProductCountMap, setVenueProductCountMap] = useState<Map<string, number>>(new Map());
     const [dynamicVenueIds, setDynamicVenueIds] = useState<Set<string>>(new Set());
     const [venueRatingMap, setVenueRatingMap] = useState<Map<string, RatingStats>>(new Map());
     const [selectedCategory, setSelectedCategory] = useState('all');
@@ -42,7 +43,7 @@ const CustomerHome: React.FC = () => {
         const fetchVenues = async () => {
             try {
                 // Load venues + expiring products + stock counts + dynamic pricing in parallel
-                const [allVenues, expiryMap, stockMap, dynIds] = await Promise.all([
+                const [allVenues, expiryMap, stockResult, dynIds] = await Promise.all([
                     venueService.getAllVenues(),
                     venueService.getExpiringProductsByVenue(),
                     venueService.getStockCountByVenue(),
@@ -50,7 +51,8 @@ const CustomerHome: React.FC = () => {
                 ]);
                 setVenues(allVenues);
                 setVenueExpiryMap(expiryMap);
-                setVenueStockMap(stockMap);
+                setVenueStockMap(stockResult.stockMap);
+                setVenueProductCountMap(stockResult.productCountMap);
                 setDynamicVenueIds(dynIds);
 
                 // Carga de rating stats en paralelo (una sola tanda, sin N+1)
@@ -484,6 +486,7 @@ const CustomerHome: React.FC = () => {
                                         userLocation={hasUserLocation ? { lat: latitude as number, lng: longitude as number } : undefined}
                                         soonestExpiry={venueExpiryMap.get(venue.id)}
                                         totalStock={venueStockMap.get(venue.id)}
+                                        productCount={venueProductCountMap.get(venue.id)}
                                         isTrending={trendingVenueIds.has(venue.id)}
                                         hasDynamicPricing={dynamicVenueIds.has(venue.id)}
                                         ratingStats={venueRatingMap.get(venue.id)}
@@ -511,6 +514,7 @@ const CustomerHome: React.FC = () => {
                                             userLocation={hasUserLocation ? { lat: latitude as number, lng: longitude as number } : undefined}
                                             soonestExpiry={venueExpiryMap.get(venue.id)}
                                             totalStock={venueStockMap.get(venue.id)}
+                                            productCount={venueProductCountMap.get(venue.id)}
                                             isTrending
                                             hasDynamicPricing={dynamicVenueIds.has(venue.id)}
                                             ratingStats={venueRatingMap.get(venue.id)}
@@ -544,6 +548,7 @@ const CustomerHome: React.FC = () => {
                                         venueExpiryMap.get(venue.id) ?? getUrgentExpiryFallback(venue.closingTime)
                                     }
                                     totalStock={venueStockMap.get(venue.id)}
+                                    productCount={venueProductCountMap.get(venue.id)}
                                     isTrending={trendingVenueIds.has(venue.id)}
                                     hasDynamicPricing={dynamicVenueIds.has(venue.id)}
                                     ratingStats={venueRatingMap.get(venue.id)}

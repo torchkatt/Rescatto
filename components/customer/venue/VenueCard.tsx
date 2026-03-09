@@ -12,6 +12,7 @@ interface VenueCardProps {
     userLocation?: { lat: number; lng: number };
     soonestExpiry?: string; // ISO — soonest product expiry within 3h for this venue
     totalStock?: number;    // Total units available across all products
+    productCount?: number;  // Number of distinct active products
     isTrending?: boolean;   // Venue has many orders recently
     hasDynamicPricing?: boolean; // At least one product has active dynamic (dropping) price
     ratingStats?: RatingStats | null; // Pre-cargado desde el padre para evitar N+1 queries
@@ -46,7 +47,7 @@ function computeDealScore(venue: Venue, soonestExpiry?: string, totalStock?: num
 }
 
 export const VenueCard: React.FC<VenueCardProps> = ({
-    venue, userLocation, soonestExpiry, totalStock, isTrending, hasDynamicPricing, ratingStats, onClick
+    venue, userLocation, soonestExpiry, totalStock, productCount, isTrending, hasDynamicPricing, ratingStats, onClick
 }) => {
     const navigate = useNavigate();
     const { isFavorite, toggleFavorite } = useFavorites();
@@ -215,6 +216,11 @@ export const VenueCard: React.FC<VenueCardProps> = ({
                         <div className={`w-1.5 h-1.5 rounded-full ${openStatus ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
                         {openStatus ? `Abierto • Cierra ${venue.closingTime}` : 'Cerrado'}
                     </div>
+                    {productCount !== undefined && productCount > 0 && (
+                        <span className="text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-md">
+                            {productCount} {productCount === 1 ? 'producto' : 'productos'}
+                        </span>
+                    )}
                 </div>
             </div>
         </Card>

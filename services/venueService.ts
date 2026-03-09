@@ -144,27 +144,32 @@ export const venueService = {
     },
 
     /**
-     * Returns a Map<venueId, totalStock> for all active products.
-     * Used to show low-stock FOMO indicators on venue cards.
+     * Returns stockMap (total units) and productCountMap (distinct active products)
+     * for all non-expired products with quantity > 0.
+     * Used for FOMO indicators and the "X productos activos" badge on venue cards.
      */
-    getStockCountByVenue: async (): Promise<Map<string, number>> => {
+    getStockCountByVenue: async (): Promise<{ stockMap: Map<string, number>; productCountMap: Map<string, number> }> => {
         try {
             const q = query(
                 collection(db, 'products'),
                 where('quantity', '>', 0)
             );
             const snapshot = await getDocs(q);
+            const now = Date.now();
             const stockMap = new Map<string, number>();
+            const productCountMap = new Map<string, number>();
             snapshot.docs.forEach(d => {
                 const data = d.data();
                 if (!data.venueId) return;
-                const current = stockMap.get(data.venueId) ?? 0;
-                stockMap.set(data.venueId, current + (data.quantity ?? 0));
+                // Exclude expired products
+                if (data.availableUntil && isProductExpired(data.availableUntil, now)) return;
+                stockMap.set(data.venueId, (stockMap.get(data.venueId) ?? 0) + (data.quantity ?? 0));
+                productCountMap.set(data.venueId, (productCountMap.get(data.venueId) ?? 0) + 1);
             });
-            return stockMap;
+            return { stockMap, productCountMap };
         } catch (error) {
             logger.error('getStockCountByVenue error:', error);
-            return new Map();
+            return { stockMap: new Map(), productCountMap: new Map() };
         }
     },
 

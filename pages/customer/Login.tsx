@@ -88,6 +88,7 @@ const CustomerLogin: React.FC = () => {
             if (provider === 'google') await authService.loginWithGoogle();
             else if (provider === 'apple') await authService.loginWithApple();
             else if (provider === 'facebook') await authService.loginWithFacebook();
+            navigate('/');
         } catch (err: any) {
             logger.error(err);
             setError(getErrorMessage(err.code || err.message));
