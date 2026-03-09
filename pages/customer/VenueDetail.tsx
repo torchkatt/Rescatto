@@ -94,24 +94,30 @@ export const VenueDetail: React.FC = () => {
         success(`✅ ${product.name} agregado al carrito`);
     };
 
-    // Categorías únicas de los productos disponibles
+    // Productos activos: con stock > 0 y sin expirar (re-evaluado en cada render
+    // para cubrir el caso donde un producto expira mientras la página está abierta)
+    const availableProducts = useMemo(() => {
+        return products.filter(p => isProductAvailable(p));
+    }, [products]);
+
+    // Categorías únicas de los productos activos
     const productCategories = useMemo(() => {
-        const cats = products
+        const cats = availableProducts
             .map(p => p.category)
             .filter((c): c is string => !!c);
         return Array.from(new Set(cats));
-    }, [products]);
+    }, [availableProducts]);
 
-    // Productos filtrados por búsqueda + categoría
+    // Productos filtrados por búsqueda + categoría (sobre la base de disponibles)
     const filteredProducts = useMemo(() => {
-        return products.filter(p => {
+        return availableProducts.filter(p => {
             const matchesSearch = !productSearch ||
                 p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
                 (p.category?.toLowerCase() ?? '').includes(productSearch.toLowerCase());
             const matchesCategory = selectedCategory === 'all' || p.category === selectedCategory;
             return matchesSearch && matchesCategory;
         });
-    }, [products, productSearch, selectedCategory]);
+    }, [availableProducts, productSearch, selectedCategory]);
 
     if (loading) {
         return <VenueDetailSkeletonLoader />;
@@ -271,7 +277,7 @@ export const VenueDetail: React.FC = () => {
                 }
 
                 {
-                    products.length === 0 ? (
+                    availableProducts.length === 0 ? (
                         <div className="bg-white rounded-xl p-12 text-center">
                             <p className="text-gray-500">No hay productos disponibles en este momento</p>
                         </div>

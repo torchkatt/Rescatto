@@ -10,6 +10,7 @@ import { db } from './firebase';
 import { Venue, Product } from '../types';
 import { cacheService } from './cacheService';
 import { logger } from '../utils/logger';
+import { isProductExpired } from '../utils/productAvailability';
 
 // Claves de caché
 const CACHE_KEYS = {
@@ -72,7 +73,7 @@ export const venueService = {
         return venue;
     },
 
-    // Obtener productos disponibles de un venue
+    // Obtener productos activos (con stock y sin expirar) de un venue
     getVenueProducts: async (venueId: string): Promise<Product[]> => {
         const cacheKey = CACHE_KEYS.VENUE_PRODUCTS(venueId);
         const cached = cacheService.get<Product[]>(cacheKey);
@@ -82,14 +83,14 @@ export const venueService = {
         const q = query(
             productsRef,
             where('venueId', '==', venueId)
-            // Filtrado de stock manejado en la capa de UI
         );
         const querySnapshot = await getDocs(q);
 
-        const products = querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-        })) as Product[];
+        const now = Date.now();
+        const products = querySnapshot.docs
+            .map(doc => ({ id: doc.id, ...doc.data() }) as Product)
+            // Solo mostrar productos con stock > 0 y que no hayan expirado
+            .filter(p => (p.quantity ?? 0) > 0 && !isProductExpired(p.availableUntil, now));
 
         cacheService.set(cacheKey, products, TTL.VENUE_PRODUCTS);
         return products;
