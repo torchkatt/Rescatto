@@ -22,7 +22,11 @@ export const useFavorites = () => {
         // 1. Load Local
         const localFavs = localStorage.getItem(localKey);
         if (localFavs) {
-            setFavorites(JSON.parse(localFavs));
+            try {
+                setFavorites(JSON.parse(localFavs));
+            } catch {
+                localStorage.removeItem(localKey);
+            }
             setLoading(false);
         }
 
@@ -50,7 +54,7 @@ export const useFavorites = () => {
         };
 
         fetchRemote();
-    }, [user]);
+    }, [user?.id]);
 
     const toggleFavorite = useCallback(async (venueId: string) => {
         if (!user) return false;

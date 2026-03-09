@@ -3,12 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { Heart, ArrowLeft, Leaf } from 'lucide-react';
 import { useFavorites } from '../../hooks/useFavorites';
 import { venueService } from '../../services/venueService';
-import { Venue } from '../../types';
+import { Venue, RatingStats } from '../../types';
 import { VenueCard } from '../../components/customer/venue/VenueCard';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
 import { useLocation } from '../../context/LocationContext';
 import { useAuth } from '../../context/AuthContext';
 import { GuestPromptBanner } from '../../components/customer/common/GuestPromptBanner';
+import { getRatingStats } from '../../services/ratingService';
 
 const Favorites: React.FC = () => {
     const navigate = useNavigate();
@@ -16,6 +17,7 @@ const Favorites: React.FC = () => {
     const { favorites, loading: favsLoading } = useFavorites();
     const { latitude, longitude } = useLocation();
     const [venues, setVenues] = useState<Venue[]>([]);
+    const [venueRatingMap, setVenueRatingMap] = useState<Map<string, RatingStats>>(new Map());
     const [loading, setLoading] = useState(true);
     const [showGuestBanner, setShowGuestBanner] = useState(!!user?.isGuest);
 
@@ -31,7 +33,21 @@ const Favorites: React.FC = () => {
             try {
                 const venuePromises = favorites.map(id => venueService.getVenueById(id));
                 const results = await Promise.all(venuePromises);
-                setVenues(results.filter((v): v is Venue => v !== null));
+                const validVenues = results.filter((v): v is Venue => v !== null);
+                setVenues(validVenues);
+
+                // Cargar rating stats en paralelo — una sola tanda, sin N+1
+                const ratingResults = await Promise.allSettled(
+                    validVenues.map(v => getRatingStats(v.id, 'venue'))
+                );
+                const ratingMap = new Map<string, RatingStats>();
+                validVenues.forEach((v, i) => {
+                    const result = ratingResults[i];
+                    if (result.status === 'fulfilled' && result.value) {
+                        ratingMap.set(v.id, result.value);
+                    }
+                });
+                setVenueRatingMap(ratingMap);
             } catch {
                 // venues stays empty
             } finally {
@@ -108,6 +124,7 @@ const Favorites: React.FC = () => {
                                 venue={venue}
                                 userLocation={userLocation}
                                 soonestExpiry={getUrgentExpiryFallback(venue.closingTime)}
+                                ratingStats={venueRatingMap.get(venue.id)}
                             />
                         ))}
                     </div>

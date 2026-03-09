@@ -60,12 +60,14 @@ const Dashboard: React.FC = () => {
   });
 
   useEffect(() => {
-    if (user?.venueId) {
-      dataService.getAnalytics(user.venueId)
+    // Soporta tanto venueId (legacy) como venueIds (post-migración)
+    const venueId = user?.venueIds?.[0] ?? user?.venueId;
+    if (venueId) {
+      dataService.getAnalytics(venueId)
         .then(setMetrics)
         .catch(err => logger.error(err));
     }
-  }, [user]);
+  }, [user?.venueId, JSON.stringify(user?.venueIds)]);
 
   const today = format(new Date(), "EEEE, d 'de' MMMM", { locale: es });
 

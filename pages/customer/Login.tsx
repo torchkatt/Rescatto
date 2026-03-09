@@ -293,7 +293,7 @@ const CustomerLogin: React.FC = () => {
 
                                 <button
                                     type="button"
-                                    onClick={() => { window.location.hash = '#/app'; }}
+                                    onClick={() => navigate('/app')}
                                     className="w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 py-3.5 rounded-xl text-base font-bold transition-all flex items-center justify-center gap-2"
                                 >
                                     Explorar sin cuenta

@@ -437,7 +437,7 @@ const Impact: React.FC = () => {
     const formatCurrency = (value: number) =>
         new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(value);
 
-    const isNotificationSupported = 'Notification' in window && Notification.permission !== 'granted';
+    const isNotificationSupported = 'Notification' in window && Notification.permission === 'default';
 
     return (
         <div className="min-h-screen bg-gray-50 pb-24 overflow-x-hidden">
@@ -498,7 +498,7 @@ const Impact: React.FC = () => {
                         <div>
                             <div className="flex justify-between text-xs text-white/70 mb-1">
                                 <span>{totalRescues} rescates</span>
-                                <span>→ {nextLevel.label} en {nextLevel.minRescues - totalRescues} más</span>
+                                <span>→ {nextLevel.label} en {Math.max(0, nextLevel.minRescues - totalRescues)} más</span>
                             </div>
                             <ProgressBar
                                 current={totalRescues}
@@ -635,7 +635,7 @@ const Impact: React.FC = () => {
                                             Racha de {milestone.label}
                                         </p>
                                         <p className={`text-xs ${unlocked ? 'text-orange-500' : 'text-gray-400'}`}>
-                                            {milestone.bonus} permanentes
+                                            {milestone.bonus} mientras mantengas la racha
                                         </p>
                                     </div>
                                     {unlocked ? (

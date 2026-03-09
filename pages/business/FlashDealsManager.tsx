@@ -79,7 +79,7 @@ export const FlashDealsManager: React.FC = () => {
         } else if (user.venueId) {
             setSelectedVenueId(user.venueId);
         }
-    }, [user]);
+    }, [user?.id, user?.role, user?.venueId]);
 
     // ── Load deals + products when venue changes ──────────────────────────────
 

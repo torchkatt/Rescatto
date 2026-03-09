@@ -63,10 +63,11 @@ const Settings: React.FC = () => {
     };
 
     useEffect(() => {
-        if (user?.venueId) {
-            loadVenue(user.venueId);
+        const venueId = user?.venueIds?.[0] ?? user?.venueId;
+        if (venueId) {
+            loadVenue(venueId);
         }
-    }, [user]);
+    }, [user?.venueId, JSON.stringify(user?.venueIds)]);
 
     const loadVenue = async (venueId: string) => {
         setLoading(true);
@@ -102,11 +103,12 @@ const Settings: React.FC = () => {
     };
 
     const handleSave = async () => {
-        if (!venue || !user?.venueId) return;
+        const venueId = user?.venueIds?.[0] ?? user?.venueId;
+        if (!venue || !venueId) return;
 
         setIsSaving(true);
         try {
-            await dataService.updateVenue(user.venueId, {
+            await dataService.updateVenue(venueId, {
                 name: formData.name,
                 address: formData.address,
                 city: formData.city,
@@ -123,7 +125,7 @@ const Settings: React.FC = () => {
             });
             showToast('success', 'Configuración guardada correctamente');
             // Recargar para asegurar la sincronización
-            loadVenue(user.venueId);
+            loadVenue(venueId);
         } catch (error) {
             logger.error('Error saving settings:', error);
             showToast('error', 'Error al guardar cambios');

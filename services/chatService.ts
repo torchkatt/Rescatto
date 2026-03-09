@@ -9,10 +9,8 @@ import {
     where,
     orderBy,
     onSnapshot,
-    Timestamp,
     Unsubscribe,
     writeBatch,
-    arrayUnion,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { Chat, Message, ChatType, MessageType, UserRole } from '../types';
@@ -44,6 +42,7 @@ export const getOrCreateChat = async (
             const data = doc.data();
             return (
                 data.participants.includes(otherUserId) &&
+                data.type === chatType &&
                 (!orderId || data.orderId === orderId)
             );
         });
@@ -204,17 +203,19 @@ export const markMessagesAsRead = async (
 ): Promise<void> => {
     try {
         const messagesRef = collection(db, `chats/${chatId}/messages`);
-        const q = query(
-            messagesRef,
-            where('senderId', '!=', userId),
-            where('read', '==', false)
-        );
+        // Solo consultamos por read==false — Firestore auto-indexa campos simples.
+        // Filtramos client-side por senderId para no marcar los propios mensajes,
+        // evitando así la necesidad de un índice compuesto (senderId != + read ==).
+        const q = query(messagesRef, where('read', '==', false));
 
         const snapshot = await getDocs(q);
         const batch = writeBatch(db);
 
         snapshot.docs.forEach(docSnapshot => {
-            batch.update(docSnapshot.ref, { read: true });
+            // Solo marcar mensajes enviados por OTROS (no los propios)
+            if (docSnapshot.data().senderId !== userId) {
+                batch.update(docSnapshot.ref, { read: true });
+            }
         });
 
         await batch.commit();

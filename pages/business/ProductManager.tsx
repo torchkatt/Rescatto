@@ -63,7 +63,7 @@ export const ProductManager: React.FC = () => {
                 setLoading(false);
             }
         }
-    }, [user]);
+    }, [user?.id, user?.role, user?.venueId, JSON.stringify(user?.venueIds)]);
 
     useEffect(() => {
         if (selectedVenueId) {

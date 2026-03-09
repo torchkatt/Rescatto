@@ -71,13 +71,16 @@ export const MyOrders: React.FC = () => {
         return () => unsubscribe();
     }, [user?.id]);
 
-    const findExistingOrderChatId = async (orderId: string): Promise<string | null> => {
+    const findExistingOrderChatId = async (orderId: string, type: string): Promise<string | null> => {
         const chatsSnapshot = await getDocs(query(
             collection(db, 'chats'),
             where('participants', 'array-contains', user?.id || ''),
             limit(100)
         ));
-        const existingChat = chatsSnapshot.docs.find(d => (d.data().orderId || '') === orderId);
+        const existingChat = chatsSnapshot.docs.find(d => {
+            const data = d.data();
+            return (data.orderId || '') === orderId && data.type === type;
+        });
         return existingChat?.id || null;
     };
 
@@ -88,8 +91,8 @@ export const MyOrders: React.FC = () => {
                 return;
             }
 
-            // Prioridad 1: reutilizar un chat ya abierto para esta orden.
-            const existingChatId = await findExistingOrderChatId(order.id);
+            // Prioridad 1: reutilizar el chat de venue ya existente para esta orden.
+            const existingChatId = await findExistingOrderChatId(order.id, 'customer-venue');
             if (existingChatId) {
                 await openChat(existingChatId);
                 setShowChatWindow(true);
@@ -168,16 +171,12 @@ export const MyOrders: React.FC = () => {
         }
 
         try {
-            const chatsSnapshot = await getDocs(query(
-                collection(db, 'chats'),
-                where('participants', 'array-contains', user?.id || ''),
-                limit(100)
-            ));
-            const existingChat = chatsSnapshot.docs.find(d => (d.data().orderId || '') === order.id);
+            // Buscar exclusivamente el chat de tipo customer-driver para esta orden
+            const existingChatId = await findExistingOrderChatId(order.id, 'customer-driver');
 
             const driverName = (order as any).driverName || 'Conductor';
-            const chat = existingChat
-                ? { id: existingChat.id }
+            const chat = existingChatId
+                ? { id: existingChatId }
                 : await createChat(
                     order.driverId,
                     driverName,
@@ -196,9 +195,19 @@ export const MyOrders: React.FC = () => {
     };
 
     const handleReorder = (order: Order) => {
-        order.products.forEach(product => {
+        // Solo re-añadir productos con ID real en Firestore para evitar crash en createOrder
+        const validProducts = order.products.filter(p => !!p.productId);
+
+        if (validProducts.length === 0) {
+            // Sin IDs reales no podemos verificar disponibilidad — llevar al venue
+            navigate(`/app/venue/${order.venueId}`);
+            success('Te llevamos al restaurante para elegir productos frescos 🛍️');
+            return;
+        }
+
+        validProducts.forEach(product => {
             const cartProduct: Product = {
-                id: product.productId || `${order.id}-${product.name}`,
+                id: product.productId!,
                 venueId: order.venueId,
                 name: product.name,
                 type: ProductType.SURPRISE_PACK,
@@ -206,12 +215,12 @@ export const MyOrders: React.FC = () => {
                 discountedPrice: product.discountedPrice ?? product.price,
                 quantity: 1,
                 imageUrl: product.imageUrl || product.image || '',
-                availableUntil: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+                availableUntil: '', // El servidor valida disponibilidad real al pagar
                 isDynamicPricing: false,
             };
             addToCart(cartProduct, order.metadata?.venueName);
         });
-        success('¡Productos agregados al carrito! 🛒');
+        success('Productos agregados. Verifica disponibilidad antes de pagar 🛒');
         navigate('/app/cart');
     };
 

@@ -7,10 +7,9 @@ import { ChatWindow } from './ChatWindow';
 import { AIChat } from './AIChat';
 
 export const ChatButton: React.FC = () => {
-    const { unreadCount } = useChat();
+    const { unreadCount, currentChat, closeChat } = useChat();
     const location = useLocation();
     const [isOpen, setIsOpen] = useState(false);
-    const [selectedChat, setSelectedChat] = useState(false);
     const [activeTab, setActiveTab] = useState<'messages' | 'assistant'>('messages');
 
     const path = location.pathname;
@@ -30,16 +29,19 @@ export const ChatButton: React.FC = () => {
     if (shouldHide) return null;
 
     const toggleChat = () => {
-        setIsOpen(!isOpen);
-        if (isOpen) {
-            setSelectedChat(false);
-            setActiveTab('messages');
-        }
+        setIsOpen(prev => {
+            if (prev) {
+                // Al cerrar el panel también cerramos el chat activo
+                closeChat();
+                setActiveTab('messages');
+            }
+            return !prev;
+        });
     };
 
     const handleTabClick = (tab: 'messages' | 'assistant') => {
         setActiveTab(tab);
-        setSelectedChat(false);
+        if (tab !== 'messages') closeChat();
     };
 
     return (
@@ -95,13 +97,13 @@ export const ChatButton: React.FC = () => {
                         </button>
                     </div>
 
-                    {/* Content */}
+                    {/* Content: usa currentChat del contexto para decidir qué mostrar */}
                     <div className="flex-1 overflow-hidden">
                         {activeTab === 'messages' ? (
-                            selectedChat ? (
-                                <ChatWindow onClose={() => setSelectedChat(false)} />
+                            currentChat ? (
+                                <ChatWindow />
                             ) : (
-                                <ChatList onChatSelect={() => setSelectedChat(true)} />
+                                <ChatList />
                             )
                         ) : (
                             <AIChat />

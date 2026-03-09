@@ -104,7 +104,7 @@ export const DriverDashboard: React.FC = () => {
             unsubscribeAvailable();
             if (unsubscribeMyDeliveries) unsubscribeMyDeliveries();
         };
-    }, [user]);
+    }, [user?.id, user?.role]);
 
     const handleAcceptOrder = async (orderId: string) => {
         if (!user?.id) {

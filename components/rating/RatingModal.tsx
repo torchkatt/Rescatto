@@ -155,7 +155,7 @@ export const RatingModal: React.FC<RatingModalProps> = ({ order, onClose, onSucc
                         <button
                             type="submit"
                             className="flex-1 px-4 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                            disabled={loading || venueRating === 0}
+                            disabled={loading || venueRating === 0 || (!!order.driverId && driverRating === 0)}
                         >
                             {loading ? 'Enviando...' : 'Enviar Calificación'}
                         </button>

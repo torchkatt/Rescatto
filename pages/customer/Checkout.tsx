@@ -355,6 +355,11 @@ export const Checkout: React.FC = () => {
     const handleCardPaymentSuccess = async (transactionId: string) => {
         if (!user) return;
 
+        if (deliveryMethod === 'donation' && !selectedDonationCenter) {
+            error('Por favor selecciona un centro de donación.');
+            return;
+        }
+
         const expiredItems = items.filter(item => isProductExpired(item.availableUntil));
         if (expiredItems.length > 0) {
             expiredItems.forEach(item => removeFromCart(item.id));
@@ -691,7 +696,7 @@ export const Checkout: React.FC = () => {
                                             // Sum up all delivery fees 
                                             <span>{formatCOP(Array.from(venueGroups.keys()).reduce((sum, vid) => sum + (calculateOrderTotals(vid, venueGroups.get(vid) || []).deliveryFee), 0))}</span>
                                         ) : (
-                                            <span className="text-emerald-600 font-semibold">GRATIS  ({deliveryMethod === 'pickup' ? 'Recogida' : 'Donación'})</span>
+                                            <span className="text-emerald-600 font-semibold">GRATIS ({deliveryMethod === 'pickup' ? 'Recogida' : 'Donación'})</span>
                                         )}
                                     </div>
 

@@ -148,7 +148,7 @@ export const VenueDetail: React.FC = () => {
                         }}
                     >
                         <button
-                            onClick={() => navigate('/app')}
+                            onClick={() => navigate(-1)}
                             className="absolute top-4 left-4 p-2.5 rounded-full bg-white/90 backdrop-blur-sm hover:bg-white shadow-lg active:scale-90 transition-all border border-gray-100"
                         >
                             <ArrowLeft size={22} className="text-emerald-700" />

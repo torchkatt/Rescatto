@@ -100,6 +100,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 phone: userData.phone,
                 isVerified: finalIsVerified,
                 impact: userData.impact,
+                streak: userData.streak,
+                redemptions: userData.redemptions,
+                hasSeenOnboarding: userData.hasSeenOnboarding,
+                referralCode: userData.referralCode,
               });
             } else {
               setUser({

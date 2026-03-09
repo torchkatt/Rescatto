@@ -95,7 +95,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         });
 
         return () => unsubscribe();
-    }, [user]);
+    }, [user?.id]);
 
     // 1. Manage Active Link and Message Subscription (Stable)
     useEffect(() => {
@@ -247,7 +247,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
         } catch (error) {
             logger.error('Error sending message:', error);
-            showError('Error al enviar el mensaje');
+            throw error; // Permitir que el llamador (ChatWindow) muestre el toast y no limpie el input
         } finally {
             setSending(false);
         }

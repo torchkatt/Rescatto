@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { MessageBubble } from './MessageBubble';
 import { X, Send, Loader2, MessageSquare, MapPin } from 'lucide-react';
+import { logger } from '../../utils/logger';
 import { LoadingSpinner } from '../customer/common/Loading';
 
 interface ChatWindowProps {
@@ -30,8 +31,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onClose, className = '' 
     const handleSend = async () => {
         if (!messageText.trim() || sending) return;
 
-        await sendMessage(messageText);
-        setMessageText('');
+        try {
+            await sendMessage(messageText);
+            setMessageText('');
+        } catch {
+            toastError('No se pudo enviar el mensaje. Intenta de nuevo.');
+        }
     };
 
     const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -53,7 +58,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onClose, className = '' 
                     });
                 },
                 (error) => {
-                    console.error('Error getting location:', error);
+                    logger.error('Error getting location:', error);
+                    toastError('No se pudo obtener tu ubicación.');
                 }
             );
         } else {
