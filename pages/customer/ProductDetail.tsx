@@ -37,8 +37,8 @@ export const ProductDetail: React.FC = () => {
                 const venueData = await venueService.getVenueById(productData.venueId);
                 setVenue(venueData);
             }
-        } catch (error) {
-            logger.error('Failed to load product details', error);
+        } catch (err) {
+            logger.error('Failed to load product details', err);
         } finally {
             setLoading(false);
         }

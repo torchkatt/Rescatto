@@ -359,7 +359,7 @@ export const MyOrders: React.FC = () => {
                     </div>
                 )}
 
-                {orders.length === 0 ? (
+                {orders.length === 0 && !orderIdParam ? (
                     <div className="flex flex-col items-center justify-center py-16 text-center px-4">
                         <div className="relative mb-6">
                             <div className="w-28 h-28 bg-emerald-50 rounded-full flex items-center justify-center">
@@ -520,6 +520,26 @@ export const MyOrders: React.FC = () => {
                                     )}
                                 </div>
                             ))}
+                        {/* Skeleton mientras el nuevo pedido llega vía onSnapshot */}
+                        {orderIdParam && !orders.some(o => o.id === orderIdParam) && (
+                            <div className="bg-white rounded-xl p-6 shadow-sm border border-emerald-100">
+                                <div className="flex justify-between items-start mb-4 animate-pulse">
+                                    <div className="space-y-2">
+                                        <div className="h-4 bg-gray-200 rounded w-36" />
+                                        <div className="h-3 bg-gray-200 rounded w-28" />
+                                    </div>
+                                    <div className="h-7 bg-emerald-100 rounded-full w-28" />
+                                </div>
+                                <div className="space-y-2 border-t pt-4 animate-pulse">
+                                    <div className="h-4 bg-gray-200 rounded w-3/4" />
+                                    <div className="h-4 bg-gray-200 rounded w-1/2" />
+                                </div>
+                                <div className="flex items-center gap-2.5 mt-4 pt-4 border-t text-emerald-600">
+                                    <div className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                                    <p className="text-sm font-semibold">Confirmando tu pedido #{orderIdParam.slice(0, 8)}…</p>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

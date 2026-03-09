@@ -32,6 +32,7 @@ export default {
                 'slide-in-right': 'slideInRight 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
                 'slide-in-left': 'slideInLeft 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
                 'fade-in-up': 'fadeInUp 0.5s ease-out forwards',
+                'cart-pop': 'cartPop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1)',
             },
             keyframes: {
                 slideInRight: {
@@ -45,7 +46,13 @@ export default {
                 fadeInUp: {
                     '0%': { opacity: '0', transform: 'translateY(10px)' },
                     '100%': { opacity: '1', transform: 'translateY(0)' },
-                }
+                },
+                cartPop: {
+                    '0%':   { transform: 'scale(1)' },
+                    '40%':  { transform: 'scale(1.14)' },
+                    '70%':  { transform: 'scale(0.96)' },
+                    '100%': { transform: 'scale(1)' },
+                },
             },
         },
     },

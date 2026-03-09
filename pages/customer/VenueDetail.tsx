@@ -73,8 +73,8 @@ export const VenueDetail: React.FC = () => {
                     setRatingStats(statsResult.value);
                 }
             }
-        } catch (error) {
-            logger.error('Failed to load venue', error);
+        } catch (err) {
+            logger.error('Failed to load venue', err);
         } finally {
             setLoading(false);
         }
