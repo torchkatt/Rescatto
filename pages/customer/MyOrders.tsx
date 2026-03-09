@@ -31,6 +31,7 @@ export const MyOrders: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [ratingOrder, setRatingOrder] = useState<Order | null>(null);
     const [showChatWindow, setShowChatWindow] = useState(false);
+    const [chatLoadingOrderId, setChatLoadingOrderId] = useState<string | null>(null);
     const highlightRef = useRef<HTMLDivElement | null>(null);
 
     // Scroll a la orden destacada cuando se navega desde una notificación FCM
@@ -90,6 +91,7 @@ export const MyOrders: React.FC = () => {
                 showError('Debes iniciar sesión para abrir el chat.');
                 return;
             }
+            setChatLoadingOrderId(order.id);
 
             // Prioridad 1: reutilizar el chat de venue ya existente para esta orden.
             const existingChatId = await findExistingOrderChatId(order.id, 'customer-venue');
@@ -158,9 +160,11 @@ export const MyOrders: React.FC = () => {
             const code = String(error?.code || '');
             if (code.includes('permission-denied')) {
                 showError('No tienes permisos para abrir este chat.');
-                return;
+            } else {
+                showError('Error al abrir el chat. Intenta de nuevo.');
             }
-            showError('Error al abrir el chat. Intenta de nuevo.');
+        } finally {
+            setChatLoadingOrderId(null);
         }
     };
 
@@ -170,6 +174,7 @@ export const MyOrders: React.FC = () => {
             return;
         }
 
+        setChatLoadingOrderId(order.id);
         try {
             // Buscar exclusivamente el chat de tipo customer-driver para esta orden
             const existingChatId = await findExistingOrderChatId(order.id, 'customer-driver');
@@ -191,6 +196,8 @@ export const MyOrders: React.FC = () => {
         } catch (error) {
             logger.error('Error opening chat:', error);
             showError('Error al abrir el chat');
+        } finally {
+            setChatLoadingOrderId(null);
         }
     };
 
@@ -452,18 +459,26 @@ export const MyOrders: React.FC = () => {
                                     <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-100">
                                         <button
                                             onClick={() => handleChatWithVenue(order)}
-                                            className="flex-1 px-4 py-3 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-xl hover:bg-emerald-100 shadow-sm active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 text-sm font-semibold"
+                                            disabled={chatLoadingOrderId === order.id}
+                                            className="flex-1 px-4 py-3 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-xl hover:bg-emerald-100 shadow-sm active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
                                         >
-                                            <MessageSquare size={18} />
+                                            {chatLoadingOrderId === order.id
+                                                ? <span className="animate-spin text-base">⏳</span>
+                                                : <MessageSquare size={18} />
+                                            }
                                             Chat Restaurante
                                         </button>
 
                                         {order.driverId && (
                                             <button
                                                 onClick={() => handleChatWithDriver(order)}
-                                                className="flex-1 px-4 py-3 bg-blue-50 text-blue-700 border border-blue-100 rounded-xl hover:bg-blue-100 shadow-sm active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 text-sm font-semibold"
+                                                disabled={chatLoadingOrderId === order.id}
+                                                className="flex-1 px-4 py-3 bg-blue-50 text-blue-700 border border-blue-100 rounded-xl hover:bg-blue-100 shadow-sm active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
                                             >
-                                                <MessageSquare size={18} />
+                                                {chatLoadingOrderId === order.id
+                                                    ? <span className="animate-spin text-base">⏳</span>
+                                                    : <MessageSquare size={18} />
+                                                }
                                                 Chat Conductor
                                             </button>
                                         )}

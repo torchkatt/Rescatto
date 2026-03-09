@@ -15,7 +15,7 @@ export const ProductDetail: React.FC = () => {
     const { productId } = useParams<{ productId: string }>();
     const navigate = useNavigate();
     const { addToCart } = useCart();
-    const { error } = useToast();
+    const { error, success } = useToast();
 
     const [product, setProduct] = useState<Product | null>(null);
     const [venue, setVenue] = useState<Venue | null>(null);
@@ -55,6 +55,7 @@ export const ProductDetail: React.FC = () => {
                 : product;
 
             addToCart(cartProduct, venue?.name || '');
+            success(`✅ ${product.name} agregado al carrito`);
             navigate('/app/cart');
         }
     };

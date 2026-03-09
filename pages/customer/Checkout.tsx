@@ -42,6 +42,8 @@ export const Checkout: React.FC = () => {
     const [cityError, setCityError] = useState<string | null>(null);
     const [showNotifModal, setShowNotifModal] = useState(false);
     const [pendingNavPath, setPendingNavPath] = useState<string>('/app/orders');
+    // Evita que el useEffect de carrito vacío redirija tras colocar un pedido
+    const orderJustPlacedRef = React.useRef(false);
     // Canje de puntos seleccionado para aplicar en esta compra
     const [selectedRedemption, setSelectedRedemption] = useState<ActiveRedemption | null>(null);
     const phoneDigits = phone.replace(/\D/g, '');
@@ -336,6 +338,7 @@ export const Checkout: React.FC = () => {
 
             const orderIds = await Promise.all(orderPromises);
 
+            orderJustPlacedRef.current = true;
             clearCart();
             const pointsMsg = estimatedPoints > 0 ? ` +${estimatedPoints} puntos ganados 🎯` : '';
             success(`¡Pedido realizado con éxito! 🎉${pointsMsg}`);
@@ -405,6 +408,7 @@ export const Checkout: React.FC = () => {
             });
 
             const orderIds = await Promise.all(orderPromises);
+            orderJustPlacedRef.current = true;
             clearCart();
             const pointsMsg = estimatedPoints > 0 ? ` +${estimatedPoints} puntos ganados 🎯` : '';
             success(`¡Pago exitoso! Tu pedido ha sido confirmado. ✅${pointsMsg}`);
@@ -421,7 +425,7 @@ export const Checkout: React.FC = () => {
     };
 
     useEffect(() => {
-        if (items.length === 0 && !loading) {
+        if (items.length === 0 && !loading && !orderJustPlacedRef.current) {
             navigate('/app/cart');
         }
     }, [items.length, navigate, loading]);
