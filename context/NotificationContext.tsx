@@ -44,7 +44,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     useEffect(() => { activeLinkRef.current = activeLink; }, [activeLink]);
 
     useEffect(() => {
-        if (!user) {
+        if (!user || user.isGuest) {
             setNotifications([]);
             setUnreadCount(0);
             return;
@@ -92,6 +92,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             setNotifications(newNotifications);
             setUnreadCount(newNotifications.filter(n => !n.read).length);
             firstLoad.current = false;
+        }, (error) => {
+            logger.warn('NotificationContext: onSnapshot error:', error.code);
         });
 
         return () => unsubscribe();
