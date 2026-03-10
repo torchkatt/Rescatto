@@ -123,6 +123,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 fullName: firebaseUser.displayName || 'Usuario',
                 role: UserRole.CUSTOMER,
                 avatarUrl: firebaseUser.photoURL,
+                isGuest: firebaseUser.isAnonymous,
               });
             }
             setIsLoading(false);
@@ -134,6 +135,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               fullName: firebaseUser.displayName || 'Usuario',
               role: UserRole.CUSTOMER,
               avatarUrl: firebaseUser.photoURL,
+              isGuest: firebaseUser.isAnonymous,
             });
             setIsLoading(false);
           });

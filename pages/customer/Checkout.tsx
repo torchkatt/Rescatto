@@ -52,7 +52,7 @@ export const Checkout: React.FC = () => {
     // After order success: show notification modal on first order if not asked yet,
     // then navigate. On subsequent orders, navigate immediately.
     const navigateAfterOrder = (path: string) => {
-        if (!hasAskedForNotifications()) {
+        if (!user?.isGuest && !hasAskedForNotifications()) {
             setPendingNavPath(path);
             setShowNotifModal(true);
         } else {
