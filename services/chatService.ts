@@ -294,6 +294,8 @@ export const subscribeToChatMessages = (
             ...doc.data(),
         })) as Message[];
         callback(messages);
+    }, (error) => {
+        logger.warn('subscribeToChatMessages error:', error.code);
     });
 };
 
@@ -317,6 +319,8 @@ export const subscribeToUserChats = (
             ...doc.data(),
         })) as Chat[];
         callback(chats);
+    }, (error) => {
+        logger.warn('subscribeToUserChats error:', error.code);
     });
 };
 

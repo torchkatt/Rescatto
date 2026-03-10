@@ -50,7 +50,7 @@ export const messagingService = {
                 return null;
             }
         } catch (error) {
-            logger.error('Error al solicitar permiso o token FCM:', error);
+            logger.warn('Error al solicitar token FCM (no afecta funcionalidad principal):', error);
             return null;
         }
     },
