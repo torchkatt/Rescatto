@@ -159,22 +159,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   }, []);
 
+  // Los métodos de login NO hacen setIsLoading(true) para evitar race conditions.
+  // onAuthStateChanged es la única fuente de verdad para isLoading.
+  // Solo loginAsGuest lo hace porque es la primera carga de la app (no hay sesión previa).
+
   const login = useCallback(async (email: string, pass: string) => {
-    setIsLoading(true);
     try {
       await authService.login(email, pass);
+      // onAuthStateChanged se encargará de setIsLoading(false) y setUser
     } catch (error) {
-      setIsLoading(false);
       throw error;
     }
   }, []);
 
   const loginWithGoogle = useCallback(async () => {
-    setIsLoading(true);
     try {
       await authService.loginWithGoogle();
     } catch (error) {
-      setIsLoading(false);
       throw error;
     }
   }, []);
@@ -192,7 +193,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const convertGuestToUser = useCallback(async (email: string, password: string, fullName: string) => {
     try {
       await authService.convertGuestToUser(email, password, fullName);
-      // onAuthStateChanged will fire and update the user state automatically
     } catch (error) {
       logger.error('AuthContext: convertGuestToUser error', error);
       throw error;
@@ -200,21 +200,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   const loginWithApple = useCallback(async () => {
-    setIsLoading(true);
     try {
       await authService.loginWithApple();
     } catch (error) {
-      setIsLoading(false);
       throw error;
     }
   }, []);
 
   const loginWithFacebook = useCallback(async () => {
-    setIsLoading(true);
     try {
       await authService.loginWithFacebook();
     } catch (error) {
-      setIsLoading(false);
       throw error;
     }
   }, []);

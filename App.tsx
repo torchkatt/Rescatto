@@ -111,12 +111,23 @@ const CustomerLayout: React.FC = () => {
     const navigate = useNavigate();
     const { isAuthenticated, isLoading: authLoading, loginAsGuest } = useAuth();
     const guestLoginAttempted = React.useRef(false);
+    // Track auth state en ref para poder leerlo dentro del setTimeout
+    const authRef = React.useRef({ isAuthenticated, authLoading });
+    authRef.current = { isAuthenticated, authLoading };
 
-    // Auto-login como invitado si el usuario llega sin sesión (máximo un intento)
+    // Auto-login como invitado si el usuario llega sin sesión (máximo un intento).
+    // Delay de 600ms tras detectar !isAuthenticated para dar tiempo al auth state
+    // de estabilizarse (evita race condition anónimo→real al navegar desde /login).
     useEffect(() => {
         if (!authLoading && !isAuthenticated && !guestLoginAttempted.current) {
-            guestLoginAttempted.current = true;
-            loginAsGuest().catch(() => {/* silencioso */});
+            const timer = setTimeout(() => {
+                // Re-verificar con el estado actual: si ya se autenticó, no hacer nada
+                if (!authRef.current.isAuthenticated && !authRef.current.authLoading && !guestLoginAttempted.current) {
+                    guestLoginAttempted.current = true;
+                    loginAsGuest().catch(() => {/* silencioso */});
+                }
+            }, 600);
+            return () => clearTimeout(timer);
         }
     }, [authLoading, isAuthenticated, loginAsGuest]);
 

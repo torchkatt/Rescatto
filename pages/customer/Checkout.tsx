@@ -163,8 +163,9 @@ export const Checkout: React.FC = () => {
             if (calc && calc.possible) {
                 deliveryFee = calc.fee;
             } else {
-                // Fallback or error state
+                // Fallback: cálculo no listo o imposible, usar tarifa por defecto
                 deliveryFee = DEFAULT_DELIVERY_FEE;
+                logger.warn(`Delivery fee fallback para venue ${venueId}: calc=${JSON.stringify(calc)}, usando DEFAULT_DELIVERY_FEE=${DEFAULT_DELIVERY_FEE}`);
             }
         }
 
@@ -313,34 +314,65 @@ export const Checkout: React.FC = () => {
         try {
             const createOrderFn = httpsCallable(functions, 'createOrder');
 
-            const orderPromises = Array.from(venueGroups.entries()).map(async ([venueId, venueItems]) => {
-                const { deliveryFee } = calculateOrderTotals(venueId, venueItems);
+            const venueEntries = Array.from(venueGroups.entries());
+            const orderResults = await Promise.allSettled(
+                venueEntries.map(async ([venueId, venueItems]) => {
+                    const { deliveryFee } = calculateOrderTotals(venueId, venueItems);
 
-                const payload = {
-                    venueId,
-                    products: venueItems.map(item => ({
-                        productId: item.id,
-                        quantity: item.quantity
-                    })),
-                    paymentMethod: 'cash',
-                    deliveryMethod,
-                    deliveryFee,
-                    address: address,
-                    city: city || 'Bogotá',
-                    phone: phoneDigits,
-                    transactionId: null,
-                    isDonation: deliveryMethod === 'donation',
-                    donationCenterId: selectedDonationCenter?.id,
-                    donationCenterName: selectedDonationCenter?.name,
-                    estimatedCo2: calculateCo2Impact() / venueGroups.size,
-                    // Canje de puntos aplicado
-                    redemptionId: selectedRedemption?.id ?? null,
-                };
-                const result: any = await createOrderFn(payload);
-                return result.data.orderId;
-            });
+                    const payload = {
+                        venueId,
+                        products: venueItems.map(item => ({
+                            productId: item.id,
+                            quantity: item.quantity
+                        })),
+                        paymentMethod: 'cash',
+                        deliveryMethod,
+                        deliveryFee,
+                        address: address,
+                        city: city || 'Bogotá',
+                        phone: phoneDigits,
+                        transactionId: null,
+                        isDonation: deliveryMethod === 'donation',
+                        donationCenterId: selectedDonationCenter?.id,
+                        donationCenterName: selectedDonationCenter?.name,
+                        estimatedCo2: calculateCo2Impact() / venueGroups.size,
+                        // Canje de puntos aplicado
+                        redemptionId: selectedRedemption?.id ?? null,
+                    };
+                    const result: any = await createOrderFn(payload);
+                    return { orderId: result.data.orderId as string, venueId };
+                })
+            );
 
-            const orderIds = await Promise.all(orderPromises);
+            const succeeded = orderResults.filter((r): r is PromiseFulfilledResult<{ orderId: string; venueId: string }> => r.status === 'fulfilled');
+            const failed = orderResults.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+
+            // Remover del carrito solo los items de venues que se crearon exitosamente
+            if (succeeded.length > 0) {
+                const successVenueIds = new Set(succeeded.map(r => r.value.venueId));
+                const itemsToRemove = items.filter(item => successVenueIds.has(item.venueId));
+                itemsToRemove.forEach(item => removeFromCart(item.id));
+            }
+
+            if (failed.length > 0 && succeeded.length > 0) {
+                // Éxito parcial: algunos pedidos creados, otros fallaron
+                const failedVenueNames = failed.map((_, i) => {
+                    const venueId = venueEntries[orderResults.indexOf(failed[i])]?.[0];
+                    const venueItems = venueGroups.get(venueId || '');
+                    return venueItems?.[0]?.venueName || 'un negocio';
+                }).join(', ');
+                error(`Algunos pedidos fallaron (${failedVenueNames}). Los exitosos fueron procesados. Reintenta los restantes.`);
+                logger.error('Partial order failure:', failed.map(f => f.reason));
+                setLoading(false);
+                return;
+            }
+
+            if (failed.length > 0 && succeeded.length === 0) {
+                // Todos fallaron — propagar el primer error
+                throw failed[0].reason;
+            }
+
+            const orderIds = succeeded.map(r => r.value.orderId);
 
             orderJustPlacedRef.current = true;
             clearCart();
@@ -389,34 +421,61 @@ export const Checkout: React.FC = () => {
         try {
             const createOrderFn = httpsCallable(functions, 'createOrder');
 
-            const orderPromises = Array.from(venueGroups.entries()).map(async ([venueId, venueItems]) => {
-                const { deliveryFee } = calculateOrderTotals(venueId, venueItems);
+            const venueEntries = Array.from(venueGroups.entries());
+            const orderResults = await Promise.allSettled(
+                venueEntries.map(async ([venueId, venueItems]) => {
+                    const { deliveryFee } = calculateOrderTotals(venueId, venueItems);
 
-                const payload = {
-                    venueId,
-                    products: venueItems.map(item => ({
-                        productId: item.id,
-                        quantity: item.quantity
-                    })),
-                    paymentMethod: 'card',
-                    deliveryMethod,
-                    deliveryFee,
-                    address: address,
-                    city: city || 'Bogotá',
-                    phone: phoneDigits,
-                    transactionId,
-                    isDonation: deliveryMethod === 'donation',
-                    donationCenterId: selectedDonationCenter?.id,
-                    donationCenterName: selectedDonationCenter?.name,
-                    estimatedCo2: calculateCo2Impact() / venueGroups.size, // Split impact across orders
-                    // Canje de puntos aplicado
-                    redemptionId: selectedRedemption?.id ?? null,
-                };
-                const result: any = await createOrderFn(payload);
-                return result.data.orderId;
-            });
+                    const payload = {
+                        venueId,
+                        products: venueItems.map(item => ({
+                            productId: item.id,
+                            quantity: item.quantity
+                        })),
+                        paymentMethod: 'card',
+                        deliveryMethod,
+                        deliveryFee,
+                        address: address,
+                        city: city || 'Bogotá',
+                        phone: phoneDigits,
+                        transactionId,
+                        isDonation: deliveryMethod === 'donation',
+                        donationCenterId: selectedDonationCenter?.id,
+                        donationCenterName: selectedDonationCenter?.name,
+                        estimatedCo2: calculateCo2Impact() / venueGroups.size,
+                        redemptionId: selectedRedemption?.id ?? null,
+                    };
+                    const result: any = await createOrderFn(payload);
+                    return { orderId: result.data.orderId as string, venueId };
+                })
+            );
 
-            const orderIds = await Promise.all(orderPromises);
+            const succeeded = orderResults.filter((r): r is PromiseFulfilledResult<{ orderId: string; venueId: string }> => r.status === 'fulfilled');
+            const failed = orderResults.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+
+            if (succeeded.length > 0) {
+                const successVenueIds = new Set(succeeded.map(r => r.value.venueId));
+                const itemsToRemove = items.filter(item => successVenueIds.has(item.venueId));
+                itemsToRemove.forEach(item => removeFromCart(item.id));
+            }
+
+            if (failed.length > 0 && succeeded.length > 0) {
+                const failedVenueNames = failed.map((_, i) => {
+                    const venueId = venueEntries[orderResults.indexOf(failed[i])]?.[0];
+                    const venueItems = venueGroups.get(venueId || '');
+                    return venueItems?.[0]?.venueName || 'un negocio';
+                }).join(', ');
+                error(`Algunos pedidos fallaron (${failedVenueNames}). Los exitosos fueron procesados. Contacta a soporte.`);
+                logger.error('Partial card order failure:', failed.map(f => f.reason));
+                setLoading(false);
+                return;
+            }
+
+            if (failed.length > 0 && succeeded.length === 0) {
+                throw failed[0].reason;
+            }
+
+            const orderIds = succeeded.map(r => r.value.orderId);
             orderJustPlacedRef.current = true;
             clearCart();
             const pointsMsg = estimatedPoints > 0 ? ` +${estimatedPoints} puntos ganados 🎯` : '';
@@ -433,11 +492,13 @@ export const Checkout: React.FC = () => {
         }
     };
 
+    // Redirigir al carrito si no hay items y el auth ya está estable.
+    // authLoading previene redirigir durante transiciones de auth (userId cambia → cart sync).
     useEffect(() => {
-        if (items.length === 0 && !loading && !orderJustPlacedRef.current) {
+        if (items.length === 0 && !loading && !orderJustPlacedRef.current && !authLoading && isAuthenticated) {
             navigate('/app/cart');
         }
-    }, [items.length, navigate, loading]);
+    }, [items.length, navigate, loading, authLoading, isAuthenticated]);
 
     if (authLoading || (!isAuthenticated && !loading)) {
         return (

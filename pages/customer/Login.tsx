@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '../../components/customer/common/Button';
 import { authService } from '../../services/authService';
+import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { UserRole } from '../../types';
 import { Mail, Lock, User, ArrowRight } from 'lucide-react';
@@ -36,13 +37,29 @@ const CustomerLogin: React.FC = () => {
     const { success } = useToast();
     const navigate = useNavigate();
     const location = useLocation();
-    const redirectTo = React.useRef<string>(
+    const { isAuthenticated, isLoading: authLoading } = useAuth();
+
+    // Leer redirect de sessionStorage (prioridad) o URL param, una sola vez
+    const redirectTo = useRef<string>(
         (() => {
             const stored = sessionStorage.getItem('rescatto_post_login_redirect');
             if (stored) { sessionStorage.removeItem('rescatto_post_login_redirect'); return stored; }
             return new URLSearchParams(location.search).get('redirect') || '/';
         })()
     ).current;
+
+    // Flag: el usuario acaba de hacer login/register exitoso en este componente
+    const loginSucceeded = useRef(false);
+
+    // Navegar DESPUÉS de que el auth state se estabilice (isAuthenticated = true).
+    // Esto evita la race condition donde navigate() se ejecuta antes de que
+    // onAuthStateChanged haya propagado el nuevo usuario al contexto.
+    useEffect(() => {
+        if (loginSucceeded.current && !authLoading && isAuthenticated) {
+            loginSucceeded.current = false;
+            navigate(redirectTo, { replace: true });
+        }
+    }, [isAuthenticated, authLoading, navigate, redirectTo]);
 
     useEffect(() => {
         if (error) {
@@ -64,7 +81,8 @@ const CustomerLogin: React.FC = () => {
             } else {
                 await authService.login(email, password);
             }
-            navigate(redirectTo);
+            // No navegar aquí: el useEffect de arriba lo hará cuando auth esté listo
+            loginSucceeded.current = true;
         } catch (err: any) {
             logger.error(err);
             setError(getErrorMessage(err.code || err.message));
@@ -96,7 +114,8 @@ const CustomerLogin: React.FC = () => {
             if (provider === 'google') await authService.loginWithGoogle();
             else if (provider === 'apple') await authService.loginWithApple();
             else if (provider === 'facebook') await authService.loginWithFacebook();
-            navigate(redirectTo);
+            // No navegar aquí: el useEffect lo hará cuando auth esté listo
+            loginSucceeded.current = true;
         } catch (err: any) {
             logger.error(err);
             setError(getErrorMessage(err.code || err.message));
