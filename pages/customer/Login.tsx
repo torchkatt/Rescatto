@@ -36,7 +36,13 @@ const CustomerLogin: React.FC = () => {
     const { success } = useToast();
     const navigate = useNavigate();
     const location = useLocation();
-    const redirectTo = new URLSearchParams(location.search).get('redirect') || '/';
+    const redirectTo = React.useRef<string>(
+        (() => {
+            const stored = sessionStorage.getItem('rescatto_post_login_redirect');
+            if (stored) { sessionStorage.removeItem('rescatto_post_login_redirect'); return stored; }
+            return new URLSearchParams(location.search).get('redirect') || '/';
+        })()
+    ).current;
 
     useEffect(() => {
         if (error) {

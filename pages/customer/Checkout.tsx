@@ -263,7 +263,8 @@ export const Checkout: React.FC = () => {
     const handlePlaceOrder = async () => {
         if (!user || user.isGuest) {
             error('Debes iniciar sesión para realizar pedidos.');
-            navigate('/login?redirect=/app/checkout');
+            sessionStorage.setItem('rescatto_post_login_redirect', '/app/checkout');
+            navigate('/login');
             return;
         }
 
@@ -361,7 +362,8 @@ export const Checkout: React.FC = () => {
     const handleCardPaymentSuccess = async (transactionId: string) => {
         if (!user || user.isGuest) {
             error('Debes iniciar sesión para realizar pedidos.');
-            navigate('/login?redirect=/app/checkout');
+            sessionStorage.setItem('rescatto_post_login_redirect', '/app/checkout');
+            navigate('/login');
             return;
         }
 
@@ -771,7 +773,7 @@ export const Checkout: React.FC = () => {
 
                                 {paymentMethod === 'cash' ? (
                                     <button
-                                        onClick={user?.isGuest ? () => navigate('/login?redirect=/app/checkout') : handlePlaceOrder}
+                                        onClick={user?.isGuest ? () => { sessionStorage.setItem('rescatto_post_login_redirect', '/app/checkout'); navigate('/login'); } : handlePlaceOrder}
                                         disabled={loading || (deliveryMethod === 'delivery' && !address) || !isPhoneValid || !!cityError}
                                         className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white font-bold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-lg flex items-center justify-center gap-2 active:scale-95"
                                     >
