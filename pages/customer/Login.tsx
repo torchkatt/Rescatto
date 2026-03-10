@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '../../components/customer/common/Button';
 import { authService } from '../../services/authService';
 import { useToast } from '../../context/ToastContext';
@@ -35,6 +35,8 @@ const CustomerLogin: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const { success } = useToast();
     const navigate = useNavigate();
+    const location = useLocation();
+    const redirectTo = new URLSearchParams(location.search).get('redirect') || '/';
 
     useEffect(() => {
         if (error) {
@@ -56,7 +58,7 @@ const CustomerLogin: React.FC = () => {
             } else {
                 await authService.login(email, password);
             }
-            navigate('/');
+            navigate(redirectTo);
         } catch (err: any) {
             logger.error(err);
             setError(getErrorMessage(err.code || err.message));
@@ -88,7 +90,7 @@ const CustomerLogin: React.FC = () => {
             if (provider === 'google') await authService.loginWithGoogle();
             else if (provider === 'apple') await authService.loginWithApple();
             else if (provider === 'facebook') await authService.loginWithFacebook();
-            navigate('/');
+            navigate(redirectTo);
         } catch (err: any) {
             logger.error(err);
             setError(getErrorMessage(err.code || err.message));
