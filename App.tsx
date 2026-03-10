@@ -77,15 +77,16 @@ const RootRedirect: React.FC = () => {
     // Si ya tiene token FCM guardado, renovarlo silenciosamente sin prompt.
     // El prompt de permisos se muestra de forma contextual via NotificationPermissionModal.
     useEffect(() => {
-        if (user && user.id && Notification.permission === 'granted') {
+        if (user && user.id && !user.isGuest && Notification.permission === 'granted') {
             messagingService.requestPermissionAndSaveToken(user.id);
         }
     }, [user]);
     if (isLoading) return <LoadingScreen />;
 
-    if (!user) return <Navigate to="/login" replace />;
+    // Sin sesión → ir al app como invitado (auto-login se activa en CustomerLayout)
+    if (!user) return <Navigate to="/app" replace />;
 
-    // Force Account/Email verification 
+    // Force Account/Email verification (solo usuarios reales, no anónimos)
     if (!isAccountVerified) {
         return <Navigate to="/verify-email" replace />;
     }
@@ -108,6 +109,16 @@ import { FloatingCartButton } from './components/customer/common/FloatingCartBut
 // Wrapper for Customer Layout
 const CustomerLayout: React.FC = () => {
     const navigate = useNavigate();
+    const { isAuthenticated, isLoading: authLoading, loginAsGuest } = useAuth();
+    const guestLoginAttempted = React.useRef(false);
+
+    // Auto-login como invitado si el usuario llega sin sesión (máximo un intento)
+    useEffect(() => {
+        if (!authLoading && !isAuthenticated && !guestLoginAttempted.current) {
+            guestLoginAttempted.current = true;
+            loginAsGuest().catch(() => {/* silencioso */});
+        }
+    }, [authLoading, isAuthenticated, loginAsGuest]);
 
     // FCM deep linking: navigate to the correct order when user taps a background notification
     useEffect(() => {
@@ -135,7 +146,8 @@ const CustomerLayout: React.FC = () => {
 const ProfileRedirect: React.FC = () => {
     const { user } = useAuth();
 
-    if (!user) return <Navigate to="/login" replace />;
+    // Sin sesión o invitado → perfil de customer
+    if (!user || user.isGuest) return <Navigate to="/app/profile" replace />;
 
     switch (user.role) {
         case UserRole.CUSTOMER:

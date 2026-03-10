@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore } from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
 import { getStorage } from 'firebase/storage';
 import { getMessaging } from 'firebase/messaging';
@@ -22,8 +22,12 @@ const app = initializeApp(firebaseConfig);
 // Initialize Firebase Authentication and get a reference to the service
 export const auth = getAuth(app);
 
-// Initialize Cloud Firestore and get a reference to the service
-export const db = getFirestore(app);
+// Initialize Cloud Firestore con WebSocket para evitar el spinner infinito del navegador.
+// experimentalAutoDetectLongPolling: detecta si WebSocket está disponible y lo prefiere
+// sobre HTTP long-polling (que mantiene el tab en estado "cargando" indefinidamente).
+export const db = initializeFirestore(app, {
+    experimentalAutoDetectLongPolling: true,
+});
 
 // Initialize Cloud Functions and get a reference to the service
 export const functions = getFunctions(app);

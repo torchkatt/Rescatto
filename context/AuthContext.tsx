@@ -37,6 +37,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     let userUnsubscribe: (() => void) | null = null;
 
+    // Timeout de seguridad: si isLoading sigue en true después de 10s, forzar false
+    const loadingTimeout = setTimeout(() => {
+      setIsLoading((prev) => {
+        if (prev) {
+          logger.warn('AuthContext: timeout de carga alcanzado, forzando isLoading=false');
+          return false;
+        }
+        return prev;
+      });
+    }, 10000);
+
     // Cargar Roles
     const loadRoles = async () => {
       try {
@@ -138,6 +149,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
 
     return () => {
+      clearTimeout(loadingTimeout);
       authUnsubscribe();
       if (userUnsubscribe) {
         userUnsubscribe();

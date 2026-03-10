@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
@@ -60,9 +60,11 @@ export const Checkout: React.FC = () => {
         }
     };
 
-    // Auto-login guiado para Guest Checkout
+    // Auto-login guiado para Guest Checkout (máximo un intento para evitar loops)
+    const guestLoginAttempted = useRef(false);
     useEffect(() => {
-        if (!authLoading && !isAuthenticated) {
+        if (!authLoading && !isAuthenticated && !guestLoginAttempted.current) {
+            guestLoginAttempted.current = true;
             loginAsGuest().catch(err => {
                 logger.error("Failed to login as guest", err);
                 error("Error al preparar tu sesión. Intenta de nuevo.");
@@ -259,8 +261,9 @@ export const Checkout: React.FC = () => {
 
 
     const handlePlaceOrder = async () => {
-        if (!user) {
+        if (!user || user.isGuest) {
             error('Debes iniciar sesión para realizar pedidos.');
+            navigate('/login');
             return;
         }
 
@@ -356,7 +359,11 @@ export const Checkout: React.FC = () => {
     };
 
     const handleCardPaymentSuccess = async (transactionId: string) => {
-        if (!user) return;
+        if (!user || user.isGuest) {
+            error('Debes iniciar sesión para realizar pedidos.');
+            navigate('/login');
+            return;
+        }
 
         if (deliveryMethod === 'donation' && !selectedDonationCenter) {
             error('Por favor selecciona un centro de donación.');
@@ -440,6 +447,19 @@ export const Checkout: React.FC = () => {
     }
 
     if (items.length === 0) {
+        // Si acabamos de colocar una orden, mostramos el modal de notificaciones si aplica
+        // y esperamos la navegación. Si no, redirigimos al carrito.
+        if (showNotifModal && user) {
+            return (
+                <NotificationPermissionModal
+                    userId={user.id}
+                    onClose={() => {
+                        setShowNotifModal(false);
+                        navigate(pendingNavPath);
+                    }}
+                />
+            );
+        }
         return null;
     }
 
@@ -751,7 +771,7 @@ export const Checkout: React.FC = () => {
 
                                 {paymentMethod === 'cash' ? (
                                     <button
-                                        onClick={handlePlaceOrder}
+                                        onClick={user?.isGuest ? () => navigate('/login') : handlePlaceOrder}
                                         disabled={loading || (deliveryMethod === 'delivery' && !address) || !isPhoneValid || !!cityError}
                                         className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white font-bold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-lg flex items-center justify-center gap-2 active:scale-95"
                                     >
@@ -760,6 +780,8 @@ export const Checkout: React.FC = () => {
                                                 <span className="animate-spin text-xl">⏳</span>
                                                 <span>Procesando...</span>
                                             </>
+                                        ) : user?.isGuest ? (
+                                            <span>Inicia sesión para continuar →</span>
                                         ) : (
                                             <>
                                                 <Wallet size={24} />

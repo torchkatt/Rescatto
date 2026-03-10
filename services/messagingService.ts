@@ -14,6 +14,10 @@ export const messagingService = {
      * Si acepta, recupera el FCM Token y lo vincula al perfil del usuario en Firestore.
      */
     requestPermissionAndSaveToken: async (userId: string) => {
+        if (!VAPID_KEY) {
+            logger.debug('FCM: VITE_FIREBASE_VAPID_KEY no configurado, omitiendo registro de token.');
+            return null;
+        }
         try {
             logger.log('🔑 Solicitando permisos de notificación...');
             const permission = await Notification.requestPermission();
@@ -26,9 +30,7 @@ export const messagingService = {
                     return null;
                 }
 
-                // Obtener Token. Si VAPID_KEY no está configurado, Firebase usa el key por defecto.
-                const tokenOptions = VAPID_KEY ? { vapidKey: VAPID_KEY } : {};
-                const currentToken = await getToken(msgInstance, tokenOptions);
+                const currentToken = await getToken(msgInstance, { vapidKey: VAPID_KEY });
 
                 if (currentToken) {
                     logger.log('📲 FCM Token obtenido:', currentToken);
