@@ -17,7 +17,10 @@ interface LocationContextType extends LocationState {
 }
 
 const LocationContext = createContext<LocationContextType | undefined>(undefined);
-const LOCATION_STORAGE_KEY = 'rescatto_location_v1';
+const LOCATION_STORAGE_KEY = 'rescatto_location_v2';
+
+// Limpiar cache antigua del servicio simulado
+try { localStorage.removeItem('rescatto_location_v1'); } catch { /* */ }
 
 // Ubicación por defecto (ej., Bogotá)
 const DEFAULT_LOCATION = {
@@ -85,79 +88,80 @@ export const LocationProvider: React.FC<{ children: ReactNode }> = ({ children }
         }
     }, []);
 
-    const detectLocation = async () => {
-        setLocation(prev => ({ ...prev, loading: true, error: null }));
+    const detectLocation = (): Promise<void> => {
+        return new Promise((resolve) => {
+            setLocation(prev => ({ ...prev, loading: true, error: null }));
 
-        if (!navigator.geolocation) {
-            persistLocation(DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lng, DEFAULT_LOCATION.address, DEFAULT_LOCATION.city);
-            setLocation({
-                latitude: DEFAULT_LOCATION.lat,
-                longitude: DEFAULT_LOCATION.lng,
-                address: DEFAULT_LOCATION.address,
-                city: DEFAULT_LOCATION.city,
-                error: 'Geolocalización no soportada por el navegador.',
-                loading: false,
-            });
-            return;
-        }
-
-        const successHandler = async (position: GeolocationPosition) => {
-            const { latitude, longitude } = position.coords;
-            try {
-                const { address, city } = await reverseGeocode(latitude, longitude);
-                persistLocation(latitude, longitude, address, city);
+            if (!navigator.geolocation) {
+                persistLocation(DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lng, DEFAULT_LOCATION.address, DEFAULT_LOCATION.city);
                 setLocation({
-                    latitude,
-                    longitude,
-                    address,
-                    city,
-                    error: null,
+                    latitude: DEFAULT_LOCATION.lat,
+                    longitude: DEFAULT_LOCATION.lng,
+                    address: DEFAULT_LOCATION.address,
+                    city: DEFAULT_LOCATION.city,
+                    error: 'Geolocalización no soportada por el navegador.',
                     loading: false,
                 });
-            } catch (error) {
-                logger.error("Error en geocodificación inversa:", error);
-                persistLocation(latitude, longitude, 'Ubicación detectada', 'Desconocida');
-                setLocation({
-                    latitude,
-                    longitude,
-                    address: 'Ubicación detectada',
-                    city: 'Desconocida',
-                    error: null,
-                    loading: false,
-                });
+                resolve();
+                return;
             }
-        };
 
-        const errorHandler = (error: GeolocationPositionError) => {
-            // Usar debug en lugar de warn para evitar ruido excesivo en consola
-            logger.debug("Error de ubicación:", error.message);
-            // Retrocede a ubicación por defecto silenciosamente o con mensaje amigable
-            // No tratar como error crítico para evitar romper la UI
-            persistLocation(DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lng, DEFAULT_LOCATION.address, DEFAULT_LOCATION.city);
-            setLocation({
-                latitude: DEFAULT_LOCATION.lat,
-                longitude: DEFAULT_LOCATION.lng,
-                address: DEFAULT_LOCATION.address,
-                city: DEFAULT_LOCATION.city,
-                error: null, // Limpiar error para mostrar estado por defecto en lugar de estado de error
-                loading: false,
-            });
-        };
+            const successHandler = async (position: GeolocationPosition) => {
+                const { latitude, longitude } = position.coords;
+                try {
+                    const { address, city } = await reverseGeocode(latitude, longitude);
+                    persistLocation(latitude, longitude, address, city);
+                    setLocation({
+                        latitude,
+                        longitude,
+                        address,
+                        city,
+                        error: null,
+                        loading: false,
+                    });
+                } catch (error) {
+                    logger.error("Error en geocodificación inversa:", error);
+                    persistLocation(latitude, longitude, 'Ubicación detectada', 'Desconocida');
+                    setLocation({
+                        latitude,
+                        longitude,
+                        address: 'Ubicación detectada',
+                        city: 'Desconocida',
+                        error: null,
+                        loading: false,
+                    });
+                }
+                resolve();
+            };
 
-        // Primero intentar con alta precisión
-        navigator.geolocation.getCurrentPosition(
-            successHandler,
-            (error) => {
-                // Si alta precisión falla, intentar con baja precisión (mejor para algunos escritorios/VPNs)
-                logger.log("Falló alta precisión, reintentando con baja precisión...");
-                navigator.geolocation.getCurrentPosition(
-                    successHandler,
-                    errorHandler,
-                    { enableHighAccuracy: false, timeout: 10000, maximumAge: Infinity }
-                );
-            },
-            { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-        );
+            const errorHandler = (error: GeolocationPositionError) => {
+                logger.debug("Error de ubicación:", error.message);
+                persistLocation(DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lng, DEFAULT_LOCATION.address, DEFAULT_LOCATION.city);
+                setLocation({
+                    latitude: DEFAULT_LOCATION.lat,
+                    longitude: DEFAULT_LOCATION.lng,
+                    address: DEFAULT_LOCATION.address,
+                    city: DEFAULT_LOCATION.city,
+                    error: null,
+                    loading: false,
+                });
+                resolve();
+            };
+
+            // Primero intentar con alta precisión
+            navigator.geolocation.getCurrentPosition(
+                successHandler,
+                (error) => {
+                    logger.log("Falló alta precisión, reintentando con baja precisión...");
+                    navigator.geolocation.getCurrentPosition(
+                        successHandler,
+                        errorHandler,
+                        { enableHighAccuracy: false, timeout: 10000, maximumAge: Infinity }
+                    );
+                },
+                { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+            );
+        });
     };
 
     const setManualLocation = (lat: number, lng: number, address: string, city: string) => {

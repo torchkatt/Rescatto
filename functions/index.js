@@ -287,14 +287,21 @@ exports.resolveVenueChatTarget = onCall(async (request) => {
         throw new HttpsError("failed-precondition", "Order has no venueId.");
     }
 
-    const ownerCandidates = await db.collection("users")
-        .where("role", "==", "VENUE_OWNER")
-        .limit(500)
-        .get();
+    // Buscar en paralelo: venueIds (array post-migración) y venueId (string legacy)
+    const [byVenueIds, byVenueId] = await Promise.all([
+        db.collection("users")
+            .where("role", "==", "VENUE_OWNER")
+            .where("venueIds", "array-contains", venueId)
+            .limit(1)
+            .get(),
+        db.collection("users")
+            .where("role", "==", "VENUE_OWNER")
+            .where("venueId", "==", venueId)
+            .limit(1)
+            .get(),
+    ]);
 
-    const ownerDoc = ownerCandidates.docs.find((docSnap) => {
-        return normalizeVenueIds(docSnap.data() || {}).includes(venueId);
-    });
+    const ownerDoc = byVenueIds.docs[0] || byVenueId.docs[0];
 
     if (!ownerDoc) throw new HttpsError("not-found", "Venue owner not found for this order.");
 

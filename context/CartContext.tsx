@@ -27,7 +27,7 @@ const isCartItem = (value: unknown): value is CartItem => {
 
 interface CartContextType {
     items: CartItem[];
-    addToCart: (product: Product, venueName?: string) => void;
+    addToCart: (product: Product, venueName?: string) => boolean;
     removeFromCart: (productId: string) => void;
     updateQuantity: (productId: string, quantity: number) => void;
     clearCart: () => void;
@@ -144,34 +144,38 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
     }, [items, userId]);
 
-    const addToCart = useCallback((product: Product, venueName?: string) => {
+    const addToCart = useCallback((product: Product, venueName?: string): boolean => {
         if (!isProductAvailable(product)) {
             logger.warn(`CartContext: intento de agregar producto no disponible (${product.id})`);
-            return;
+            return false;
+        }
+
+        const existingItem = items.find(item => item.id === product.id);
+        const stockQuantity = Number(product.quantity) > 0 ? Number(product.quantity) : undefined;
+
+        if (existingItem) {
+            const maxAllowed = existingItem.stockQuantity ?? stockQuantity ?? Number.POSITIVE_INFINITY;
+            if (existingItem.quantity >= maxAllowed) {
+                return false;
+            }
         }
 
         setItems(prevItems => {
-            const existingItem = prevItems.find(item => item.id === product.id);
-            const stockQuantity = Number(product.quantity) > 0 ? Number(product.quantity) : undefined;
-            if (existingItem) {
-                const maxAllowed = existingItem.stockQuantity ?? stockQuantity ?? Number.POSITIVE_INFINITY;
-                if (existingItem.quantity >= maxAllowed) {
-                    return prevItems;
-                }
+            const prev = prevItems.find(item => item.id === product.id);
+            const sq = Number(product.quantity) > 0 ? Number(product.quantity) : undefined;
+            if (prev) {
+                const max = prev.stockQuantity ?? sq ?? Number.POSITIVE_INFINITY;
+                if (prev.quantity >= max) return prevItems;
                 return prevItems.map(item =>
                     item.id === product.id
-                        ? {
-                            ...item,
-                            stockQuantity: item.stockQuantity ?? stockQuantity,
-                            quantity: item.quantity + 1
-                        }
+                        ? { ...item, stockQuantity: item.stockQuantity ?? sq, quantity: item.quantity + 1 }
                         : item
                 );
-            } else {
-                return [...prevItems, { ...product, stockQuantity, quantity: 1, venueName }];
             }
+            return [...prevItems, { ...product, stockQuantity: sq, quantity: 1, venueName }];
         });
-    }, []);
+        return true;
+    }, [items]);
 
     const removeFromCart = useCallback((productId: string) => {
         setItems(prevItems => prevItems.filter(item => item.id !== productId));

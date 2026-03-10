@@ -28,46 +28,57 @@ const deg2rad = (deg: number): number => {
     return deg * (Math.PI / 180);
 };
 
-// Geocodificación Inversa Simulada (En una app real, usar API de Google Maps o Mapbox)
+// Geocodificación Inversa con Nominatim (OpenStreetMap — gratuito, sin API key)
 export const reverseGeocode = async (lat: number, lng: number): Promise<{ address: string, city: string }> => {
-    // Simular retraso de API
-    await new Promise(resolve => setTimeout(resolve, 500));
+    try {
+        const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1&accept-language=es`,
+            { headers: { 'User-Agent': 'RescattoApp/1.0' } }
+        );
+        if (!res.ok) throw new Error(`Nominatim reverse: ${res.status}`);
+        const data = await res.json();
 
-    // Zonas simuladas simples
-    let address = 'Bogotá, D.C.';
-    let city = 'Bogotá';
+        const addr = data.address || {};
+        const city = addr.city || addr.town || addr.village || addr.municipality || addr.state || 'Desconocida';
+        const road = addr.road || addr.pedestrian || addr.neighbourhood || '';
+        const houseNumber = addr.house_number || '';
+        const suburb = addr.suburb || addr.neighbourhood || '';
 
-    if (lat > 6.0) { // Aproximadamente Medellín
-        city = 'Medellín';
-        address = 'El Poblado, Medellín';
-    } else {
-        if (lat > 4.65) address = 'Bogotá, Usaquén';
-        else if (lat > 4.60) address = 'Bogotá, Chapinero';
-        else if (lat > 4.55) address = 'Bogotá, Centro Internacional';
+        // Construir dirección legible
+        let address = [road, houseNumber].filter(Boolean).join(' ');
+        if (suburb && suburb !== road) address = address ? `${address}, ${suburb}` : suburb;
+        if (!address) address = data.display_name?.split(',').slice(0, 3).join(',') || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+
+        return { address: `${address}, ${city}`, city };
+    } catch (error) {
+        // Fallback: devolver coordenadas como texto
+        return { address: `${lat.toFixed(4)}, ${lng.toFixed(4)}`, city: 'Desconocida' };
     }
-
-    return { address, city };
 };
 
-// Geocodificación Directa Simulada (Búsqueda)
+// Geocodificación Directa con Nominatim (búsqueda de direcciones)
 export const searchAddress = async (query: string): Promise<{ lat: number, lng: number, address: string, city: string }[]> => {
-    await new Promise(resolve => setTimeout(resolve, 500));
+    try {
+        // Priorizar resultados en Colombia
+        const res = await fetch(
+            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=co&limit=6&addressdetails=1&accept-language=es`,
+            { headers: { 'User-Agent': 'RescattoApp/1.0' } }
+        );
+        if (!res.ok) throw new Error(`Nominatim search: ${res.status}`);
+        const data: any[] = await res.json();
 
-    // Resultados simulados basados en la consulta si es posible, o simplemente mixtos
-    const q = query.toLowerCase();
-
-    if (q.includes('medellin') || q.includes('poblado')) {
-        return [
-            { lat: 6.2084, lng: -75.5678, address: 'El Poblado, Medellín', city: 'Medellín' },
-            { lat: 6.2442, lng: -75.5812, address: 'Laureles, Medellín', city: 'Medellín' }
-        ];
+        return data.map((item) => {
+            const addr = item.address || {};
+            const city = addr.city || addr.town || addr.village || addr.municipality || addr.state || '';
+            const displayParts = (item.display_name || '').split(',').slice(0, 4).join(',').trim();
+            return {
+                lat: parseFloat(item.lat),
+                lng: parseFloat(item.lon),
+                address: displayParts || query,
+                city,
+            };
+        });
+    } catch (error) {
+        return [];
     }
-
-    return [
-        { lat: 4.6097, lng: -74.0817, address: 'Plaza de Bolívar, Bogotá', city: 'Bogotá' },
-        { lat: 4.6980, lng: -74.0410, address: 'Unicentro, Bogotá', city: 'Bogotá' },
-        { lat: 4.6247, lng: -74.0920, address: 'Corferias, Bogotá', city: 'Bogotá' },
-        { lat: 4.6672, lng: -74.0538, address: 'Zona T, Bogotá', city: 'Bogotá' },
-        { lat: 4.6534, lng: -74.0535, address: query || 'Ubicación simulada', city: 'Bogotá' }
-    ];
 };

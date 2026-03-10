@@ -42,6 +42,12 @@ export const VenueDetail: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [productSearch, setProductSearch] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('all');
+    // Tick cada 60s para re-evaluar expiración de productos en tiempo real
+    const [, setTick] = useState(0);
+    useEffect(() => {
+        const interval = setInterval(() => setTick(t => t + 1), 60_000);
+        return () => clearInterval(interval);
+    }, []);
 
     useEffect(() => {
         if (venueId) {
@@ -90,8 +96,12 @@ export const VenueDetail: React.FC = () => {
         const cartProduct = product.isDynamicPricing && product.dynamicDiscountedPrice
             ? { ...product, discountedPrice: product.dynamicDiscountedPrice }
             : product;
-        addToCart(cartProduct, venue.name);
-        success(`✅ ${product.name} agregado al carrito`);
+        const added = addToCart(cartProduct, venue.name);
+        if (added) {
+            success(`✅ ${product.name} agregado al carrito`);
+        } else {
+            error(`No se pudo agregar "${product.name}". Verifica el stock disponible.`);
+        }
     };
 
     // Productos activos: con stock > 0 y sin expirar (re-evaluado en cada render

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { ShoppingCart, Trash2, Plus, Minus, ArrowLeft, Clock, AlertTriangle } from 'lucide-react';
@@ -20,6 +20,14 @@ export const Cart: React.FC = () => {
         () => items.filter(item => isProductExpired(item.availableUntil)),
         [items]
     );
+
+    // Auto-eliminar items expirados del carrito con notificación al usuario
+    useEffect(() => {
+        if (expiredItems.length === 0) return;
+        const names = expiredItems.map(item => item.name).slice(0, 3).join(', ');
+        expiredItems.forEach(item => removeFromCart(item.id));
+        error(`Productos expirados eliminados: ${names}${expiredItems.length > 3 ? '...' : ''}`);
+    }, [expiredItems.length]);
 
     const urgentItems = useMemo(() => {
         const now = Date.now();

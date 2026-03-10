@@ -616,9 +616,13 @@ const CustomerHome: React.FC = () => {
 
 // Helper temporal que genera un ISO Date basado en la hora de cierre del local para incitar Urgencia Visual (CTR)
 const getUrgentExpiryFallback = (closingTime?: string): string | undefined => {
-    if (!closingTime) return undefined;
+    if (!closingTime || !closingTime.includes(':')) return undefined;
+    const parts = closingTime.split(':').map(Number);
+    const hours = parts[0];
+    const minutes = parts[1] ?? 0;
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return undefined;
+
     const now = new Date();
-    const [hours, minutes] = closingTime.split(':').map(Number);
     const targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes, 0);
 
     const diffHours = (targetDate.getTime() - now.getTime()) / (1000 * 60 * 60);

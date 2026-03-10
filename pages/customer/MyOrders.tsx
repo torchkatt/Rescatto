@@ -140,7 +140,7 @@ export const MyOrders: React.FC = () => {
             }
 
             if (!venueContactUserId || typeof venueContactUserId !== 'string') {
-                showError('Este pedido aún no tiene un contacto de chat disponible.');
+                showError('El restaurante aún no tiene chat activo. Intenta más tarde o contacta soporte.');
                 return;
             }
 

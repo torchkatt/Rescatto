@@ -54,9 +54,13 @@ export const ProductDetail: React.FC = () => {
                 ? { ...product, discountedPrice: product.dynamicDiscountedPrice }
                 : product;
 
-            addToCart(cartProduct, venue?.name || '');
-            success(`✅ ${product.name} agregado al carrito`);
-            navigate('/app/cart');
+            const added = addToCart(cartProduct, venue?.name || '');
+            if (added) {
+                success(`✅ ${product.name} agregado al carrito`);
+                navigate('/app/cart');
+            } else {
+                error(`No se pudo agregar "${product.name}". Verifica el stock disponible.`);
+            }
         }
     };
 
