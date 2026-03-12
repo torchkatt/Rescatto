@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../services/firebase';
@@ -8,11 +8,13 @@ import { useToast } from '../../context/ToastContext';
 import { Order, OrderStatus, Permission, UserRole } from '../../types';
 import { PermissionGate } from '../../components/PermissionGate';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
-import { Package, Clock, CheckCircle, ChefHat, MessageSquare, Search, RotateCw, Heart, MapPin, Truck, X, User } from 'lucide-react';
+import { Package, Clock, CheckCircle, ChefHat, MessageSquare, Search, RotateCw, Heart, MapPin, Truck, X, User, ChevronDown } from 'lucide-react';
 import { formatCOP } from '../../utils/formatters';
 import { useNotifications } from '../../context/NotificationContext';
 import { dataService } from '../../services/dataService';
 import { logger } from '../../utils/logger';
+import { usePaginatedOrders } from '../../hooks/usePaginatedOrders';
+import { useQueryClient } from '@tanstack/react-query';
 
 export const OrderManagement: React.FC = () => {
     const [searchParams] = useSearchParams();
@@ -22,56 +24,37 @@ export const OrderManagement: React.FC = () => {
     const { createChat, openChat } = useChat();
     const { success, error: showError } = useToast();
     const { sendNotification } = useNotifications();
-
-    const [orders, setOrders] = useState<Order[]>([]);
-    const [loading, setLoading] = useState(true);
+    const queryClient = useQueryClient();
     const [filter, setFilter] = useState<'all' | OrderStatus>('all');
     const [searchTerm, setSearchTerm] = useState(initialSearch);
-    const previousOrderCountRef = useRef<number>(0);
 
     // Driver assignment
     const [assigningOrder, setAssigningOrder] = useState<Order | null>(null);
     const [drivers, setDrivers] = useState<{ id: string; fullName: string; email: string }[]>([]);
     const [loadingDrivers, setLoadingDrivers] = useState(false);
 
-    useEffect(() => {
-        if (!user) return;
+    const targetVenues = useMemo(() => {
+        if (!user) return undefined;
+        if (user.role === UserRole.SUPER_ADMIN) return 'all';
+        if (user.venueIds && user.venueIds.length > 0) return user.venueIds;
+        if (user.venueId) return user.venueId;
+        return undefined;
+    }, [user]);
 
-        let targetVenues: string | string[];
+    // Hook Paginado para el Historial
+    const { 
+        data: paginatedData, 
+        isLoading: loading, 
+        fetchNextPage, 
+        hasNextPage, 
+        isFetchingNextPage,
+        refetch 
+    } = usePaginatedOrders(targetVenues, { status: filter, search: searchTerm });
 
-        if (user.role === UserRole.SUPER_ADMIN) {
-            targetVenues = 'all';
-        } else if (user.venueIds && user.venueIds.length > 0) {
-            targetVenues = user.venueIds;
-        } else if (user.venueId) {
-            targetVenues = user.venueId;
-        } else {
-            // No hay sedes asignadas ni es super admin
-            setLoading(false);
-            return;
-        }
-
-        const unsubscribe = dataService.subscribeToOrders(targetVenues, (updatedOrders) => {
-            // Check for new orders to play sound
-            if (previousOrderCountRef.current > 0 && updatedOrders.length > previousOrderCountRef.current) {
-                playNotificationSound();
-            }
-            previousOrderCountRef.current = updatedOrders.length;
-            setOrders(updatedOrders);
-            setLoading(false);
-        });
-
-        return () => unsubscribe();
-    }, [user?.id, user?.venueId, JSON.stringify(user?.venueIds), user?.role]);
-
-    const playNotificationSound = () => {
-        try {
-            const audio = new Audio('/sounds/notification.mp3');
-            audio.play().catch(e => logger.log('Audio play failed:', e));
-        } catch (error) {
-            logger.error('Error playing sound:', error);
-        }
-    };
+    // Aplanar las páginas de React Query en un solo array de pedidos
+    const flatOrders = useMemo(() => {
+        return paginatedData?.pages.flatMap(page => page.data) || [];
+    }, [paginatedData]);
 
     const updateOrderStatus = async (orderId: string, newStatus: OrderStatus) => {
         try {
@@ -79,7 +62,7 @@ export const OrderManagement: React.FC = () => {
             await updateDoc(orderRef, { status: newStatus });
 
             // Identificar la data actual para los contadores si finalizamos (COMPLETED)
-            const currentOrder = orders.find(o => o.id === orderId);
+            const currentOrder = flatOrders.find(o => o.id === orderId);
 
             if (newStatus === OrderStatus.COMPLETED && currentOrder) {
                 await dataService.updateOrderStatus(orderId, newStatus, {
@@ -90,15 +73,22 @@ export const OrderManagement: React.FC = () => {
                 await dataService.updateOrderStatus(orderId, newStatus);
             }
 
-            // Optimistic update
-            setOrders(orders.map(o =>
-                o.id === orderId ? { ...o, status: newStatus } : o
-            ));
+            // Optimistic update en la cache de React Query
+            queryClient.setQueryData(['ordersPaginated', targetVenues, filter, searchTerm], (oldData: any) => {
+                if (!oldData) return oldData;
+                return {
+                    ...oldData,
+                    pages: oldData.pages.map((page: any) => ({
+                        ...page,
+                        data: page.data.map((o: Order) => o.id === orderId ? { ...o, status: newStatus } : o)
+                    }))
+                };
+            });
 
             success(`Pedido actualizado a ${getStatusLabel(newStatus)}`);
 
             // --- NOTIFICATIONS ---
-            const order = orders.find(o => o.id === orderId);
+            const order = flatOrders.find(o => o.id === orderId);
             if (order) {
                 if (newStatus === OrderStatus.PAID) {
                     await sendNotification(order.customerId, '💰 Pago Confirmado', `Hemos recibido tu pago para el pedido #${order.id.slice(0, 8)}.`, 'success');
@@ -177,7 +167,19 @@ export const OrderManagement: React.FC = () => {
         if (!assigningOrder) return;
         try {
             await updateDoc(doc(db, 'orders', assigningOrder.id), { driverId });
-            setOrders(prev => prev.map(o => o.id === assigningOrder.id ? { ...o, driverId } : o));
+            
+            // Optimistic cache update
+            queryClient.setQueryData(['ordersPaginated', targetVenues, filter, searchTerm], (oldData: any) => {
+                if (!oldData) return oldData;
+                return {
+                    ...oldData,
+                    pages: oldData.pages.map((page: any) => ({
+                        ...page,
+                        data: page.data.map((o: Order) => o.id === assigningOrder.id ? { ...o, driverId } : o)
+                    }))
+                };
+            });
+            
             success('Conductor asignado correctamente');
             setAssigningOrder(null);
         } catch (err) {
@@ -221,16 +223,10 @@ export const OrderManagement: React.FC = () => {
         );
     };
 
-    const filteredOrders = orders.filter(o =>
-        (filter === 'all' || o.status === filter) &&
-        (
-            (o.customerName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-            (o.id?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-            (o.products.some(p => p.name.toLowerCase().includes(searchTerm.toLowerCase())))
-        )
-    );
+    // Ya no filtramos localmente, la data del hook `usePaginatedOrders` ya viene filtrada
+    const filteredOrders = flatOrders;
 
-    const activeOrders = orders.filter(o =>
+    const activeOrders = flatOrders.filter(o =>
         o.status === OrderStatus.PENDING ||
         o.status === OrderStatus.PAID ||
         o.status === OrderStatus.IN_PREPARATION ||
@@ -258,8 +254,7 @@ export const OrderManagement: React.FC = () => {
                 <button
                     onClick={() => {
                         if (user?.venueId) {
-                            setLoading(true);
-                            setTimeout(() => setLoading(false), 500);
+                            refetch();
                         }
                     }}
                     className="bg-white border border-gray-200 text-gray-600 p-3 rounded-xl hover:bg-gray-50 transition shadow-sm flex items-center justify-center active:scale-95 flex-shrink-0"
@@ -510,6 +505,29 @@ export const OrderManagement: React.FC = () => {
                     </div>
                 )
             }
+
+            {/* Pagination Controls */}
+            {hasNextPage && (
+                <div className="flex justify-center mt-8 pb-4">
+                    <button
+                        onClick={() => fetchNextPage()}
+                        disabled={isFetchingNextPage}
+                        className="px-6 py-3 bg-white text-emerald-700 border border-emerald-200 rounded-xl shadow-sm hover:bg-emerald-50 active:scale-95 transition-all duration-200 font-bold flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {isFetchingNextPage ? (
+                            <>
+                                <RotateCw className="animate-spin text-emerald-500" size={18} />
+                                Cargando más...
+                            </>
+                        ) : (
+                            <>
+                                <ChevronDown size={20} />
+                                Cargar más historial
+                            </>
+                        )}
+                    </button>
+                </div>
+            )}
         </div>
 
             {/* Driver Assignment Modal */}

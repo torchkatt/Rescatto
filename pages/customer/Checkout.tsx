@@ -333,7 +333,7 @@ export const Checkout: React.FC = () => {
                         paymentMethod: 'cash',
                         deliveryMethod,
                         deliveryFee,
-                        address: address,
+                        address: address || null,
                         city: city || 'Bogotá',
                         phone: phoneDigits,
                         transactionId: null,
@@ -341,11 +341,26 @@ export const Checkout: React.FC = () => {
                         donationCenterId: selectedDonationCenter?.id,
                         donationCenterName: selectedDonationCenter?.name,
                         estimatedCo2: calculateCo2Impact() / venueGroups.size,
-                        // Canje de puntos aplicado
                         redemptionId: selectedRedemption?.id ?? null,
                     };
-                    const result: any = await createOrderFn(payload);
-                    return { orderId: result.data.orderId as string, venueId };
+                    
+                    // Robust Retry Pattern with Exponential Backoff
+                    let attempt = 0;
+                    const maxAttempts = 3;
+                    while (attempt < maxAttempts) {
+                        try {
+                            const result: any = await createOrderFn(payload);
+                            return { orderId: result.data.orderId as string, venueId };
+                        } catch (err: any) {
+                            attempt++;
+                            if (attempt >= maxAttempts || err?.code === 'failed-precondition' || err?.code === 'invalid-argument') {
+                                throw err; // Don't retry validation or stock errors
+                            }
+                            logger.warn(`Retrying cash order creation for ${venueId} (Attempt ${attempt}/${maxAttempts})...`);
+                            await new Promise(res => setTimeout(res, 1000 * Math.pow(2, attempt))); // 2s, 4s, 8s...
+                        }
+                    }
+                    throw new Error('Fallback block reached (should not happen)');
                 })
             );
 
@@ -440,7 +455,7 @@ export const Checkout: React.FC = () => {
                         paymentMethod: 'card',
                         deliveryMethod,
                         deliveryFee,
-                        address: address,
+                        address: address || null,
                         city: city || 'Bogotá',
                         phone: phoneDigits,
                         transactionId,
@@ -450,8 +465,24 @@ export const Checkout: React.FC = () => {
                         estimatedCo2: calculateCo2Impact() / venueGroups.size,
                         redemptionId: selectedRedemption?.id ?? null,
                     };
-                    const result: any = await createOrderFn(payload);
-                    return { orderId: result.data.orderId as string, venueId };
+                    
+                    // Robust Retry Pattern with Exponential Backoff
+                    let attempt = 0;
+                    const maxAttempts = 3;
+                    while (attempt < maxAttempts) {
+                        try {
+                            const result: any = await createOrderFn(payload);
+                            return { orderId: result.data.orderId as string, venueId };
+                        } catch (err: any) {
+                            attempt++;
+                            if (attempt >= maxAttempts || err?.code === 'failed-precondition' || err?.code === 'invalid-argument') {
+                                throw err; // Don't retry validation or stock errors, only network/transient ones
+                            }
+                            logger.warn(`Retrying order creation for ${venueId} (Attempt ${attempt}/${maxAttempts})...`);
+                            await new Promise(res => setTimeout(res, 1000 * Math.pow(2, attempt))); // 2s, 4s, 8s...
+                        }
+                    }
+                    throw new Error('Fallback block reached (should not happen)');
                 })
             );
 

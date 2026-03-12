@@ -50,24 +50,33 @@ const ActionCard: React.FC<{ to: string; title: string; subtitle: string; icon: 
   </Link>
 );
 
+import { useDashboardStats } from '../hooks/useDashboardStats';
+import { useQuery } from '@tanstack/react-query';
+
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
-  const [metrics, setMetrics] = useState<AnalyticsData>({
-    revenue: 0,
-    wasteSavedKg: 0,
-    mealsSaved: 0,
-    chartData: []
+  const venueId = user?.venueIds?.[0] ?? user?.venueId;
+  
+  // Usamos el nuevo hook cacheado de React Query para estadísticas en vivo ricas
+  const { data: stats } = useDashboardStats(venueId);
+
+  // Mantenemos la lógica de la gráfica, pero la CACHEAMOS con React Query
+  // para evitar sobrecostos en Firebase al cambiar de pestaña.
+  const { data: metrics = { revenue: 0, wasteSavedKg: 0, mealsSaved: 0, chartData: [] }, isLoading: isChartLoading } = useQuery({
+    queryKey: ['analyticsChart', venueId],
+    queryFn: () => dataService.getAnalytics(venueId!),
+    enabled: !!venueId,
+    staleTime: 5 * 60 * 1000 // 5 minutes cache
   });
 
-  useEffect(() => {
-    // Soporta tanto venueId (legacy) como venueIds (post-migración)
-    const venueId = user?.venueIds?.[0] ?? user?.venueId;
-    if (venueId) {
-      dataService.getAnalytics(venueId)
-        .then(setMetrics)
-        .catch(err => logger.error(err));
-    }
-  }, [user?.venueId, JSON.stringify(user?.venueIds)]);
+  // Sobrescribimos las métricas rápidas con los datos precisos de "stats" si existen,
+  // pero mantenemos "metrics.chartData" para no romper la UI.
+  const displayMetrics: AnalyticsData = {
+    revenue: stats?.totalRevenue ?? metrics.revenue,
+    wasteSavedKg: stats ? Math.round((stats.totalOrders || 0) * 0.5) : metrics.wasteSavedKg,
+    mealsSaved: stats?.totalOrders ?? metrics.mealsSaved,
+    chartData: metrics.chartData
+  };
 
   const today = format(new Date(), "EEEE, d 'de' MMMM", { locale: es });
 
@@ -90,7 +99,7 @@ const Dashboard: React.FC = () => {
         {user?.role !== UserRole.KITCHEN_STAFF && (
           <MetricCard
             title="Ingresos Recuperados"
-            value={formatCOP(metrics.revenue)}
+            value={formatCOP(displayMetrics.revenue)}
             icon={<DollarSign size={24} className="text-blue-600" />}
             color="bg-blue-500"
             trend="+12%"
@@ -98,14 +107,14 @@ const Dashboard: React.FC = () => {
         )}
         <MetricCard
           title="Comida Salvada"
-          value={`${metrics.wasteSavedKg} kg`}
+          value={`${displayMetrics.wasteSavedKg} kg`}
           icon={<Leaf size={24} className="text-emerald-600" />}
           color="bg-emerald-500"
           trend="+5%"
         />
         <MetricCard
           title="Platos Rescatados"
-          value={`${metrics.mealsSaved}`}
+          value={`${displayMetrics.mealsSaved}`}
           icon={<TrendingUp size={24} className="text-purple-600" />}
           color="bg-purple-500"
           trend="+8%"
@@ -131,9 +140,9 @@ const Dashboard: React.FC = () => {
               </select>
             </div>
             <div className="h-72 w-full">
-              {metrics.chartData.length > 0 ? (
+              {displayMetrics.chartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={metrics.chartData}>
+                  <AreaChart data={displayMetrics.chartData}>
                     <defs>
                       <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.1} />

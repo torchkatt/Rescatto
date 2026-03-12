@@ -102,29 +102,26 @@ export const MyOrders: React.FC = () => {
                 return;
             }
 
-            const metadata = (order.metadata || {}) as Record<string, any>;
-            let venueContactUserId: string | null =
-                metadata.venueOwnerId ||
-                metadata.venueContactUserId ||
-                null;
+            // Siempre usar el backend como fuente de verdad para obtener el dueño correcto,
+            // ignorando la caché local o metadata antigua del pedido.
+            let venueContactUserId: string | string[] | null = null;
             let venueContactName: string =
-                metadata.venueName ||
-                metadata.venueDisplayName ||
+                (order.metadata || {}).venueName ||
+                (order.metadata || {}).venueDisplayName ||
                 'Restaurante';
 
-            // Prioridad 2: resolver por backend (fuente de verdad basada en la orden).
-            if (!venueContactUserId) {
-                try {
-                    const resolveVenueChatTarget = httpsCallable(functions, 'resolveVenueChatTarget');
-                    const targetResult: any = await resolveVenueChatTarget({ orderId: order.id });
-                    venueContactUserId = targetResult?.data?.userId || null;
-                    venueContactName = targetResult?.data?.userName || venueContactName;
-                } catch (resolveErr) {
-                    logger.warn('No se pudo resolver el contacto de chat del restaurante:', resolveErr);
+            try {
+                const resolveVenueChatTarget = httpsCallable(functions, 'resolveVenueChatTarget');
+                const targetResult: any = await resolveVenueChatTarget({ orderId: order.id });
+                if (targetResult?.data?.userIds || targetResult?.data?.userId) {
+                    venueContactUserId = targetResult.data.userIds || targetResult.data.userId;
+                    venueContactName = targetResult.data.userName || venueContactName;
                 }
+            } catch (resolveErr) {
+                logger.warn('No se pudo resolver el contacto de chat del restaurante:', resolveErr);
             }
 
-            // Prioridad 3: fallback a documento de sede cuando existe.
+            // Fallback a documento de sede cuando falla la función (muy raro)
             if (!venueContactUserId) {
                 const venueDoc = await getDoc(doc(db, 'venues', order.venueId));
                 if (venueDoc.exists()) {
@@ -139,7 +136,7 @@ export const MyOrders: React.FC = () => {
                 }
             }
 
-            if (!venueContactUserId || typeof venueContactUserId !== 'string') {
+            if (!venueContactUserId || (typeof venueContactUserId !== 'string' && !Array.isArray(venueContactUserId))) {
                 showError('El restaurante aún no tiene chat activo. Intenta más tarde o contacta soporte.');
                 return;
             }

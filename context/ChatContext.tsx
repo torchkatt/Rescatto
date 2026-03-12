@@ -38,7 +38,7 @@ interface ChatContextType {
     sendMessage: (text: string, type?: MessageType, extraData?: { imageUrl?: string; location?: { lat: number; lng: number } }) => Promise<void>;
     sendSystemMessage: (chatId: string, text: string) => Promise<void>;
     createChat: (
-        otherUserId: string,
+        otherUserId: string | string[],
         otherUserName: string,
         otherUserRole: UserRole,
         chatType: ChatType,
@@ -262,7 +262,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     };
 
     const createChat = async (
-        otherUserId: string,
+        otherUserId: string | string[],
         otherUserName: string,
         otherUserRole: UserRole,
         chatType: ChatType,

@@ -4,6 +4,7 @@ import { initializeFirestore } from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
 import { getStorage } from 'firebase/storage';
 import { getMessaging } from 'firebase/messaging';
+import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 import { logger } from '../utils/logger';
 
 // Firebase configuration from environment variables
@@ -21,6 +22,16 @@ const app = initializeApp(firebaseConfig);
 
 // Initialize Firebase Authentication and get a reference to the service
 export const auth = getAuth(app);
+
+// Initialize Firebase App Check (reCAPTCHA v3) to prevent backend abuse
+// In local development, you need to set `self.FIREBASE_APPCHECK_DEBUG_TOKEN = true`
+// before initializing firebase to test properly without a real key.
+export const appCheck = typeof window !== 'undefined' && import.meta.env.VITE_RECAPTCHA_V3_KEY
+    ? initializeAppCheck(app, {
+        provider: new ReCaptchaV3Provider(import.meta.env.VITE_RECAPTCHA_V3_KEY),
+        isTokenAutoRefreshEnabled: true,
+    })
+    : null;
 
 // Initialize Cloud Firestore con WebSocket para evitar el spinner infinito del navegador.
 // experimentalAutoDetectLongPolling: detecta si WebSocket está disponible y lo prefiere

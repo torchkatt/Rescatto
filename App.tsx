@@ -372,32 +372,48 @@ const AppRoutes: React.FC = () => {
     );
 }
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+// Configure React Query Client directly in App
+const queryClient = new QueryClient({
+    defaultOptions: {
+        queries: {
+            staleTime: 5 * 60 * 1000, // 5 minutes caching by default
+            gcTime: 10 * 60 * 1000, // 10 minutes garbage collection
+            retry: 1, // Let it fail fast if offline
+            refetchOnWindowFocus: false, // Don't refetch on tab switch to avoid spamming Firestore
+        },
+    },
+});
+
 const App: React.FC = () => {
     return (
-        <ErrorBoundary section="Rescatto App">
-            <AuthProvider>
-                <ThemeProvider>
-                    <ToastProvider>
-                        <ConfirmProvider>
-                            <NotificationProvider>
-                                <CartProvider>
-                                    <ChatProvider>
-                                        <LocationProvider>
-                                            <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-                                                <ReloadPrompt />
-                                                <ErrorBoundary section="Navegación">
-                                                    <AppRoutes />
-                                                </ErrorBoundary>
-                                            </Router>
-                                        </LocationProvider>
-                                    </ChatProvider>
-                                </CartProvider>
-                            </NotificationProvider>
-                        </ConfirmProvider>
-                    </ToastProvider>
-                </ThemeProvider>
-            </AuthProvider>
-        </ErrorBoundary>
+        <QueryClientProvider client={queryClient}>
+            <ErrorBoundary section="Rescatto App">
+                <AuthProvider>
+                    <ThemeProvider>
+                        <ToastProvider>
+                            <ConfirmProvider>
+                                <NotificationProvider>
+                                    <CartProvider>
+                                        <ChatProvider>
+                                            <LocationProvider>
+                                                <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+                                                    <ReloadPrompt />
+                                                    <ErrorBoundary section="Navegación">
+                                                        <AppRoutes />
+                                                    </ErrorBoundary>
+                                                </Router>
+                                            </LocationProvider>
+                                        </ChatProvider>
+                                    </CartProvider>
+                                </NotificationProvider>
+                            </ConfirmProvider>
+                        </ToastProvider>
+                    </ThemeProvider>
+                </AuthProvider>
+            </ErrorBoundary>
+        </QueryClientProvider>
     );
 };
 

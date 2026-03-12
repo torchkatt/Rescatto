@@ -2,12 +2,13 @@
 
 const admin = require("firebase-admin");
 const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
-const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
+const { onDocumentUpdated, onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const crypto = require("crypto-js");
 const cryptoNode = require("crypto");
 const sgMail = require("@sendgrid/mail");
 const { log, error: logError, warn: logWarn } = require("firebase-functions/logger");
+// Initialized schemas and dependencies
 const {
     CreateNotificationSchema,
     GenerateWompiSignatureSchema,
@@ -19,7 +20,6 @@ const {
     DeleteUserAccountSchema,
     GetFinanceStatsSchema,
 } = require("./schemas");
-const { withErrorHandling, withRequestErrorHandling } = require("./errorHandler");
 
 // Initialize Firebase Admin
 admin.initializeApp();
@@ -283,23 +283,23 @@ exports.resolveVenueChatTarget = onCall(async (request) => {
         throw new HttpsError("failed-precondition", "Order has no venueId.");
     }
 
-    // Buscar en paralelo: venueIds (array post-migración) y venueId (string legacy)
     const [byVenueIds, byVenueId] = await Promise.all([
         db.collection("users")
             .where("role", "==", "VENUE_OWNER")
             .where("venueIds", "array-contains", venueId)
-            .limit(1)
             .get(),
         db.collection("users")
             .where("role", "==", "VENUE_OWNER")
             .where("venueId", "==", venueId)
-            .limit(1)
             .get(),
     ]);
 
-    const ownerDoc = byVenueIds.docs[0] || byVenueId.docs[0];
+    const ownerDocs = [...byVenueIds.docs, ...byVenueId.docs];
+    
+    // Deduplicate IDs
+    const uniqueUserIds = [...new Set(ownerDocs.map(doc => doc.id))];
 
-    if (!ownerDoc) {
+    if (uniqueUserIds.length === 0) {
         // Fallback: check venue document for ownerId field
         try {
             const venueSnap = await db.collection("venues").doc(venueId).get();
@@ -307,15 +307,16 @@ exports.resolveVenueChatTarget = onCall(async (request) => {
                 const ownerRef = await db.collection("users").doc(venueSnap.data().ownerId).get();
                 if (ownerRef.exists) {
                     const ownerData2 = ownerRef.data() || {};
-                    return { userId: ownerRef.id, userName: ownerData2.fullName || "Restaurante", venueId };
+                    return { userIds: [ownerRef.id], userName: ownerData2.fullName || "Restaurante", venueId };
                 }
             }
         } catch (_) { /* non-critical */ }
         throw new HttpsError("not-found", "Venue owner not found for this order.");
     }
 
-    const ownerData = ownerDoc.data() || {};
-    return { userId: ownerDoc.id, userName: ownerData.fullName || "Restaurante", venueId };
+    // Return the name from the first found doc, but return ALL IDs
+    const ownerData = ownerDocs[0].data() || {};
+    return { userIds: uniqueUserIds, userName: ownerData.fullName || "Restaurante", venueId };
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -639,15 +640,21 @@ exports.createOrder = onCall(
             const venueSnap = await db.collection("venues").doc(venueId).get();
             if (venueSnap.exists) {
                 venueNameForMeta = venueSnap.data().name || null;
-                venueOwnerIdForMeta = venueSnap.data().ownerId || null;
             }
-            if (!venueOwnerIdForMeta) {
-                const [byVenueIds, byVenueId] = await Promise.all([
-                    db.collection("users").where("role", "==", "VENUE_OWNER").where("venueIds", "array-contains", venueId).limit(1).get(),
-                    db.collection("users").where("role", "==", "VENUE_OWNER").where("venueId", "==", venueId).limit(1).get(),
-                ]);
-                const ownerDocPre = byVenueIds.docs[0] || byVenueId.docs[0];
-                if (ownerDocPre) venueOwnerIdForMeta = ownerDocPre.id;
+            
+            // Priority 1: Query users collection with Role VENUE_OWNER
+            const [byVenueIds, byVenueId] = await Promise.all([
+                db.collection("users").where("role", "==", "VENUE_OWNER").where("venueIds", "array-contains", venueId).limit(1).get(),
+                db.collection("users").where("role", "==", "VENUE_OWNER").where("venueId", "==", venueId).limit(1).get(),
+            ]);
+            
+            const ownerDocPre = byVenueIds.docs[0] || byVenueId.docs[0];
+            
+            if (ownerDocPre) {
+                venueOwnerIdForMeta = ownerDocPre.id;
+            } else if (venueSnap.exists && venueSnap.data().ownerId) {
+                // Priority 2: Fallback to old venue.ownerId
+                venueOwnerIdForMeta = venueSnap.data().ownerId;
             }
         } catch (_) { /* non-critical */ }
 
@@ -1709,3 +1716,97 @@ async function writeAuditLog(db, { action, performedBy, targetId, targetType, me
         logWarn("Failed to write audit log", { action, performedBy, error: err.message });
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// onOrderCreated
+// Triggers when a new order is created. Sends notifications to the venue owner
+// and kitchen staff.
+// ─────────────────────────────────────────────────────────────────────────────
+exports.onOrderCreated = onDocumentCreated("orders/{orderId}", async (event) => {
+    const orderData = event.data.data();
+    const orderId = event.params.orderId;
+    const db = admin.firestore();
+
+    if (!orderData || !orderData.venueId) return;
+
+    try {
+        const venueId = orderData.venueId;
+        const customerName = orderData.customerName || "Un cliente";
+        const totalAmount = new Intl.NumberFormat("es-CO", {
+            style: "currency",
+            currency: "COP",
+            maximumFractionDigits: 0
+        }).format(orderData.totalAmount || 0);
+
+        const title = "¡Nuevo Pedido! 🎉";
+        const message = `${customerName} ha realizado un pedido por ${totalAmount}.`;
+
+        // Find venue owners and kitchen staff linked to this venue
+        const [ownersByArray, ownersByString, staffByArray, staffByString] = await Promise.all([
+            db.collection("users").where("role", "==", "VENUE_OWNER").where("venueIds", "array-contains", venueId).get(),
+            db.collection("users").where("role", "==", "VENUE_OWNER").where("venueId", "==", venueId).get(),
+            db.collection("users").where("role", "==", "KITCHEN_STAFF").where("venueIds", "array-contains", venueId).get(),
+            db.collection("users").where("role", "==", "KITCHEN_STAFF").where("venueId", "==", venueId).get(),
+        ]);
+
+        const targetUsers = new Map();
+        [...ownersByArray.docs, ...ownersByString.docs, ...staffByArray.docs, ...staffByString.docs].forEach(doc => {
+            targetUsers.set(doc.id, doc.data());
+        });
+
+        if (targetUsers.size === 0) {
+            log(`onOrderCreated: No staff found for venue ${venueId}`);
+            return;
+        }
+
+        const batch = db.batch();
+        const tokens = [];
+
+        targetUsers.forEach((userData, userId) => {
+            // In-app notification
+            const notifRef = db.collection("notifications").doc();
+            batch.set(notifRef, {
+                userId,
+                title,
+                message,
+                type: "success",
+                read: false,
+                link: `/order-management?search=${orderId}`,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+
+            // Collect FCM tokens
+            if (userData.fcmToken) {
+                tokens.push(userData.fcmToken);
+            }
+        });
+
+        await batch.commit();
+        log(`onOrderCreated: Created in-app notifications for ${targetUsers.size} users (Order: ${orderId})`);
+
+        // Send Push Notifications
+        if (tokens.length > 0) {
+            const payload = {
+                notification: {
+                    title,
+                    body: message,
+                },
+                data: {
+                    click_action: "FLUTTER_NOTIFICATION_CLICK",
+                    link: `/order-management?search=${orderId}`,
+                    orderId: String(orderId),
+                },
+            };
+
+            const response = await admin.messaging().sendMulticast({
+                tokens,
+                ...payload
+            });
+            
+            log(`onOrderCreated: Push notifications sent. Success: ${response.successCount}, Failed: ${response.failureCount}`);
+        }
+
+    } catch (error) {
+        logError("Error in onOrderCreated:", error);
+    }
+});

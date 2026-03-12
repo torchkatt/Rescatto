@@ -23,13 +23,15 @@ export const getOrCreateChat = async (
     currentUserId: string,
     currentUserName: string,
     currentUserRole: UserRole,
-    otherUserId: string,
+    otherUserId: string | string[],
     otherUserName: string,
     otherUserRole: UserRole,
     chatType: ChatType,
     orderId?: string
 ): Promise<Chat> => {
     try {
+        const otherUserIds = Array.isArray(otherUserId) ? otherUserId : [otherUserId];
+        
         // Check if chat already exists
         const chatsRef = collection(db, 'chats');
         const q = query(
@@ -40,8 +42,10 @@ export const getOrCreateChat = async (
         const snapshot = await getDocs(q);
         const existingChat = snapshot.docs.find(doc => {
             const data = doc.data();
+            // Retorna true si CUALQUIERA de los otherUserIds está en participants
+            const hasOtherUser = otherUserIds.some(id => data.participants.includes(id));
             return (
-                data.participants.includes(otherUserId) &&
+                hasOtherUser &&
                 data.type === chatType &&
                 (!orderId || data.orderId === orderId)
             );
@@ -52,15 +56,18 @@ export const getOrCreateChat = async (
         }
 
         // Create new chat
+        const participants = [currentUserId, ...otherUserIds];
         const participantNames: Record<string, string> = {
             [currentUserId]: currentUserName,
-            [otherUserId]: otherUserName,
         };
-
         const participantRoles: Record<string, UserRole> = {
             [currentUserId]: currentUserRole,
-            [otherUserId]: otherUserRole,
         };
+
+        otherUserIds.forEach(id => {
+            participantNames[id] = otherUserName;
+            participantRoles[id] = otherUserRole;
+        });
 
         // Build metadata dynamically to avoid undefined values (Firebase doesn't allow undefined)
         const metadata: any = {};
@@ -82,7 +89,7 @@ export const getOrCreateChat = async (
         }
 
         const newChat: Omit<Chat, 'id'> = {
-            participants: [currentUserId, otherUserId],
+            participants,
             participantNames,
             participantRoles,
             orderId,

@@ -109,8 +109,25 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onClose, className = '' 
                     </div>
                     <div>
                         <h3 className="font-bold text-gray-800 leading-tight">{getOtherParticipantName()}</h3>
-                        {currentChat.metadata.orderNumber && (
-                            <p className="text-[10px] uppercase font-bold text-gray-400">Pedido #{currentChat.metadata.orderNumber.slice(0, 8)}</p>
+                        {currentChat.metadata?.orderNumber && (
+                            <button
+                                onClick={() => {
+                                    if (onClose) onClose();
+                                    // For customers, the order is in /app/orders?orderId=...
+                                    // For venues, it's /order-management?search=...
+                                    // The safest route is just emitting an event or using window.location if navigate is tricky here,
+                                    // but we can import useNavigate 
+                                    const role = user?.role;
+                                    const url = role === 'CUSTOMER' 
+                                        ? `/app/orders?orderId=${currentChat.metadata.orderNumber}`
+                                        : `/order-management?search=${currentChat.metadata.orderNumber}`;
+                                    window.location.href = url;
+                                }}
+                                className="text-[10px] uppercase font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full mt-0.5 transition-colors cursor-pointer inline-flex items-center gap-1"
+                            >
+                                <span>Ver Pedido #{currentChat.metadata.orderNumber.slice(0, 8)}</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                            </button>
                         )}
                     </div>
                 </div>
