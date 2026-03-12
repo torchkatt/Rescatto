@@ -121,7 +121,9 @@ const CustomerLayout: React.FC = () => {
     // Delay de 600ms tras detectar !isAuthenticated para dar tiempo al auth state
     // de estabilizarse (evita race condition anónimo→real al navegar desde /login).
     useEffect(() => {
-        if (!authLoading && !isAuthenticated && !guestLoginAttempted.current) {
+        const isManualLogout = sessionStorage.getItem('rescatto_manual_logout') === 'true';
+        
+        if (!authLoading && !isAuthenticated && !guestLoginAttempted.current && !isManualLogout) {
             const timer = setTimeout(() => {
                 // Re-verificar con el estado actual: si ya se autenticó, no hacer nada
                 if (!authRef.current.isAuthenticated && !authRef.current.authLoading && !guestLoginAttempted.current) {

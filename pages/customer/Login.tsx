@@ -51,6 +51,11 @@ const CustomerLogin: React.FC = () => {
     // Flag: el usuario acaba de hacer login/register exitoso en este componente
     const loginSucceeded = useRef(false);
 
+    // Clear the manual logout flag when the user lands here, so future non-manual visits can guest-login again.
+    useEffect(() => {
+        sessionStorage.removeItem('rescatto_manual_logout');
+    }, []);
+
     // Navegar DESPUÉS de que el auth state se estabilice (isAuthenticated = true).
     // Esto evita la race condition donde navigate() se ejecuta antes de que
     // onAuthStateChanged haya propagado el nuevo usuario al contexto.

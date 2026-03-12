@@ -42,7 +42,11 @@ const CustomerHome: React.FC = () => {
 
     useEffect(() => {
         const fetchVenues = async () => {
+            // Guard: stop if user is logging out or auth is not yet stable
+            if (loading === false && !user) return; 
+
             try {
+                setLoading(true);
                 // Load venues + expiring products + stock counts + dynamic pricing in parallel
                 const [allVenues, expiryMap, stockResult, dynIds] = await Promise.all([
                     venueService.getAllVenues(),
@@ -56,7 +60,7 @@ const CustomerHome: React.FC = () => {
                 setVenueProductCountMap(stockResult.productCountMap);
                 setDynamicVenueIds(dynIds);
 
-                // Carga de rating stats en paralelo (una sola tanda, sin N+1)
+                // Carga de rating stats en paralelo
                 const ratingResults = await Promise.allSettled(
                     allVenues.map(v => getRatingStats(v.id, 'venue'))
                 );
@@ -68,15 +72,18 @@ const CustomerHome: React.FC = () => {
                     }
                 });
                 setVenueRatingMap(ratingMap);
-            } catch (error) {
-                logger.error('Error fetching venues:', error);
+            } catch (error: any) {
+                // Silence "Insufficient Permissions" errors during logout transitions
+                if (error?.code !== 'permission-denied') {
+                    logger.error('Error fetching venues:', error);
+                }
             } finally {
                 setLoading(false);
             }
         };
 
         fetchVenues();
-    }, []);
+    }, [user?.id]); // Re-fetch only when user changes significantly
 
     // Close user menu when clicking outside
     useEffect(() => {
@@ -98,6 +105,8 @@ const CustomerHome: React.FC = () => {
     const handleLogout = async () => {
         logger.log('CustomerHome: handleLogout called');
         try {
+            // Mark a manual logout in session storage to prevent auto-guest-login loop in App.tsx
+            sessionStorage.setItem('rescatto_manual_logout', 'true');
             await logout();
             window.location.href = '/#/login';
             window.location.reload();
