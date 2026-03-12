@@ -22,8 +22,10 @@
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@react-google-maps/api": "^2.20.8",
+    "@sentry/react": "^10.43.0",
     "@types/dotenv": "^6.1.1",
     "date-fns": "^4.1.0",
+    "dompurify": "^3.3.3",
     "dotenv": "^17.2.4",
     "firebase": "^12.8.0",
     "lucide-react": "^0.344.0",
@@ -41,6 +43,7 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
+    "@types/dompurify": "^3.0.5",
     "@types/papaparse": "^5.5.2",
     "@types/react": "^18.2.64",
     "@types/react-dom": "^18.2.21",

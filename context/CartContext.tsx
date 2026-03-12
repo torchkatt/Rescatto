@@ -4,6 +4,7 @@ import { logger } from '../utils/logger';
 import { useAuth } from './AuthContext';
 import { cartSyncService } from '../services/cartSyncService';
 import { isProductAvailable, isProductExpired } from '../utils/productAvailability';
+import { CartItemSchema } from '../schemas';
 
 interface CartItem extends Product {
     quantity: number;
@@ -11,18 +12,9 @@ interface CartItem extends Product {
     venueName?: string;
 }
 
-/** Type guard: verifica que un objeto de Firestore tenga la forma mínima de CartItem */
+/** Validates that a value has the minimum shape of a CartItem using Zod */
 const isCartItem = (value: unknown): value is CartItem => {
-    if (typeof value !== 'object' || value === null) return false;
-    const obj = value as Record<string, unknown>;
-    return (
-        typeof obj['id'] === 'string' &&
-        typeof obj['venueId'] === 'string' &&
-        typeof obj['name'] === 'string' &&
-        typeof obj['quantity'] === 'number' &&
-        (obj['stockQuantity'] === undefined || typeof obj['stockQuantity'] === 'number') &&
-        typeof obj['discountedPrice'] === 'number'
-    );
+    return CartItemSchema.safeParse(value).success;
 };
 
 interface CartContextType {

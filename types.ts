@@ -144,6 +144,8 @@ export interface Venue {
     minOrderAmount?: number; // Pedido mínimo para procesar domicilio
   };
 
+  ownerId?: string;
+
   // Contadores del Dashboard [NUEVO v2]
   stats?: {
     totalRevenue: number;

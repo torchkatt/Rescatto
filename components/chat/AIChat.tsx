@@ -9,6 +9,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { UserRole } from '../../types';
 import { logger } from '../../utils/logger';
+import { sanitizeHtml } from '../../utils/sanitize';
 
 interface AIChatProps {
     className?: string;
@@ -219,7 +220,7 @@ export const AIChat: React.FC<AIChatProps> = ({ className = '' }) => {
                                                     blockquote: ({ node, ...props }) => <blockquote className="border-l-4 border-purple-200 pl-3 italic my-2" {...props} />,
                                                 }}
                                             >
-                                                {message.content}
+                                                {sanitizeHtml(message.content)}
                                             </ReactMarkdown>
                                         </div>
                                     ) : (

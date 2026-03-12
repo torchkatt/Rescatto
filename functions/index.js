@@ -7,6 +7,19 @@ const { onSchedule } = require("firebase-functions/v2/scheduler");
 const crypto = require("crypto-js");
 const cryptoNode = require("crypto");
 const sgMail = require("@sendgrid/mail");
+const { log, error: logError, warn: logWarn } = require("firebase-functions/logger");
+const {
+    CreateNotificationSchema,
+    GenerateWompiSignatureSchema,
+    CreateOrderSchema,
+    WompiWebhookSchema,
+    ResolveVenueChatTargetSchema,
+    RedeemPointsSchema,
+    SendVerificationEmailSchema,
+    DeleteUserAccountSchema,
+    GetFinanceStatsSchema,
+} = require("./schemas");
+const { withErrorHandling, withRequestErrorHandling } = require("./errorHandler");
 
 // Initialize Firebase Admin
 admin.initializeApp();
@@ -60,11 +73,6 @@ async function checkRateLimit(key, maxReqs, windowMs) {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const validateEmail = (email) =>
-    String(email).toLowerCase().match(
-        /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/
-    );
 
 const normalizeVenueIds = (userData) => {
     const values = [];
@@ -155,25 +163,11 @@ exports.createNotification = onCall(async (request) => {
     }
 
     const callerId = request.auth.uid;
-    const data = request.data || {};
-    const userId = typeof data.userId === "string" ? data.userId.trim() : "";
-    const title = typeof data.title === "string" ? data.title.trim() : "";
-    const message = typeof data.message === "string" ? data.message.trim() : "";
-    const type = typeof data.type === "string" ? data.type : "info";
-    const link = typeof data.link === "string" && data.link.trim().length > 0 ? data.link.trim() : null;
-
-    if (!userId || !title || !message) {
-        throw new HttpsError("invalid-argument", "userId, title and message are required.");
+    const parsed = CreateNotificationSchema.safeParse(request.data || {});
+    if (!parsed.success) {
+        throw new HttpsError("invalid-argument", parsed.error.issues[0]?.message || "Invalid input.");
     }
-    if (title.length > 120 || message.length > 500) {
-        throw new HttpsError("invalid-argument", "Notification content is too long.");
-    }
-    if (link && (!link.startsWith("/") || link.length > 300)) {
-        throw new HttpsError("invalid-argument", "Invalid link.");
-    }
-
-    const allowedTypes = ["info", "success", "warning", "error"];
-    const safeType = allowedTypes.includes(type) ? type : "info";
+    const { userId, title, message, type: safeType, link } = parsed.data;
 
     const allowed = await checkRateLimit(`${callerId}:createNotification`, 40, 60 * 1000);
     if (!allowed) {
@@ -259,9 +253,11 @@ exports.resolveVenueChatTarget = onCall(async (request) => {
     }
 
     const callerId = request.auth.uid;
-    const data = request.data || {};
-    const orderId = typeof data.orderId === "string" ? data.orderId.trim() : "";
-    if (!orderId) throw new HttpsError("invalid-argument", "orderId is required.");
+    const chatParsed = ResolveVenueChatTargetSchema.safeParse(request.data || {});
+    if (!chatParsed.success) {
+        throw new HttpsError("invalid-argument", chatParsed.error.issues[0]?.message || "Invalid input.");
+    }
+    const { orderId } = chatParsed.data;
 
     const allowed = await checkRateLimit(`${callerId}:resolveVenueChatTarget`, 20, 60 * 1000);
     if (!allowed) throw new HttpsError("resource-exhausted", "Too many requests.");
@@ -343,19 +339,17 @@ exports.generateWompiSignature = onRequest(
                 return res.status(429).send({ error: "Too many requests. Please try again later." });
             }
 
-            const { reference, amount, currency = "COP" } = req.body;
-            if (!reference || typeof reference !== "string") {
-                return res.status(400).send({ error: "Invalid or missing reference" });
+            const sigParsed = GenerateWompiSignatureSchema.safeParse(req.body);
+            if (!sigParsed.success) {
+                return res.status(400).send({ error: sigParsed.error.issues[0]?.message || "Invalid input." });
             }
-            if (!amount || isNaN(amount) || amount <= 0) {
-                return res.status(400).send({ error: "Invalid or missing amount" });
-            }
+            const { reference, amount, currency } = sigParsed.data;
 
             const integritySecret = process.env.WOMPI_INTEGRITY_SECRET || (IS_PROD ? null : "test_integrity_secret_PLACEHOLDER");
             const publicKey = process.env.WOMPI_PUBLIC_KEY || (IS_PROD ? null : "test_public_key_PLACEHOLDER");
 
             if (!integritySecret) {
-                console.error("FATAL: WOMPI_INTEGRITY_SECRET not set in production.");
+                logError("FATAL: WOMPI_INTEGRITY_SECRET not set in production.");
                 return res.status(500).send({ error: "Payment configuration error." });
             }
 
@@ -366,7 +360,7 @@ exports.generateWompiSignature = onRequest(
             return res.status(200).send({ signature, reference, amountInCents, currency, publicKey });
 
         } catch (error) {
-            console.error("Error generating signature:", error);
+            logError("Error generating signature:", error);
             return res.status(500).send({ error: "Internal Server Error" });
         }
     }
@@ -391,13 +385,13 @@ exports.wompiWebhook = onRequest(
             const wompiTimestamp = req.headers["x-wompi-timestamp"];
 
             if (!wompiSignature || !wompiTimestamp) {
-                console.warn("Wompi webhook: missing signature headers");
+                logWarn("Wompi webhook: missing signature headers");
                 return res.status(400).send({ error: "Missing signature headers" });
             }
 
             const integritySecret = process.env.WOMPI_INTEGRITY_SECRET || (IS_PROD ? null : "test_integrity_secret_PLACEHOLDER");
             if (!integritySecret) {
-                console.error("FATAL: WOMPI_INTEGRITY_SECRET not set.");
+                logError("FATAL: WOMPI_INTEGRITY_SECRET not set.");
                 return res.status(500).send({ error: "Configuration error." });
             }
 
@@ -419,16 +413,19 @@ exports.wompiWebhook = onRequest(
             }
 
             if (!signaturesMatch) {
-                console.warn("Wompi webhook: INVALID signature — rejecting event");
+                logWarn("Wompi webhook: INVALID signature — rejecting event");
                 return res.status(401).send({ error: "Invalid signature" });
             }
 
-            const event = req.body;
+            const webhookParsed = WompiWebhookSchema.safeParse(req.body);
+            if (!webhookParsed.success) {
+                return res.status(200).send({ received: true });
+            }
+            const event = webhookParsed.data;
             const eventType = event.event;
-            const transactionData = event.data && event.data.transaction;
-            if (!transactionData) return res.status(200).send({ received: true });
+            const transactionData = event.data.transaction;
 
-            console.log(`Wompi webhook OK: ${eventType} | tx=${transactionData.id} | status=${transactionData.status}`);
+            log(`Wompi webhook OK: ${eventType} | tx=${transactionData.id} | status=${transactionData.status}`);
 
             const db = admin.firestore();
 
@@ -447,7 +444,7 @@ exports.wompiWebhook = onRequest(
             });
 
             if (!isNew) {
-                console.log(`Webhook already processed for key ${idempotencyKey}, skipping.`);
+                log(`Webhook already processed for key ${idempotencyKey}, skipping.`);
                 return res.status(200).send({ received: true, duplicate: true });
             }
 
@@ -507,9 +504,18 @@ exports.wompiWebhook = onRequest(
                         return { updated: true, reason: "ok" };
                     });
 
-                    console.log(`Order ${orderDoc.id} APPROVED webhook → ${txResult.updated ? "PAID" : "skipped (" + txResult.reason + ")"}`);
+                    log(`Order ${orderDoc.id} APPROVED webhook → ${txResult.updated ? "PAID" : "skipped (" + txResult.reason + ")"}`);
+                    if (txResult.updated) {
+                        await writeAuditLog(db, {
+                            action: "payment_approved",
+                            performedBy: "wompi_webhook",
+                            targetId: orderDoc.id,
+                            targetType: "order",
+                            metadata: { transactionId: transactionData.id, status: transactionData.status },
+                        });
+                    }
                 } else {
-                    console.error(`Wompi webhook: order not found for transaction ${transactionData.id}`);
+                    logError(`Wompi webhook: order not found for transaction ${transactionData.id}`);
                     await db.collection("webhook_errors").doc().set({
                         service: "wompi", eventType, transactionId: transactionData.id,
                         reason: "order not found",
@@ -540,14 +546,14 @@ exports.wompiWebhook = onRequest(
                         return { updated: true, reason: "ok" };
                     });
 
-                    console.log(`Order ${q.docs[0].id} FAILED webhook → ${txResult.updated ? "CANCELLED" : "skipped (" + txResult.reason + ")"}`);
+                    log(`Order ${q.docs[0].id} FAILED webhook → ${txResult.updated ? "CANCELLED" : "skipped (" + txResult.reason + ")"}`);
                 }
             }
 
             return res.status(200).send({ received: true });
 
         } catch (error) {
-            console.error("Wompi webhook error:", error);
+            logError("Wompi webhook error:", error);
             return res.status(500).send({ error: "Internal Server Error" });
         }
     }
@@ -576,67 +582,37 @@ exports.createOrder = onCall(
             );
         }
 
-        const data = request.data || {};
+        const orderParsed = CreateOrderSchema.safeParse(request.data || {});
+        if (!orderParsed.success) {
+            throw new HttpsError("invalid-argument", orderParsed.error.issues[0]?.message || "Invalid order data.");
+        }
         const {
             venueId,
             products,
-            paymentMethod,
-            deliveryMethod,
+            paymentMethod: normalizedPaymentMethod,
+            deliveryMethod: normalizedDeliveryMethod,
             address,
             phone,
             transactionId,
             isDonation,
             donationCenterId,
             donationCenterName,
-        } = data;
-
-        const normalizedPaymentMethod = paymentMethod === "card" || paymentMethod === "cash" ? paymentMethod : null;
-        const normalizedDeliveryMethod =
-            deliveryMethod === "delivery" || deliveryMethod === "pickup" || deliveryMethod === "donation"
-                ? deliveryMethod
-                : null;
-
-        // Cap estimatedCo2 at 10kg max, must be non-negative
-        const estimatedCo2 = Math.max(0, Math.min(Number(data.estimatedCo2) || 0, 10));
-
-        // Accept client's distance-based delivery fee but clamp to [0, 25000] COP
-        const rawClientFee = Number(data.deliveryFee);
-        const clientDeliveryFee = (!isNaN(rawClientFee) && rawClientFee >= 0 && rawClientFee <= 25000)
-            ? Math.round(rawClientFee)
-            : null;
-
-        // redemptionId validated exclusively on backend
-        const redemptionId = typeof data.redemptionId === "string" && data.redemptionId.trim().length > 0
-            ? data.redemptionId.trim()
-            : null;
+            estimatedCo2,
+            deliveryFee: clientDeliveryFee,
+            redemptionId,
+        } = orderParsed.data;
 
         const userEmail = request.auth.token.email || "";
         const userName = request.auth.token.name || "Usuario";
 
-        // Strict input validation
-        if (!venueId || typeof venueId !== "string") throw new HttpsError("invalid-argument", "Invalid venueId.");
-        if (!normalizedPaymentMethod) throw new HttpsError("invalid-argument", "Invalid payment method.");
-        if (!normalizedDeliveryMethod) throw new HttpsError("invalid-argument", "Invalid delivery method.");
-        if (!products || !Array.isArray(products) || products.length === 0) {
-            throw new HttpsError("invalid-argument", "Products must be a non-empty array.");
-        }
-
-        products.forEach((p, index) => {
-            if (!p.productId || typeof p.productId !== "string") {
-                throw new HttpsError("invalid-argument", `Product at index ${index} missing productId.`);
-            }
-            if (!p.quantity || typeof p.quantity !== "number" || p.quantity <= 0) {
-                throw new HttpsError("invalid-argument", `Product at index ${index} has invalid quantity.`);
-            }
-        });
-
-        if (normalizedDeliveryMethod === "delivery" && (!address || typeof address !== "string")) {
+        // Cross-field validations that depend on combined values
+        if (normalizedDeliveryMethod === "delivery" && !address) {
             throw new HttpsError("invalid-argument", "Address is required for delivery.");
         }
         if (normalizedDeliveryMethod === "donation" && !donationCenterId) {
             throw new HttpsError("invalid-argument", "Donation center is required for donation delivery.");
         }
-        if (normalizedPaymentMethod === "card" && (!transactionId || typeof transactionId !== "string")) {
+        if (normalizedPaymentMethod === "card" && !transactionId) {
             throw new HttpsError("invalid-argument", "Valid transactionId is required for card payments.");
         }
 
@@ -676,7 +652,7 @@ exports.createOrder = onCall(
         } catch (_) { /* non-critical */ }
 
         try {
-            return await db.runTransaction(async (transaction) => {
+            const result = await db.runTransaction(async (transaction) => {
                 let cardApprovedBeforeOrder = false;
                 if (normalizedPaymentMethod === "card") {
                     const approvedRef = db.collection("webhook_dedup").doc(`${transactionId}-APPROVED`);
@@ -889,8 +865,19 @@ exports.createOrder = onCall(
                 return { success: true, orderId: orderRef.id };
             });
 
+            // Audit log after successful order creation (outside transaction)
+            await writeAuditLog(db, {
+                action: "order_created",
+                performedBy: userId,
+                targetId: venueId,
+                targetType: "venue",
+                metadata: { paymentMethod: normalizedPaymentMethod, deliveryMethod: normalizedDeliveryMethod, productsCount: products.length },
+            });
+
+            return result;
+
         } catch (error) {
-            console.error("Create Order Error:", error);
+            logError("Create Order Error:", error);
             if (error instanceof HttpsError) throw error;
             throw new HttpsError("internal", error.message);
         }
@@ -973,11 +960,11 @@ exports.onOrderUpdated = onDocumentUpdated("orders/{orderId}", async (event) => 
                         },
                         data: { orderId, status: newData.status, click_action: "OPEN_ORDER" },
                     });
-                    console.log(`FCM Sent to ${newData.customerId} — Order ${orderId} → ${newData.status}`);
+                    log(`FCM Sent to ${newData.customerId} — Order ${orderId} → ${newData.status}`);
                 }
             }
         } catch (error) {
-            console.error("Error sending FCM notification:", error);
+            logError("Error sending FCM notification:", error);
         }
     }
 
@@ -1053,7 +1040,7 @@ exports.onOrderUpdated = onDocumentUpdated("orders/{orderId}", async (event) => 
                 "updatedAt": admin.firestore.FieldValue.serverTimestamp(),
             });
         }
-        console.log(`Updated impact for user ${userId}: +${validatedCo2}kg CO2, +${bonusPoints} pts (x${streakMultiplier} streak=${newStreakCurrent}). Level: ${newLevel}`);
+        log(`Updated impact for user ${userId}: +${validatedCo2}kg CO2, +${bonusPoints} pts (x${streakMultiplier} streak=${newStreakCurrent}). Level: ${newLevel}`);
 
         // Referral bonus: first rescue only
         if (currentRescues === 1 && userData.invitedBy) {
@@ -1084,16 +1071,16 @@ exports.onOrderUpdated = onDocumentUpdated("orders/{orderId}", async (event) => 
                         "impact.points": admin.firestore.FieldValue.increment(REFERRAL_BONUS),
                     });
 
-                    console.log(`Referral bonus: user ${userId} and referrer ${referrersSnap.docs[0].id} each received +${REFERRAL_BONUS} points`);
+                    log(`Referral bonus: user ${userId} and referrer ${referrersSnap.docs[0].id} each received +${REFERRAL_BONUS} points`);
                 } else {
-                    console.warn(`Referral code "${userData.invitedBy}" not found — no bonus awarded`);
+                    logWarn(`Referral code "${userData.invitedBy}" not found — no bonus awarded`);
                 }
             } catch (refErr) {
-                console.error("Error applying referral bonus:", refErr);
+                logError("Error applying referral bonus:", refErr);
             }
         }
     } catch (error) {
-        console.error(`Error updating impact for user ${userId}:`, error);
+        logError(`Error updating impact for user ${userId}:`, error);
     }
 });
 
@@ -1114,9 +1101,11 @@ exports.redeemPoints = onCall(async (request) => {
         throw new HttpsError("resource-exhausted", "Has alcanzado el límite de canjes. Intenta de nuevo en una hora.");
     }
 
-    const data = request.data || {};
-    const rewardId = typeof data.rewardId === "string" ? data.rewardId : null;
-    if (!rewardId) throw new HttpsError("invalid-argument", "Reward ID is required.");
+    const redeemParsed = RedeemPointsSchema.safeParse(request.data || {});
+    if (!redeemParsed.success) {
+        throw new HttpsError("invalid-argument", redeemParsed.error.issues[0]?.message || "Invalid input.");
+    }
+    const { rewardId } = redeemParsed.data;
 
     // Catalog controlled on backend (source of truth)
     const REWARD_CONFIG = {
@@ -1136,7 +1125,7 @@ exports.redeemPoints = onCall(async (request) => {
     const userRef = db.collection("users").doc(userId);
 
     try {
-        return await db.runTransaction(async (transaction) => {
+        const result = await db.runTransaction(async (transaction) => {
             const userDoc = await transaction.get(userRef);
             if (!userDoc.exists) throw new HttpsError("not-found", "User not found.");
 
@@ -1178,8 +1167,19 @@ exports.redeemPoints = onCall(async (request) => {
 
             return { success: true, newBalance: currentPoints - cost, chargedCost: cost, redemption: activeRedemption };
         });
+
+        await writeAuditLog(db, {
+            action: "points_redeemed",
+            performedBy: userId,
+            targetId: rewardId,
+            targetType: "reward",
+            metadata: { cost, rewardId },
+        });
+
+        return result;
+
     } catch (error) {
-        console.error("Redemption error:", error);
+        logError("Redemption error:", error);
         if (error instanceof HttpsError) throw error;
         throw new HttpsError("internal", error.message);
     }
@@ -1192,12 +1192,12 @@ exports.redeemPoints = onCall(async (request) => {
 exports.sendVerificationEmail = onCall(
     { secrets: ["SENDGRID_KEY"] },
     async (request) => {
-        const data = request.data || {};
-        const email = data.email || (request.auth ? request.auth.token.email : null);
-
-        if (!email || !validateEmail(email)) {
-            throw new HttpsError("invalid-argument", "Valid email is required.");
+        const rawEmail = (request.data || {}).email || (request.auth ? request.auth.token.email : null);
+        const emailParsed = SendVerificationEmailSchema.safeParse({ email: rawEmail });
+        if (!emailParsed.success) {
+            throw new HttpsError("invalid-argument", emailParsed.error.issues[0]?.message || "Valid email is required.");
         }
+        const email = emailParsed.data.email;
 
         // Rate limit: max 3 verification emails per address per hour
         const emailKey = email.toLowerCase().replace(/[^a-zA-Z0-9]/g, "_");
@@ -1208,7 +1208,7 @@ exports.sendVerificationEmail = onCall(
 
         const sgKey = process.env.SENDGRID_KEY || "";
         if (!sgKey || sgKey === "PLACEHOLDER_KEY") {
-            console.error("FATAL: SENDGRID_KEY not configured.");
+            logError("FATAL: SENDGRID_KEY not configured.");
             throw new HttpsError("internal", "Email service not configured.");
         }
         sgMail.setApiKey(sgKey);
@@ -1255,11 +1255,11 @@ exports.sendVerificationEmail = onCall(
                 subject: "Verifica tu cuenta en Rescatto 🥗",
                 html: htmlContent,
             });
-            console.log(`Verification email sent to ${email} via SendGrid`);
+            log(`Verification email sent to ${email} via SendGrid`);
             return { success: true };
 
         } catch (error) {
-            console.error("Error sending verification email:", error);
+            logError("Error sending verification email:", error);
             throw new HttpsError("internal", error.message);
         }
     }
@@ -1282,15 +1282,25 @@ exports.deleteUserAccount = onCall(async (request) => {
         throw new HttpsError("permission-denied", "Only Super Admins can delete accounts.");
     }
 
-    const { uid } = request.data || {};
-    if (!uid || typeof uid !== "string") throw new HttpsError("invalid-argument", "UID is required.");
+    const deleteParsed = DeleteUserAccountSchema.safeParse(request.data || {});
+    if (!deleteParsed.success) {
+        throw new HttpsError("invalid-argument", deleteParsed.error.issues[0]?.message || "UID is required.");
+    }
+    const { uid } = deleteParsed.data;
 
     try {
         await admin.auth().deleteUser(uid);
-        console.log(`Successfully deleted user ${uid} from Auth`);
+        log(`Successfully deleted user ${uid} from Auth`);
+        await writeAuditLog(db, {
+            action: "user_deleted",
+            performedBy: request.auth.uid,
+            targetId: uid,
+            targetType: "user",
+            metadata: { deletedBy: request.auth.uid },
+        });
         return { success: true };
     } catch (error) {
-        console.error(`Error deleting user ${uid} from Auth:`, error);
+        logError(`Error deleting user ${uid} from Auth:`, error);
         throw new HttpsError("internal", error.message);
     }
 });
@@ -1310,7 +1320,7 @@ exports.applyDynamicPricing = onSchedule("every 15 minutes", async () => {
             .get();
 
         if (snapshot.empty) {
-            console.log("applyDynamicPricing: no dynamic products found.");
+            log("applyDynamicPricing: no dynamic products found.");
             return;
         }
 
@@ -1350,9 +1360,9 @@ exports.applyDynamicPricing = onSchedule("every 15 minutes", async () => {
         });
 
         await batch.commit();
-        console.log(`applyDynamicPricing: updated ${updatedCount} products.`);
+        log(`applyDynamicPricing: updated ${updatedCount} products.`);
     } catch (error) {
-        console.error("applyDynamicPricing error:", error);
+        logError("applyDynamicPricing error:", error);
     }
 });
 
@@ -1371,7 +1381,7 @@ exports.deactivateExpiredProducts = onSchedule("every 60 minutes", async () => {
             .get();
 
         if (snapshot.empty) {
-            console.log("deactivateExpiredProducts: no expired products found.");
+            log("deactivateExpiredProducts: no expired products found.");
             return;
         }
 
@@ -1384,9 +1394,9 @@ exports.deactivateExpiredProducts = onSchedule("every 60 minutes", async () => {
         });
 
         await batch.commit();
-        console.log(`deactivateExpiredProducts: set quantity=0 for ${snapshot.size} expired product(s).`);
+        log(`deactivateExpiredProducts: set quantity=0 for ${snapshot.size} expired product(s).`);
     } catch (error) {
-        console.error("deactivateExpiredProducts error:", error);
+        logError("deactivateExpiredProducts error:", error);
     }
 });
 
@@ -1405,7 +1415,7 @@ exports.handleMissedPickups = onSchedule("every 10 minutes", async () => {
             .get();
 
         if (snapshot.empty) {
-            console.log("handleMissedPickups: no missed pickups found.");
+            log("handleMissedPickups: no missed pickups found.");
             return;
         }
 
@@ -1418,9 +1428,9 @@ exports.handleMissedPickups = onSchedule("every 10 minutes", async () => {
         });
 
         await batch.commit();
-        console.log(`handleMissedPickups: marked ${snapshot.size} order(s) as MISSED.`);
+        log(`handleMissedPickups: marked ${snapshot.size} order(s) as MISSED.`);
     } catch (error) {
-        console.error("handleMissedPickups error:", error);
+        logError("handleMissedPickups error:", error);
     }
 });
 
@@ -1441,7 +1451,7 @@ exports.notifyBeforePickup = onSchedule("every 5 minutes", async () => {
             .get();
 
         if (snapshot.empty) {
-            console.log("notifyBeforePickup: no upcoming expiring orders found.");
+            log("notifyBeforePickup: no upcoming expiring orders found.");
             return;
         }
 
@@ -1478,7 +1488,7 @@ exports.notifyBeforePickup = onSchedule("every 5 minutes", async () => {
                         notifiedCount++;
                     }
                 } catch (fcmErr) {
-                    console.error(`Error sending expiry notification for order ${docSnap.id}:`, fcmErr);
+                    logError(`Error sending expiry notification for order ${docSnap.id}:`, fcmErr);
                 }
             }
 
@@ -1491,10 +1501,10 @@ exports.notifyBeforePickup = onSchedule("every 5 minutes", async () => {
             await batch.commit();
         }
         if (notifiedCount > 0) {
-            console.log(`notifyBeforePickup: sent warning notifications to ${notifiedCount} user(s).`);
+            log(`notifyBeforePickup: sent warning notifications to ${notifiedCount} user(s).`);
         }
     } catch (error) {
-        console.error("notifyBeforePickup error:", error);
+        logError("notifyBeforePickup error:", error);
     }
 });
 
@@ -1538,9 +1548,9 @@ exports.aggregateAdminStats = onDocumentUpdated("orders/{orderId}", async (event
 
     try {
         await batch.commit();
-        console.log(`Successfully aggregated stats for order ${event.params.orderId}`);
+        log(`Successfully aggregated stats for order ${event.params.orderId}`);
     } catch (error) {
-        console.error(`Error aggregating stats for order ${event.params.orderId}:`, error);
+        logError(`Error aggregating stats for order ${event.params.orderId}:`, error);
     }
 });
 
@@ -1575,11 +1585,11 @@ exports.migrateVenueIdToVenueIds = onCall(async (request) => {
         if (hasVenueId && !hasVenueIds) {
             batch.update(userDoc.ref, { venueIds: [data.venueId] });
             migratedCount++;
-            console.log(`Migrating user ${userDoc.id}: venueId=${data.venueId} → venueIds=[${data.venueId}]`);
+            log(`Migrating user ${userDoc.id}: venueId=${data.venueId} → venueIds=[${data.venueId}]`);
         } else if (hasVenueId && hasVenueIds && !data.venueIds.includes(data.venueId)) {
             batch.update(userDoc.ref, { venueIds: admin.firestore.FieldValue.arrayUnion(data.venueId) });
             migratedCount++;
-            console.log(`Adding missing venueId to venueIds for user ${userDoc.id}`);
+            log(`Adding missing venueId to venueIds for user ${userDoc.id}`);
         } else {
             skippedCount++;
         }
@@ -1588,7 +1598,7 @@ exports.migrateVenueIdToVenueIds = onCall(async (request) => {
     if (migratedCount > 0) await batch.commit();
 
     const result = { migrated: migratedCount, skipped: skippedCount, total: snapshot.size };
-    console.log("migrateVenueIdToVenueIds complete:", result);
+    log("migrateVenueIdToVenueIds complete:", result);
     return result;
 });
 
@@ -1607,8 +1617,11 @@ exports.getFinanceStats = onCall(async (request) => {
         throw new HttpsError("permission-denied", "Solo el Super Admin puede acceder a las estadísticas globales.");
     }
 
-    const data = request.data || {};
-    const { startDate, endDate } = data;
+    const finParsed = GetFinanceStatsSchema.safeParse(request.data || {});
+    if (!finParsed.success) {
+        throw new HttpsError("invalid-argument", finParsed.error.issues[0]?.message || "Invalid input.");
+    }
+    const { startDate, endDate } = finParsed.data;
 
     let ordersQuery = db.collection("orders").where("status", "in", ["COMPLETED", "PAID"]);
     if (startDate) ordersQuery = ordersQuery.where("createdAt", ">=", startDate);
@@ -1657,3 +1670,42 @@ exports.getFinanceStats = onCall(async (request) => {
         periodEnd: endDate || null,
     };
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// healthCheck
+// Public endpoint for uptime monitoring (UptimeRobot, Cloud Monitoring, etc.)
+// ─────────────────────────────────────────────────────────────────────────────
+exports.healthCheck = onRequest({ cors: true }, async (_req, res) => {
+    try {
+        const db = admin.firestore();
+        await db.collection("venues").limit(1).get();
+        return res.status(200).json({
+            status: "ok",
+            timestamp: new Date().toISOString(),
+            region: process.env.FUNCTION_REGION || "us-central1",
+            version: "1.0.0",
+        });
+    } catch (err) {
+        logError("Health check failed", { error: err.message });
+        return res.status(503).json({ status: "degraded", error: "Firestore unreachable" });
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Audit Log Helper
+// Records critical actions to audit_logs collection with structured data.
+// ─────────────────────────────────────────────────────────────────────────────
+async function writeAuditLog(db, { action, performedBy, targetId, targetType, metadata }) {
+    try {
+        await db.collection("audit_logs").add({
+            action,
+            performedBy: performedBy || "system",
+            targetId: targetId || null,
+            targetType: targetType || null,
+            metadata: metadata || {},
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        });
+    } catch (err) {
+        logWarn("Failed to write audit log", { action, performedBy, error: err.message });
+    }
+}

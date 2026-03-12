@@ -1,4 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
+import * as Sentry from '@sentry/react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
 
 interface ErrorBoundaryProps {
@@ -38,9 +39,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
     this.setState({ errorInfo });
-    // In production, send to monitoring service (Sentry, etc.)
     if (import.meta.env.PROD) {
-      console.error('[ErrorBoundary] Caught error:', error, errorInfo);
+      Sentry.captureException(error, { extra: { componentStack: errorInfo.componentStack } });
     }
   }
 
