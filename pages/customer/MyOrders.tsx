@@ -401,13 +401,23 @@ export const MyOrders: React.FC = () => {
                                 >
                                     <div className="flex justify-between items-start mb-4">
                                         <div>
-                                            <p className="text-sm text-gray-500">
-                                                Pedido #{order.id.slice(0, 8)}
-                                            </p>
-                                            <p className="text-xs text-gray-500">
-                                                {new Date(order.createdAt).toLocaleDateString('es-CO', {
+                                            {order.metadata?.venueName && (
+                                                <button
+                                                    onClick={() => navigate(`/app/venue/${order.venueId}`)}
+                                                    className="flex items-center gap-1.5 mb-1 group"
+                                                >
+                                                    <span className="text-base font-bold text-gray-900 group-hover:text-emerald-600 transition-colors leading-tight">
+                                                        {order.metadata.venueName}
+                                                    </span>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5">
+                                                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                                                    </svg>
+                                                </button>
+                                            )}
+                                            <p className="text-xs text-gray-400">
+                                                #{order.id.slice(0, 8)} · {new Date(order.createdAt).toLocaleDateString('es-CO', {
                                                     year: 'numeric',
-                                                    month: 'long',
+                                                    month: 'short',
                                                     day: 'numeric',
                                                     hour: '2-digit',
                                                     minute: '2-digit'

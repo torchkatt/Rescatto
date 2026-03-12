@@ -385,7 +385,7 @@ export const OrderManagement: React.FC = () => {
                                                     {product.quantity}x {product.name}
                                                 </span>
                                                 <span className="font-semibold text-gray-800">
-                                                    {formatCOP(product.discountedPrice * product.quantity)}
+                                                    {formatCOP((product.price ?? product.discountedPrice ?? product.originalPrice) * product.quantity)}
                                                 </span>
                                             </div>
                                         ))}

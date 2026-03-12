@@ -114,6 +114,7 @@ const Settings: React.FC = () => {
                 city: formData.city,
                 closingTime: formData.closingTime,
                 phone: formData.phone,
+                ownerId: user?.id,
                 deliveryConfig: {
                     isEnabled: deliveryConfig.isEnabled,
                     baseFee: deliveryConfig.baseFee,

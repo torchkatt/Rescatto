@@ -74,13 +74,15 @@ import { messagingService } from './services/messagingService';
 const RootRedirect: React.FC = () => {
     const { user, isLoading, isEmailVerified, isAccountVerified } = useAuth();
 
-    // Si ya tiene token FCM guardado, renovarlo silenciosamente sin prompt.
-    // El prompt de permisos se muestra de forma contextual via NotificationPermissionModal.
+    // Si ya tiene permiso concedido, renovar el token FCM silenciosamente.
+    // Se usa un ref para ejecutarlo solo UNA vez por sesión (evita 403 repetidos).
+    const fcmRegisteredRef = React.useRef(false);
     useEffect(() => {
-        if (user && user.id && !user.isGuest && Notification.permission === 'granted') {
-            messagingService.requestPermissionAndSaveToken(user.id);
+        if (user && user.id && !user.isGuest && Notification.permission === 'granted' && !fcmRegisteredRef.current) {
+            fcmRegisteredRef.current = true;
+            messagingService.requestPermissionAndSaveToken(user.id).catch(() => {});
         }
-    }, [user]);
+    }, [user?.id]);
     if (isLoading) return <LoadingScreen />;
 
     // Sin sesión → ir al app como invitado (auto-login se activa en CustomerLayout)

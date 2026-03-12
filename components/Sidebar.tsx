@@ -16,7 +16,7 @@ import { logger } from '../utils/logger';
 
 const Sidebar: React.FC = () => {
   const { user, logout, hasRole } = useAuth();
-  const { address } = useLocation();
+  const { city, address } = useLocation();
   const { venue, logoUrl, isDarkMode, toggleDarkMode } = useTheme();
   const { unreadCount } = useChat();
   const { isInstalled, installApp, showInstructions, setShowInstructions } = usePWA();
@@ -125,7 +125,7 @@ const Sidebar: React.FC = () => {
               className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 transition-all cursor-pointer mt-3 px-1"
             >
               <MapPin size={12} />
-              <span className="truncate max-w-[180px] text-left">{address || 'Definir ubicación'}</span>
+              <span className="truncate max-w-[180px] text-left">{city || address || 'Definir ciudad'}</span>
             </button>
           </div>
         )}

@@ -221,19 +221,30 @@ export const DriverDashboard: React.FC = () => {
                 return;
             }
 
-            // Buscar al dueño del restaurante
+            // Buscar al dueño del restaurante (venueIds array O venueId string legacy)
             const usersRef = collection(db, 'users');
-            const q = query(
-                usersRef,
-                where('venueIds', 'array-contains', order.venueId),
-                where('role', '==', UserRole.VENUE_OWNER)
-            );
+            const [byVenueIds, byVenueId] = await Promise.all([
+                getDocs(query(usersRef, where('venueIds', 'array-contains', order.venueId), where('role', '==', UserRole.VENUE_OWNER))),
+                getDocs(query(usersRef, where('venueId', '==', order.venueId), where('role', '==', UserRole.VENUE_OWNER))),
+            ]);
+            const ownerDoc = byVenueIds.docs[0] || byVenueId.docs[0];
 
-            const venueOwnerSnapshot = await getDocs(q);
-            const venueOwner = venueOwnerSnapshot.empty ? null : { id: venueOwnerSnapshot.docs[0].id, ...venueOwnerSnapshot.docs[0].data() };
+            // Fallback: revisar ownerId en el documento del venue
+            let venueOwnerId = ownerDoc?.id || null;
+            if (!venueOwnerId && venue) {
+                const venueSnap = await getDoc(doc(db, 'venues', order.venueId));
+                if (venueSnap.exists()) {
+                    venueOwnerId = (venueSnap.data() as any).ownerId || null;
+                }
+            }
+
+            if (!venueOwnerId) {
+                showToast('error', 'No se encontró al dueño del restaurante para abrir chat.');
+                return;
+            }
 
             const chat = await createChat(
-                venueOwner?.id || order.venueId, // Fallback a venueId si no hay dueño real
+                venueOwnerId,
                 venue.name,
                 UserRole.VENUE_OWNER,
                 'venue-driver',

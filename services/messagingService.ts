@@ -49,8 +49,13 @@ export const messagingService = {
                 logger.warn('🚫 Permiso de notificaciones denegado o cerrado.');
                 return null;
             }
-        } catch (error) {
-            logger.warn('Error al solicitar token FCM (no afecta funcionalidad principal):', error);
+        } catch (error: any) {
+            const msg = error?.message || String(error);
+            if (msg.includes('403') || msg.includes('not registered') || msg.includes('VAPID')) {
+                logger.warn('FCM: VAPID key inválido o proyecto no configurado para push. Verifica Firebase Console → Cloud Messaging → Web Push Certificates.');
+            } else {
+                logger.warn('Error al solicitar token FCM (no afecta funcionalidad principal):', msg);
+            }
             return null;
         }
     },

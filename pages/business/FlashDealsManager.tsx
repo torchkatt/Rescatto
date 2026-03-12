@@ -129,6 +129,7 @@ export const FlashDealsManager: React.FC = () => {
     const handleSave = async () => {
         if (!selectedVenueId) return;
         if (!form.title.trim()) { toast.error('El título es obligatorio'); return; }
+        if (!form.description?.trim()) { toast.error('La descripción es obligatoria'); return; }
         if (form.extraDiscountPct < 1 || form.extraDiscountPct > 100) {
             toast.error('El descuento extra debe estar entre 1 y 100%'); return;
         }

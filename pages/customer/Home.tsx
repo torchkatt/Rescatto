@@ -131,7 +131,6 @@ const CustomerHome: React.FC = () => {
     const { address, city, latitude, longitude } = useLocation();
     const [showLocationSelector, setShowLocationSelector] = useState(false);
     const hasUserLocation = latitude !== null && longitude !== null;
-    const MAX_VENUE_DISTANCE_KM = 80;
 
     // Sort Venues by Distance
     const sortedVenues = React.useMemo(() => {
@@ -150,13 +149,14 @@ const CustomerHome: React.FC = () => {
     const filteredVenues = useMemo(() => sortedVenues.filter(venue => {
         const normalizedUserCity = city?.trim().toLowerCase() || null;
         const normalizedVenueCity = venue.city?.trim().toLowerCase() || null;
-        const distance = hasUserLocation
-            ? calculateDistance(latitude as number, longitude as number, venue.latitude, venue.longitude)
-            : null;
 
-        const matchesDistance = distance === null || !Number.isFinite(distance) || distance <= MAX_VENUE_DISTANCE_KM;
+        // City filter: partial match so legacy geocoded values like
+        // "perímetro urbano bucaramanga" still match "bucaramanga".
+        // If venue has no city stored, always show it.
+        // Distance is only used for sorting, not for filtering.
+        const cityMatch = (a: string, b: string) => a.includes(b) || b.includes(a);
         const matchesCity = normalizedUserCity
-            ? (!normalizedVenueCity || normalizedVenueCity === normalizedUserCity)
+            ? (!normalizedVenueCity || cityMatch(normalizedVenueCity, normalizedUserCity))
             : true;
 
         const matchesCategory = selectedCategory === 'all' ||
@@ -172,8 +172,8 @@ const CustomerHome: React.FC = () => {
 
         const matchesActive = !showOnlyActive || venueStockMap.has(venue.id);
 
-        return matchesCity && matchesDistance && matchesCategory && matchesSearch && matchesDietary && matchesActive;
-    }), [sortedVenues, city, hasUserLocation, latitude, longitude, selectedCategory, searchQuery, selectedDietaryTags, showOnlyActive, venueStockMap]);
+        return matchesCity && matchesCategory && matchesSearch && matchesDietary && matchesActive;
+    }), [sortedVenues, city, selectedCategory, searchQuery, selectedDietaryTags, showOnlyActive, venueStockMap]);
 
     // Trending venues: have expiring products AND high rating or high orders
     const trendingVenueIds = useMemo(() => {
@@ -229,7 +229,7 @@ const CustomerHome: React.FC = () => {
                     <div className="px-4 pt-1.5 pb-1.5 flex items-center justify-between">
                         <button
                             type="button"
-                            aria-label={`Cambiar ubicación. Actualmente: ${address}`}
+                            aria-label={`Cambiar ubicación. Actualmente: ${city || address}`}
                             className="flex items-center gap-3 cursor-pointer p-1 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 max-w-[80%]"
                             onClick={() => setShowLocationSelector(true)}
                         >
@@ -239,7 +239,7 @@ const CustomerHome: React.FC = () => {
                             <div className="flex flex-col text-left overflow-hidden">
                                 <span className="text-[11px] text-gray-500 font-medium uppercase tracking-wider">Ubicación Actual</span>
                                 <span className="font-bold text-[15px] text-gray-900 leading-tight flex items-center gap-1 truncate w-full">
-                                    {address} <ChevronDown size={14} className="shrink-0 text-emerald-600" />
+                                    {city || address} <ChevronDown size={14} className="shrink-0 text-emerald-600" />
                                 </span>
                             </div>
                         </button>

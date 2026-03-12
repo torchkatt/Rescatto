@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { adminService } from '../../services/adminService';
 import { Venue, VenueCategory, BUSINESS_TYPES_LIST } from '../../types';
@@ -13,7 +13,82 @@ import { Tooltip } from '../../components/common/Tooltip';
 import { useAuth } from '../../context/AuthContext';
 import { UserRole } from '../../types';
 import { venueService } from '../../services/venueService';
+import { COLOMBIAN_CITIES } from '../../data/colombianCities';
 import { logger } from '../../utils/logger';
+
+const CityCombobox: React.FC<{ value: string; onChange: (city: string) => void }> = ({ value, onChange }) => {
+    const [query, setQuery] = useState(value);
+    const [open, setOpen] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    // Sync query when value changes externally (e.g. form reset)
+    useEffect(() => { setQuery(value); }, [value]);
+
+    // Close on outside click
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+                setOpen(false);
+                // If query doesn't match a valid city, restore last valid value
+                const match = COLOMBIAN_CITIES.find(c => c.name.toLowerCase() === query.trim().toLowerCase());
+                if (!match) setQuery(value);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [query, value]);
+
+    const filtered = useMemo(() => {
+        const q = query.trim().toLowerCase();
+        if (!q) return COLOMBIAN_CITIES.slice(0, 40);
+        return COLOMBIAN_CITIES.filter(
+            c => c.name.toLowerCase().includes(q) || c.department.toLowerCase().includes(q)
+        ).slice(0, 40);
+    }, [query]);
+
+    const handleSelect = (cityName: string) => {
+        onChange(cityName);
+        setQuery(cityName);
+        setOpen(false);
+    };
+
+    return (
+        <div ref={containerRef} className="relative">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Ciudad</label>
+            <div className="relative">
+                <MapPin size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                <input
+                    required
+                    type="text"
+                    className="w-full rounded-xl border-gray-300 border pl-9 pr-4 py-3 text-base focus:ring-2 focus:ring-emerald-500 outline-none transition-all duration-200"
+                    placeholder="Buscar ciudad o departamento…"
+                    value={query}
+                    onChange={e => { setQuery(e.target.value); setOpen(true); }}
+                    onFocus={() => setOpen(true)}
+                    autoComplete="off"
+                />
+            </div>
+            {open && filtered.length > 0 && (
+                <ul className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-52 overflow-y-auto">
+                    {filtered.map((city, i) => (
+                        <li key={i}>
+                            <button
+                                type="button"
+                                onMouseDown={() => handleSelect(city.name)}
+                                className={`w-full text-left px-4 py-2.5 hover:bg-emerald-50 transition-colors flex items-center gap-2 ${
+                                    city.name === value ? 'bg-emerald-50 text-emerald-700 font-medium' : 'text-gray-800'
+                                }`}
+                            >
+                                <span className="text-sm">{city.name}</span>
+                                <span className="text-xs text-gray-400 ml-1">— {city.department}</span>
+                            </button>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </div>
+    );
+};
 
 export const VenuesManager: React.FC = () => {
     const toast = useToast();
@@ -36,19 +111,29 @@ export const VenuesManager: React.FC = () => {
     const [formData, setFormData] = useState<Partial<Venue>>({});
     const [geocoding, setGeocoding] = useState(false);
 
+    // Colombia bounding box
+    const isInColombia = (lat: number, lng: number) =>
+        lat >= -4.5 && lat <= 12.5 && lng >= -82.0 && lng <= -66.5;
+
     const geocodeAddress = async () => {
-        const address = [formData.address, formData.city].filter(Boolean).join(', ');
-        if (!address) { toast.error('Ingresa una dirección primero'); return; }
+        const addressStr = [formData.address, formData.city].filter(Boolean).join(', ');
+        if (!addressStr) { toast.error('Ingresa una dirección primero'); return; }
         setGeocoding(true);
         try {
-            const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`;
-            const res = await fetch(url, { headers: { 'Accept-Language': 'es' } });
+            const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(addressStr)}&format=json&limit=1&countrycodes=co&accept-language=es`;
+            const res = await fetch(url, { headers: { 'User-Agent': 'RescattoApp/1.0' } });
             const results = await res.json();
             if (results.length > 0) {
-                setFormData(prev => ({ ...prev, latitude: parseFloat(results[0].lat), longitude: parseFloat(results[0].lon) }));
-                toast.success('Coordenadas actualizadas');
+                const lat = parseFloat(results[0].lat);
+                const lng = parseFloat(results[0].lon);
+                if (!isInColombia(lat, lng)) {
+                    toast.error('Las coordenadas obtenidas están fuera de Colombia. Verifica la dirección.');
+                    return;
+                }
+                setFormData(prev => ({ ...prev, latitude: lat, longitude: lng }));
+                toast.success('Coordenadas actualizadas correctamente');
             } else {
-                toast.error('No se encontraron coordenadas para esa dirección');
+                toast.error('No se encontraron coordenadas en Colombia para esa dirección');
             }
         } catch {
             toast.error('Error al geocodificar la dirección');
@@ -414,14 +499,9 @@ export const VenuesManager: React.FC = () => {
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Ciudad</label>
-                                <input
-                                    required
-                                    type="text"
-                                    className="w-full rounded-xl border-gray-300 border p-3 text-base focus:ring-2 focus:ring-emerald-500 outline-none transition-all duration-200"
-                                    placeholder="Ej. Bogotá"
+                                <CityCombobox
                                     value={formData.city || ''}
-                                    onChange={e => setFormData({ ...formData, city: e.target.value })}
+                                    onChange={city => setFormData({ ...formData, city })}
                                 />
                             </div>
 
@@ -438,6 +518,13 @@ export const VenuesManager: React.FC = () => {
                                         {geocoding ? 'Buscando...' : 'Autocompletar con dirección'}
                                     </button>
                                 </div>
+                                {formData.latitude != null && formData.longitude != null &&
+                                    !isInColombia(formData.latitude, formData.longitude) && (
+                                    <div className="mb-2 flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2">
+                                        <MapPin size={13} className="shrink-0" />
+                                        Las coordenadas actuales están fuera de Colombia. Usa "Autocompletar con dirección" para corregirlas.
+                                    </div>
+                                )}
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
                                         <label className="block text-xs text-gray-500 mb-1">Latitud</label>

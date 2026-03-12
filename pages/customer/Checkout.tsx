@@ -138,9 +138,14 @@ export const Checkout: React.FC = () => {
             setCityError(null);
             if (!city) return;
 
+            const cityMatch = (a: string, b: string) => {
+                const na = a.trim().toLowerCase();
+                const nb = b.trim().toLowerCase();
+                return na.includes(nb) || nb.includes(na);
+            };
             for (const [venueId] of venueGroups.entries()) {
-                const venue = venuesData[venueId]; // Use cached data if available
-                if (venue && venue.city && venue.city !== city) {
+                const venue = venuesData[venueId];
+                if (venue && venue.city && city && !cityMatch(venue.city, city)) {
                     setCityError(`El restaurante "${venue.name}" está en ${venue.city}, pero tu ubicación es ${city}.`);
                     return;
                 }

@@ -303,7 +303,20 @@ exports.resolveVenueChatTarget = onCall(async (request) => {
 
     const ownerDoc = byVenueIds.docs[0] || byVenueId.docs[0];
 
-    if (!ownerDoc) throw new HttpsError("not-found", "Venue owner not found for this order.");
+    if (!ownerDoc) {
+        // Fallback: check venue document for ownerId field
+        try {
+            const venueSnap = await db.collection("venues").doc(venueId).get();
+            if (venueSnap.exists && venueSnap.data().ownerId) {
+                const ownerRef = await db.collection("users").doc(venueSnap.data().ownerId).get();
+                if (ownerRef.exists) {
+                    const ownerData2 = ownerRef.data() || {};
+                    return { userId: ownerRef.id, userName: ownerData2.fullName || "Restaurante", venueId };
+                }
+            }
+        } catch (_) { /* non-critical */ }
+        throw new HttpsError("not-found", "Venue owner not found for this order.");
+    }
 
     const ownerData = ownerDoc.data() || {};
     return { userId: ownerDoc.id, userName: ownerData.fullName || "Restaurante", venueId };
@@ -643,6 +656,25 @@ exports.createOrder = onCall(
             }
         }
 
+        // Lookup venue owner before transaction (non-critical — used for chat metadata)
+        let venueOwnerIdForMeta = null;
+        let venueNameForMeta = null;
+        try {
+            const venueSnap = await db.collection("venues").doc(venueId).get();
+            if (venueSnap.exists) {
+                venueNameForMeta = venueSnap.data().name || null;
+                venueOwnerIdForMeta = venueSnap.data().ownerId || null;
+            }
+            if (!venueOwnerIdForMeta) {
+                const [byVenueIds, byVenueId] = await Promise.all([
+                    db.collection("users").where("role", "==", "VENUE_OWNER").where("venueIds", "array-contains", venueId).limit(1).get(),
+                    db.collection("users").where("role", "==", "VENUE_OWNER").where("venueId", "==", venueId).limit(1).get(),
+                ]);
+                const ownerDocPre = byVenueIds.docs[0] || byVenueId.docs[0];
+                if (ownerDocPre) venueOwnerIdForMeta = ownerDocPre.id;
+            }
+        } catch (_) { /* non-critical */ }
+
         try {
             return await db.runTransaction(async (transaction) => {
                 let cardApprovedBeforeOrder = false;
@@ -796,6 +828,10 @@ exports.createOrder = onCall(
                     discountApplied: effectiveDiscount,
                     createdAt: new Date().toISOString(),
                     pickupDeadline: new Date(Date.now() + 30 * 60000).toISOString(),
+                    metadata: {
+                        venueOwnerId: venueOwnerIdForMeta || null,
+                        venueName: venueNameForMeta || venueDoc.data().name || null,
+                    },
                 };
 
                 // Writes — all reads must be done by now
@@ -946,8 +982,8 @@ exports.onOrderUpdated = onDocumentUpdated("orders/{orderId}", async (event) => 
     }
 
     // ── Gamification + Impact ─────────────────────────────────────────────────
-    const isNowCompleted = newData.status === "COMPLETED" || newData.status === "DELIVERED";
-    const wasNotCompleted = oldData.status !== "COMPLETED" && oldData.status !== "DELIVERED";
+    const isNowCompleted = newData.status === "COMPLETED";
+    const wasNotCompleted = oldData.status !== "COMPLETED";
 
     if (!isNowCompleted || !wasNotCompleted) return;
 

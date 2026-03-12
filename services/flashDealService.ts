@@ -23,10 +23,9 @@ export const flashDealService = {
         );
 
         return onSnapshot(q, (snapshot) => {
-            const deals = snapshot.docs.map(d => ({
-                id: d.id,
-                ...d.data(),
-            })) as FlashDeal[];
+            const deals = snapshot.docs
+                .map(d => ({ id: d.id, ...d.data() } as FlashDeal))
+                .filter(d => !d.startTime || d.startTime <= now);
             callback(deals);
         }, (error) => {
             logger.error('flashDealService.subscribeToActiveDeals error:', error);

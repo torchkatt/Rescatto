@@ -378,8 +378,8 @@ service cloud.firestore {
     // ─── FLASH DEALS ─────────────────────────────────────────────────────
 
     match /flash_deals/{dealId} {
-      // Any authenticated user can read active deals
-      allow read: if isAuthenticated();
+      // Anyone can read active deals (public content, visible to guests too)
+      allow read: if true;
 
       // Only admins and venue owners (for their own venue) can create flash deals
       allow create: if isAdmin() ||
