@@ -346,22 +346,22 @@ const AppRoutes: React.FC = () => {
                         <Checkout />
                     } />
                     <Route path="orders" element={
-                        <ProtectedRoute allowedRoles={[UserRole.CUSTOMER]}>
+                        <ProtectedRoute allowedRoles={[UserRole.CUSTOMER]} disallowGuests={true}>
                             <MyOrders />
                         </ProtectedRoute>
                     } />
                     <Route path="profile" element={
-                        <ProtectedRoute allowedRoles={[UserRole.CUSTOMER]}>
+                        <ProtectedRoute allowedRoles={[UserRole.CUSTOMER]} disallowGuests={true}>
                             <UnifiedProfile />
                         </ProtectedRoute>
                     } />
                     <Route path="favorites" element={
-                        <ProtectedRoute allowedRoles={[UserRole.CUSTOMER]}>
+                        <ProtectedRoute allowedRoles={[UserRole.CUSTOMER]} disallowGuests={true}>
                             <Favorites />
                         </ProtectedRoute>
                     } />
                     <Route path="impact" element={
-                        <ProtectedRoute allowedRoles={[UserRole.CUSTOMER]}>
+                        <ProtectedRoute allowedRoles={[UserRole.CUSTOMER]} disallowGuests={true}>
                             <Impact />
                         </ProtectedRoute>
                     } />

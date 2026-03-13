@@ -14,7 +14,8 @@ const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
-  const { login, loginWithGoogle, loginWithApple, loginWithFacebook } = useAuth();
+  const [selectedRole, setSelectedRole] = useState<'CUSTOMER' | 'BUSINESS'>('BUSINESS');
+  const { login, loginWithGoogle, loginWithApple, loginWithFacebook, loginAsGuest } = useAuth();
   const navigate = useNavigate();
 
   // Auto-dismiss error after 5 seconds
@@ -60,8 +61,9 @@ const Login: React.FC = () => {
         // Importación dinámica para evitar problemas de dependencia circular
         const { authService } = await import('../services/authService');
         const { UserRole } = await import('../types');
-        // El registro por defecto es CLIENTE en el formulario público. 
-        await authService.register(email, password, fullName, UserRole.CUSTOMER);
+        // El registro usa el rol seleccionado en las pestañas
+        const role = selectedRole === 'BUSINESS' ? UserRole.ADMIN : UserRole.CUSTOMER;
+        await authService.register(email, password, fullName, role);
         navigate('/');
       } else {
         await login(email, password);
@@ -160,14 +162,41 @@ const Login: React.FC = () => {
               <span className="font-bold text-slate-900">Business</span>
             </div>
             <h2 className="text-3xl font-bold text-slate-900 mb-2 tracking-tight">
-              {isRegistering ? 'Crear cuenta de negocio' : 'Bienvenido de nuevo'}
+              {isRegistering ? 'Crear cuenta' : 'Bienvenido de nuevo'}
             </h2>
             <p className="text-slate-500">
               {isRegistering
-                ? 'Empieza a optimizar tu inventario hoy mismo.'
+                ? 'Elige tu tipo de cuenta para empezar.'
                 : 'Accede al panel de control de tu negocio.'}
             </p>
           </div>
+
+          {isRegistering && (
+            <div className="flex p-1 bg-slate-200/50 rounded-xl mb-8">
+              <button
+                type="button"
+                onClick={() => setSelectedRole('CUSTOMER')}
+                className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${
+                  selectedRole === 'CUSTOMER'
+                    ? 'bg-white text-emerald-600 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                Soy Usuario
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedRole('BUSINESS')}
+                className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${
+                  selectedRole === 'BUSINESS'
+                    ? 'bg-white text-emerald-600 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                Soy Negocio
+              </button>
+            </div>
+          )}
 
           {error && (
             <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-600 text-sm animate-fade-in-up shadow-sm">
@@ -304,6 +333,15 @@ const Login: React.FC = () => {
               </button>
             </div>
           </form>
+
+          <button
+            onClick={() => loginAsGuest()}
+            type="button"
+            className="w-full mt-6 bg-emerald-50 border border-emerald-100 hover:bg-emerald-100/50 text-emerald-700 py-4 rounded-xl text-sm font-bold transition-all active:scale-95 flex items-center justify-center gap-2 group shadow-sm"
+          >
+            <User size={18} className="group-hover:scale-110 transition-transform" />
+            Explorar como invitado
+          </button>
 
           <div className="mt-8 text-center text-sm">
             <span className="text-slate-500">

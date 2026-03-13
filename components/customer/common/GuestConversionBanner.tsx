@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { UserPlus, X, Eye, EyeOff } from 'lucide-react';
+import { UserPlus, X, Eye, EyeOff, LogIn } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import { useToast } from '../../../context/ToastContext';
 import { logger } from '../../../utils/logger';
@@ -12,6 +13,8 @@ interface GuestConversionBannerProps {
 export const GuestConversionBanner: React.FC<GuestConversionBannerProps> = ({ context = 'checkout' }) => {
     const { user, convertGuestToUser } = useAuth();
     const { success, error } = useToast();
+    const navigate = useNavigate();
+    const location = useLocation();
 
     const [open, setOpen] = useState(false);
     const [dismissed, setDismissed] = useState(false);
@@ -22,6 +25,12 @@ export const GuestConversionBanner: React.FC<GuestConversionBannerProps> = ({ co
     const [loading, setLoading] = useState(false);
 
     if (!user?.isGuest || dismissed) return null;
+
+    const handleLoginRedirect = () => {
+        // Redirect to login, including current path for post-login return
+        const currentPath = encodeURIComponent(location.pathname + location.search);
+        navigate(`/login?redirect=${currentPath}`);
+    };
 
     const handleConvert = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -72,12 +81,21 @@ export const GuestConversionBanner: React.FC<GuestConversionBannerProps> = ({ co
             </div>
 
             {!open ? (
-                <button
-                    onClick={() => setOpen(true)}
-                    className="mt-3 w-full bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold py-2 px-4 rounded-lg transition-all active:scale-95"
-                >
-                    Crear cuenta gratis
-                </button>
+                <div className="mt-3 space-y-2">
+                    <button
+                        onClick={() => setOpen(true)}
+                        className="w-full bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold py-2.5 px-4 rounded-lg transition-all active:scale-95 shadow-sm"
+                    >
+                        Crear cuenta gratis
+                    </button>
+                    <button
+                        onClick={handleLoginRedirect}
+                        className="w-full bg-white border border-amber-300 text-amber-700 text-sm font-bold py-2.5 px-4 rounded-lg hover:bg-amber-100 transition-all flex items-center justify-center gap-2"
+                    >
+                        <LogIn size={16} />
+                        Ya tengo cuenta, iniciar sesión
+                    </button>
+                </div>
             ) : (
                 <form onSubmit={handleConvert} className="mt-3 space-y-2">
                     <input

@@ -8,9 +8,10 @@ import { LoadingScreen } from './customer/common/Loading';
 interface ProtectedRouteProps {
   children: React.ReactElement;
   allowedRoles?: UserRole[];
+  disallowGuests?: boolean;
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles }) => {
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles, disallowGuests }) => {
   const { isAuthenticated, isLoading, hasRole, user, isEmailVerified, isAccountVerified } = useAuth();
 
   if (isLoading) {
@@ -18,6 +19,11 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles 
   }
 
   if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // Si se deniegan invitados y el usuario actual es anónimo
+  if (disallowGuests && user?.isGuest) {
     return <Navigate to="/login" replace />;
   }
 
