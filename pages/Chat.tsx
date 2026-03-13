@@ -18,7 +18,10 @@ export const ChatPage: React.FC = () => {
 
                 {/* Ventana de Chat - Área Principal */}
                 <div className={`${currentChat ? 'flex' : 'hidden'} md:flex flex-1 flex-col bg-gray-50/50`}>
-                    <ChatWindow />
+                    <ChatWindow 
+                        onBack={() => useChat().closeChat()} 
+                        showBackButton={true}
+                    />
                 </div>
             </div>
         </Layout>

@@ -12,6 +12,7 @@ import { Package, Clock, CheckCircle, ChefHat, MessageSquare, Search, RotateCw, 
 import { formatCOP, formatKgCO2 } from '../../utils/formatters';
 import { useNotifications } from '../../context/NotificationContext';
 import { Leaf, Gift } from 'lucide-react';
+import { ChatWindow } from '../../components/chat/ChatWindow';
 import { dataService } from '../../services/dataService';
 import { logger } from '../../utils/logger';
 import { usePaginatedOrders } from '../../hooks/usePaginatedOrders';
@@ -22,7 +23,7 @@ export const OrderManagement: React.FC = () => {
     const initialSearch = searchParams.get('search') || '';
 
     const { user } = useAuth();
-    const { createChat, openChat } = useChat();
+    const { createChat, openChat, currentChat, closeChat } = useChat();
     const { success, error: showError } = useToast();
     const { sendNotification } = useNotifications();
     const queryClient = useQueryClient();
@@ -540,6 +541,17 @@ export const OrderManagement: React.FC = () => {
                             </>
                         )}
                     </button>
+                </div>
+            )}
+            {/* Chat Window Toggle (Specific order context) */}
+            {currentChat && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg h-[80vh] overflow-hidden animate-in fade-in zoom-in duration-300">
+                        <ChatWindow 
+                            onClose={() => closeChat()} 
+                            showBackButton={false}
+                        />
+                    </div>
                 </div>
             )}
         </div>

@@ -172,7 +172,10 @@ export const ChatButton: React.FC = () => {
                     <div className="flex-1 overflow-hidden">
                         {activeTab === 'messages' ? (
                             currentChat ? (
-                                <ChatWindow />
+                                <ChatWindow 
+                                    onBack={() => closeChat()} 
+                                    showBackButton={true}
+                                />
                             ) : (
                                 <ChatList />
                             )

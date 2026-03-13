@@ -3,7 +3,7 @@ import { useChat } from '../../context/ChatContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { MessageBubble } from './MessageBubble';
-import { X, Send, Loader2, MessageSquare, MapPin } from 'lucide-react';
+import { X, Send, Loader2, MessageSquare, MapPin, ArrowLeft } from 'lucide-react';
 import { doc, setDoc, serverTimestamp, collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { logger } from '../../utils/logger';
@@ -11,10 +11,17 @@ import { LoadingSpinner } from '../customer/common/Loading';
 
 interface ChatWindowProps {
     onClose?: () => void;
+    onBack?: () => void;
+    showBackButton?: boolean;
     className?: string;
 }
 
-export const ChatWindow: React.FC<ChatWindowProps> = ({ onClose, className = '' }) => {
+export const ChatWindow: React.FC<ChatWindowProps> = ({ 
+    onClose, 
+    onBack, 
+    showBackButton = false, 
+    className = '' 
+}) => {
     const { currentChat, messages, loading, sending, sendMessage, closeChat } = useChat();
     const { user } = useAuth();
     const { error: toastError } = useToast();
@@ -148,16 +155,29 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onClose, className = '' 
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 bg-white shadow-sm z-20 relative">
                 <div className="flex items-center gap-3">
-                    {/* Botón de volver para móvil */}
-                    <button
-                        onClick={() => {
-                            closeChat();
-                            onClose?.();
-                        }}
-                        className="md:hidden p-2 hover:bg-gray-100 rounded-xl transition-all active:scale-90"
-                    >
-                        <X size={20} className="text-gray-600" />
-                    </button>
+                    {/* Back Button (Global context) or nothing (Specific order context) */}
+                    {showBackButton ? (
+                        <button
+                            onClick={() => onBack?.()}
+                            className="p-2 hover:bg-gray-100 rounded-xl transition-all active:scale-90"
+                        >
+                            <ArrowLeft size={20} className="text-gray-600" />
+                        </button>
+                    ) : (
+                        /* Only show close button if no other way to exit and specifically on mobile if needed, 
+                           but for order chat we want only the right X */
+                        onClose && !showBackButton && (
+                            <button
+                                onClick={() => {
+                                    closeChat();
+                                    onClose();
+                                }}
+                                className="md:hidden p-1.5 hover:bg-gray-100 rounded-xl transition-all active:scale-90 hidden"
+                            >
+                                <X size={20} className="text-gray-600" />
+                            </button>
+                        )
+                    )}
 
                     <div className="relative">
                         <div className="w-11 h-11 rounded-2xl bg-emerald-600 flex items-center justify-center text-white font-black text-xl shadow-lg shadow-emerald-100">

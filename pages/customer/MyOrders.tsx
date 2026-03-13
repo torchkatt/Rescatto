@@ -573,7 +573,10 @@ export const MyOrders: React.FC = () => {
                         className="w-full max-w-2xl h-[min(78vh,600px)] mx-3 sm:mx-4 rounded-2xl overflow-hidden shadow-2xl cursor-default"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <ChatWindow onClose={() => setShowChatWindow(false)} />
+                        <ChatWindow 
+                            onClose={() => setShowChatWindow(false)} 
+                            showBackButton={false}
+                        />
                     </div>
                 </div>
             )}
