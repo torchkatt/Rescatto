@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Mail, Lock, ArrowRight, Eye, EyeOff, User, Gift } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Eye, EyeOff, User, Gift, Globe } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Logo } from '../components/common/Logo';
 import { logger } from '../utils/logger';
 import { auditService, AuditAction } from '../services/auditService';
@@ -19,7 +20,13 @@ const Login: React.FC = () => {
   const [error, setError] = useState('');
   const [selectedRole, setSelectedRole] = useState<'CUSTOMER' | 'BUSINESS'>('BUSINESS');
   const { user, isAuthenticated, login, loginWithGoogle, loginWithApple, loginWithFacebook, loginAsGuest } = useAuth();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+
+  const toggleLanguage = () => {
+    const newLang = i18n.language.startsWith('es') ? 'en' : 'es';
+    i18n.changeLanguage(newLang);
+  };
 
   // Redirigir si el usuario ya está autenticado (y no es invitado, o si lo es pero no estamos en modo registro/login explícito)
   useEffect(() => {
@@ -139,11 +146,20 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex bg-white font-outfit">
+    <div className="min-h-screen flex bg-white font-outfit relative">
       <SEO 
-        title={isRegistering ? "Crear cuenta" : "Iniciar Sesión"} 
-        description="Accede a Rescatto Business y gestiona tu excedente gastronómico de forma inteligente."
+        title={isRegistering ? t('login_title_register') : t('login_title_welcome')} 
+        description={t('login_desc')}
       />
+      
+      {/* Global Language Switcher */}
+      <button
+        onClick={toggleLanguage}
+        className="absolute top-6 right-6 z-50 flex items-center gap-2 bg-white/80 backdrop-blur-md px-4 py-2 rounded-full border border-slate-200 shadow-sm hover:shadow-md hover:bg-white text-slate-700 font-bold text-sm transition-all group"
+      >
+        <Globe size={16} className="text-emerald-600 group-hover:animate-pulse" />
+        {i18n.language.startsWith('es') ? 'ES' : 'EN'}
+      </button>
       {/* ... Contenido del lado izquierdo ... */}
       <div className="hidden lg:flex lg:w-1/2 bg-slate-900 relative overflow-hidden">
         <div className="absolute inset-0 z-0">
@@ -201,12 +217,12 @@ const Login: React.FC = () => {
               <span className="font-bold text-slate-900">Business</span>
             </div>
             <h2 className="text-3xl font-bold text-slate-900 mb-2 tracking-tight">
-              {isRegistering ? 'Crear cuenta' : 'Bienvenido de nuevo'}
+              {isRegistering ? t('login_title_register') : t('login_title_welcome')}
             </h2>
             <p className="text-slate-500">
               {isRegistering
-                ? 'Elige tu tipo de cuenta para empezar.'
-                : 'Accede al panel de control de tu negocio.'}
+                ? t('login_desc_register')
+                : t('login_desc_welcome')}
             </p>
           </div>
 
@@ -221,7 +237,7 @@ const Login: React.FC = () => {
                     : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
-                Soy Usuario
+                {t('login_role_customer')}
               </button>
               <button
                 type="button"
@@ -232,7 +248,7 @@ const Login: React.FC = () => {
                     : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
-                Soy Negocio
+                {t('login_role_business')}
               </button>
             </div>
           )}
@@ -248,7 +264,7 @@ const Login: React.FC = () => {
             {isRegistering && (
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700 ml-1">Nombre Completo</label>
+                  <label className="text-sm font-semibold text-slate-700 ml-1">{t('login_fullname')}</label>
                   <div className="relative group">
                     <User className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-emerald-500 transition-colors" size={20} />
                     <input
@@ -256,7 +272,7 @@ const Login: React.FC = () => {
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       className="block w-full pl-12 pr-4 py-3.5 border border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all bg-white text-base hover:border-slate-300"
-                      placeholder="Ej. Ana García"
+                      placeholder={t('login_fullname_ph')}
                       required
                     />
                   </div>
@@ -265,8 +281,8 @@ const Login: React.FC = () => {
                 {selectedRole === 'CUSTOMER' && (
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-slate-700 ml-1 flex items-center gap-1.5">
-                      Código de Referido 
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">(Opcional)</span>
+                      {t('login_referral')} 
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">{t('login_optional')}</span>
                     </label>
                     <div className="relative group">
                       <Gift className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-emerald-500 transition-colors" size={20} />
@@ -285,7 +301,7 @@ const Login: React.FC = () => {
             )}
 
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700 ml-1">Correo Electrónico</label>
+              <label className="text-sm font-semibold text-slate-700 ml-1">{t('login_email')}</label>
               <div className="relative group">
                 <Mail className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-emerald-500 transition-colors" size={20} />
                 <input
@@ -293,7 +309,7 @@ const Login: React.FC = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="block w-full pl-12 pr-4 py-3.5 border border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all bg-white text-base hover:border-slate-300"
-                  placeholder="nombre@empresa.com"
+                  placeholder={t('login_email_ph')}
                   required
                 />
               </div>
@@ -301,10 +317,10 @@ const Login: React.FC = () => {
 
             <div className="space-y-2">
               <div className="flex items-center justify-between px-1">
-                <label className="text-sm font-semibold text-slate-700">Contraseña</label>
+                <label className="text-sm font-semibold text-slate-700">{t('login_password')}</label>
                 {!isRegistering && (
                   <button type="button" className="text-sm font-medium text-emerald-600 hover:text-emerald-700 hover:underline">
-                    ¿Olvidaste tu contraseña?
+                    {t('login_forgot_pwd')}
                   </button>
                 )}
               </div>
@@ -315,7 +331,7 @@ const Login: React.FC = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="block w-full pl-12 pr-12 py-3.5 border border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all bg-white text-base hover:border-slate-300"
-                  placeholder="••••••••"
+                  placeholder={t('login_password_ph')}
                   required
                 />
                 <button
@@ -330,7 +346,7 @@ const Login: React.FC = () => {
 
             {isRegistering && (
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700 ml-1">Confirmar Contraseña</label>
+                <label className="text-sm font-semibold text-slate-700 ml-1">{t('login_confirm_password')}</label>
                 <div className="relative group">
                   <Lock className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-emerald-500 transition-colors" size={20} />
                   <input
@@ -338,7 +354,7 @@ const Login: React.FC = () => {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className="block w-full pl-12 pr-12 py-3.5 border border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all bg-white text-base hover:border-slate-300"
-                    placeholder="••••••••"
+                    placeholder={t('login_password_ph')}
                     required
                   />
                   <button
@@ -356,13 +372,13 @@ const Login: React.FC = () => {
               type="submit"
               className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-xl text-base font-bold shadow-lg shadow-emerald-500/30 hover:shadow-xl hover:shadow-emerald-500/40 transition-all duration-300 flex items-center justify-center gap-2 group transform active:scale-[0.98]"
             >
-              {isRegistering ? 'Crear Cuenta' : 'Iniciar Sesión'}
+              {isRegistering ? t('login_btn_register') : t('login_btn_login')}
               <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
             </button>
 
             <div className="my-8 flex items-center">
               <div className="flex-1 border-t border-slate-200"></div>
-              <span className="px-4 text-xs font-bold text-slate-400 uppercase tracking-widest">O continúa con</span>
+              <span className="px-4 text-xs font-bold text-slate-400 uppercase tracking-widest">{t('login_continue_with')}</span>
               <div className="flex-1 border-t border-slate-200"></div>
             </div>
 
@@ -414,18 +430,18 @@ const Login: React.FC = () => {
             className="w-full mt-6 bg-emerald-50 border border-emerald-100 hover:bg-emerald-100/50 text-emerald-700 py-4 rounded-xl text-sm font-bold transition-all active:scale-95 flex items-center justify-center gap-2 group shadow-sm"
           >
             <User size={18} className="group-hover:scale-110 transition-transform" />
-            Explorar como invitado
+            {t('login_btn_guest')}
           </button>
 
           <div className="mt-8 text-center text-sm">
             <span className="text-slate-500">
-              {isRegistering ? '¿Ya tienes una cuenta?' : '¿Aún no tienes cuenta?'}
+              {isRegistering ? t('login_has_account_q') : t('login_no_account_q')}
             </span>
             <button
               onClick={() => setIsRegistering(!isRegistering)}
               className="ml-2 font-bold text-emerald-600 hover:text-emerald-700 hover:underline transition-all active:scale-95"
             >
-              {isRegistering ? 'Inicia Sesión' : 'Regístrate aquí'}
+              {isRegistering ? t('login_link_login') : t('login_link_register')}
             </button>
           </div>
         </div>

@@ -10,6 +10,7 @@ import { getRatingStats } from '../../services/ratingService';
 
 import { HomeSkeletonLoader } from '../../components/customer/common/Loading';
 import { CategoriesBar } from '../../components/customer/home/CategoriesBar';
+import { useTranslation } from 'react-i18next';
 import {
     Search, MapPin, User, ShoppingBag, LogOut, ChevronDown,
     Heart, Leaf, Flame, TrendingUp, Zap, RefreshCw, Bell, Clock, Star, MessageCircle
@@ -27,6 +28,7 @@ import { SearchOverlay } from '../../components/customer/home/SearchOverlay';
 import { NotificationDisplay } from '../../components/common/NotificationDisplay';
 
 const CustomerHome: React.FC = () => {
+    const { t } = useTranslation();
     const { user, logout } = useAuth();
     const { info } = useToast();
     const navigate = useNavigate();
@@ -156,8 +158,8 @@ const CustomerHome: React.FC = () => {
     return (
         <div className="pb-40 bg-white min-h-screen">
             <SEO 
-                title="Explorar Rescates" 
-                description="Encuentra los mejores packs sorpresa de comida en Bogotá y salva el planeta mientras ahorras."
+                title={t('explore')} 
+                description={t('home_subtitle')}
             />
             {/* Premium Header */}
             <header className="px-6 pt-8 pb-4 bg-white sticky top-0 z-40">
@@ -181,10 +183,10 @@ const CustomerHome: React.FC = () => {
 
                     <div className="mb-6">
                         <h1 className="text-4xl font-black text-gray-900 tracking-tight leading-tight">
-                            {user?.fullName ? `¡Hola, ${user.fullName.split(' ')[0]}!` : '¡Bienvenido!'}
+                            {user?.fullName ? t('hello', { name: user.fullName.split(' ')[0] }) : t('welcome')}
                         </h1>
                         <p className="text-gray-400 font-bold text-lg">
-                            Descubre los mejores rescates hoy
+                            {t('home_subtitle')}
                         </p>
                     </div>
 
@@ -206,7 +208,7 @@ const CustomerHome: React.FC = () => {
                                 <div>
                                     <div className="flex items-center gap-1.5">
                                         <span className="text-lg font-black">{user.streak?.current || 0}</span>
-                                        <span className="text-[10px] font-bold text-white/90 uppercase tracking-wider">Días</span>
+                                        <span className="text-[10px] font-bold text-white/90 uppercase tracking-wider">{t('streak_days')}</span>
                                     </div>
                                     <div className="bg-yellow-400/90 text-yellow-900 text-[9px] font-black px-1.5 py-0.5 rounded-md flex items-center gap-0.5 mt-0.5 w-max">
                                         <Zap size={10} /> x{user.streak?.multiplier?.toFixed(1) || '1.0'}
@@ -215,7 +217,7 @@ const CustomerHome: React.FC = () => {
                             </div>
 
                             <div className="relative z-10 text-right">
-                                <p className="text-[9px] font-black text-white/70 uppercase tracking-widest mb-0.5">Mis Puntos</p>
+                                <p className="text-[9px] font-black text-white/70 uppercase tracking-widest mb-0.5">{t('my_points')}</p>
                                 <p className="text-xl font-black leading-none flex items-center justify-end gap-1">
                                     {(user.impact?.points || 0).toLocaleString('es-CO')}
                                     <span className="text-yellow-300 text-sm">💎</span>
@@ -236,7 +238,7 @@ const CustomerHome: React.FC = () => {
                                 type="text"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder="Busca tu restaurante o pack favorito..."
+                                placeholder={t('search_placeholder')}
                                 className="w-full py-4 pr-12 bg-transparent text-gray-900 placeholder-gray-400 font-bold focus:outline-none text-base"
                             />
                             {searchQuery && (
@@ -252,17 +254,17 @@ const CustomerHome: React.FC = () => {
 
                     {/* Modern Categories Bar */}
                     <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
-                        {['All', 'Italian', 'Japanese', 'American', 'French', 'Healthy', 'Bakery'].map((cat) => (
+                        {['all', 'italian', 'japanese', 'american', 'french', 'healthy', 'bakery'].map((cat) => (
                             <button
                                 key={cat}
                                 onClick={() => setSelectedCategory(cat.toLowerCase())}
                                 className={`px-6 py-2.5 rounded-full text-sm font-black whitespace-nowrap transition-all border ${
-                                    (selectedCategory === cat.toLowerCase() || (cat === 'All' && selectedCategory === 'all'))
+                                    (selectedCategory === cat.toLowerCase() || (cat === 'all' && selectedCategory === 'all'))
                                     ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-500/30'
                                     : 'bg-white border-gray-100 text-gray-500 hover:border-emerald-200 hover:bg-emerald-50'
                                 }`}
                             >
-                                {cat}
+                                {t(`cat_${cat.toLowerCase()}`)}
                             </button>
                         ))}
                     </div>
@@ -276,9 +278,9 @@ const CustomerHome: React.FC = () => {
                     <div className="px-6 flex items-center justify-between mb-5">
                         <div className="flex items-center gap-2">
                             <Logo size="sm" className="bg-transparent shadow-none border-none p-0" iconColor="#10b981" />
-                            <h2 className="text-2xl font-black text-gray-900 tracking-tight">Featured Deals</h2>
+                            <h2 className="text-2xl font-black text-gray-900 tracking-tight">{t('featured_deals')}</h2>
                         </div>
-                        <button className="text-emerald-600 font-black text-sm hover:underline">See All</button>
+                        <button className="text-emerald-600 font-black text-sm hover:underline">{t('see_all')}</button>
                     </div>
                     
                     <div className="flex gap-6 overflow-x-auto no-scrollbar px-6 pb-6">
@@ -300,12 +302,12 @@ const CustomerHome: React.FC = () => {
                     <div className="flex items-center justify-between mb-5">
                         <div className="flex items-center gap-2">
                             <Clock size={24} className="text-red-500" />
-                            <h2 className="text-2xl font-black text-gray-900 tracking-tight">Ending Soon</h2>
+                            <h2 className="text-2xl font-black text-gray-900 tracking-tight">{t('ending_soon')}</h2>
                             <span className="bg-red-50 text-red-500 text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md border border-red-100">
-                                Limited
+                                {t('limited')}
                             </span>
                         </div>
-                        <button className="text-emerald-600 font-black text-sm hover:underline">See All</button>
+                        <button className="text-emerald-600 font-black text-sm hover:underline">{t('see_all')}</button>
                     </div>
 
                     <div className="space-y-4">
@@ -329,7 +331,7 @@ const CustomerHome: React.FC = () => {
                                 <div className="flex-1 min-w-0">
                                     <h3 className="text-lg font-black text-gray-900 truncate tracking-tight">{venue.name}</h3>
                                     <p className="text-sm font-bold text-gray-400 truncate mb-2">
-                                        {venue.businessType || 'Pack Sorpresa'}
+                                        {venue.businessType || t('surprise_pack')}
                                     </p>
                                     <div className="flex items-center justify-between">
                                         <div>
@@ -353,7 +355,7 @@ const CustomerHome: React.FC = () => {
                                             }}
                                             className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-black shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
                                         >
-                                            Ver Pack
+                                            {t('view_pack')}
                                         </button>
                                     </div>
                                 </div>
@@ -366,7 +368,7 @@ const CustomerHome: React.FC = () => {
                 {/* All Places Grid */}
                 {filteredVenues.length > 0 ? (
                 <section className="px-6 pb-28">
-                    <h2 className="text-2xl font-black text-gray-900 tracking-tight mb-5">All Places</h2>
+                    <h2 className="text-2xl font-black text-gray-900 tracking-tight mb-5">{t('all_places')}</h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                         {filteredVenues.map(venue => (
                             <VenueCard 
@@ -383,9 +385,9 @@ const CustomerHome: React.FC = () => {
                         <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
                             <Search size={24} className="text-gray-400" />
                         </div>
-                        <h3 className="text-xl font-black text-gray-900 mb-2">No encontramos lugares</h3>
+                        <h3 className="text-xl font-black text-gray-900 mb-2">{t('no_places_title')}</h3>
                         <p className="text-gray-500 max-w-sm mx-auto">
-                            Intenta ajustar tus filtros de búsqueda o explorar otras categorías para encontrar rescates deliciosos.
+                            {t('no_places_desc')}
                         </p>
                     </div>
                 )}
