@@ -236,7 +236,7 @@ export const VenuesManager: React.FC = () => {
         try {
             if (formData.id) {
                 // Update
-                await adminService.updateVenue(formData.id, formData);
+                await adminService.updateVenue(formData.id, formData, currentUser?.id || 'system');
             } else {
                 // Create
                 const newVenue: Omit<Venue, 'id'> = {
@@ -259,7 +259,7 @@ export const VenuesManager: React.FC = () => {
                         minOrderAmount: 0
                     }
                 };
-                await adminService.createVenue(newVenue);
+                await adminService.createVenue(newVenue, currentUser?.id || 'system');
             }
 
             // Clear cache to ensure fresh data is loaded
@@ -284,7 +284,7 @@ export const VenuesManager: React.FC = () => {
 
         if (confirmed) {
             try {
-                await adminService.deleteVenue(venueId);
+                await adminService.deleteVenue(venueId, currentUser?.id || 'system');
                 toast.success('Negocio eliminado correctamente');
                 loadVenues();
             } catch (error) {

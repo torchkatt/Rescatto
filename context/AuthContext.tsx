@@ -1,15 +1,18 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, ReactNode } from 'react';
-import { User, UserRole } from '../types';
+import { User, UserRole, Membership } from '../types';
 import { authService } from '../services/authService';
 import { onAuthStateChanged, sendEmailVerification, User as FirebaseUser } from 'firebase/auth';
 import { auth } from '../services/firebase';
-import { doc, getDoc, setDoc, updateDoc, onSnapshot, Unsubscribe } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, onSnapshot, Unsubscribe, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { roleService, RoleDefinition } from '../services/roleService';
 import { logger } from '../utils/logger';
 
 interface AuthContextType {
   user: User | null;
+  memberships: Membership[]; // [V2 Multi-Role]
+  activeMembership: Membership | null; // [V2 Multi-Role]
+  switchMembership: (membershipId: string) => Promise<void>; // [V2 Multi-Role]
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, pass: string) => Promise<void>;
@@ -31,6 +34,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [memberships, setMemberships] = useState<Membership[]>([]);
+  const [activeMembership, setActiveMembership] = useState<Membership | null>(null);
   const [roles, setRoles] = useState<RoleDefinition[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -60,6 +65,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     // Escuchar cambios de estado de autenticación de Firebase
     const authUnsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      logger.log('AuthContext: onAuthStateChanged detectado', firebaseUser?.uid);
       try {
         // Limpiar listener de usuario anterior si existe
         if (userUnsubscribe) {
@@ -70,8 +76,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (firebaseUser) {
           // Suscribirse al perfil de usuario en Firestore (Actualizaciones en tiempo real)
           const userDocRef = doc(db, 'users', firebaseUser.uid);
+          logger.log('AuthContext: conectando onSnapshot para', firebaseUser.uid);
 
           userUnsubscribe = onSnapshot(userDocRef, (userDoc) => {
+            logger.log('AuthContext: onSnapshot disparado. Doc existe?', userDoc.exists());
             if (userDoc.exists()) {
               const userData = userDoc.data();
               const role = (userData.role as UserRole) || UserRole.CUSTOMER;
@@ -116,6 +124,34 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 hasSeenOnboarding: userData.hasSeenOnboarding,
                 referralCode: userData.referralCode,
               });
+
+              // [V2] Cargar membresías del usuario
+              const loadUserMemberships = async () => {
+                try {
+                  const q = query(collection(db, 'memberships'), where('userId', '==', firebaseUser.uid));
+                  const querySnapshot = await getDocs(q);
+                  const userMemberships: Membership[] = [];
+                  querySnapshot.forEach((docSnap) => {
+                    userMemberships.push({ id: docSnap.id, ...docSnap.data() } as Membership);
+                  });
+                  setMemberships(userMemberships);
+                  
+                  if (userData.activeMembershipId) {
+                    const active = userMemberships.find(m => m.id === userData.activeMembershipId);
+                    setActiveMembership(active || (userMemberships.length > 0 ? userMemberships[0] : null));
+                  } else if (userMemberships.length > 0) {
+                    setActiveMembership(userMemberships[0]);
+                  } else {
+                    setActiveMembership(null);
+                  }
+                } catch (err) {
+                  logger.error("Error cargando memberships V2:", err);
+                } finally {
+                  setIsLoading(false);
+                }
+              };
+              
+              loadUserMemberships();
             } else {
               setUser({
                 id: firebaseUser.uid,
@@ -125,8 +161,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 avatarUrl: firebaseUser.photoURL,
                 isGuest: firebaseUser.isAnonymous,
               });
+              setMemberships([]);
+              setActiveMembership(null);
+              setIsLoading(false);
             }
-            setIsLoading(false);
           }, (error) => {
             logger.error("Error en tiempo real de AuthContext:", error);
             setUser({
@@ -137,15 +175,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               avatarUrl: firebaseUser.photoURL,
               isGuest: firebaseUser.isAnonymous,
             });
+            setMemberships([]);
+            setActiveMembership(null);
             setIsLoading(false);
           });
         } else {
           setUser(null);
+          setMemberships([]);
+          setActiveMembership(null);
           setIsLoading(false);
         }
       } catch (error) {
         logger.error("Error en AuthContext cargando perfil de usuario:", error);
         setUser(null);
+        setMemberships([]);
+        setActiveMembership(null);
         setIsLoading(false);
       }
     });
@@ -219,6 +263,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       await authService.logout();
       setUser(null); // Forzar limpieza de estado inmediatamente
+      setMemberships([]);
+      setActiveMembership(null);
     } catch (error) {
       logger.error('AuthContext: error en logout', error);
       throw error;
@@ -228,9 +274,31 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Ayudante RBAC
   const hasRole = useCallback((allowedRoles: UserRole[]): boolean => {
     if (!user) return false;
-    if (user.role === UserRole.SUPER_ADMIN) return true;
-    return allowedRoles.includes(user.role);
-  }, [user]);
+    
+    // Check Legacy Role (V1)
+    const legacyRole = user.role;
+    const hasLegacyRole = legacyRole === UserRole.SUPER_ADMIN || allowedRoles.includes(legacyRole);
+    
+    // Check Active Membership Role (V2)
+    let hasV2Role = false;
+    if (activeMembership) {
+      const v2Role = activeMembership.role as UserRole;
+      hasV2Role = v2Role === UserRole.SUPER_ADMIN || allowedRoles.includes(v2Role);
+    }
+
+    const result = hasLegacyRole || hasV2Role;
+    
+    if (allowedRoles.includes(UserRole.ADMIN)) {
+      console.log('[AuthDebug] checking Admin access:', { 
+        result, 
+        legacyRole, 
+        v2Role: activeMembership?.role,
+        allowedRoles 
+      });
+    }
+
+    return result;
+  }, [user, activeMembership]);
 
   const sendVerificationEmail = useCallback(async () => {
     await authService.sendVerificationEmail();
@@ -265,9 +333,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [user]);
 
+  const switchMembership = useCallback(async (membershipId: string) => {
+    if (!user) return;
+    try {
+      const userRef = doc(db, 'users', user.id);
+      await updateDoc(userRef, { activeMembershipId: membershipId });
+      // El onSnapshot detectará el cambio y actualizará activeMembership a través de Firestore realtime
+    } catch (error) {
+      logger.error('Error switching membership:', error);
+      throw error;
+    }
+  }, [user]);
+
   // Memoize the context value to prevent unnecessary re-renders in all consumers
   const contextValue = useMemo(() => ({
     user,
+    memberships,
+    activeMembership,
+    switchMembership,
     isAuthenticated: !!user,
     isLoading,
     login,
@@ -283,9 +366,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     isEmailVerified,
     isAccountVerified,
     switchVenue,
-  }), [user, isLoading, roles, isEmailVerified, isAccountVerified,
+  }), [user, memberships, activeMembership, isLoading, roles, isEmailVerified, isAccountVerified,
     login, loginWithGoogle, loginWithApple, loginWithFacebook, loginAsGuest,
-    convertGuestToUser, logout, hasRole, sendVerificationEmail, switchVenue]);
+    convertGuestToUser, logout, hasRole, sendVerificationEmail, switchVenue, switchMembership]);
 
   return (
     <AuthContext.Provider value={contextValue}>

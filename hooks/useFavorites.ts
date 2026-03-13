@@ -38,7 +38,7 @@ export const useFavorites = () => {
 
                 if (userDoc.exists()) {
                     const userData = userDoc.data();
-                    const remoteFavs = userData.favorites || [];
+                    const remoteFavs = userData.favoriteVenueIds || [];
 
                     // Update state and local storage if different
                     if (JSON.stringify(remoteFavs) !== localFavs) {
@@ -77,7 +77,7 @@ export const useFavorites = () => {
         try {
             const userRef = doc(db, 'users', user.id);
             await updateDoc(userRef, {
-                favorites: isFav ? arrayRemove(venueId) : arrayUnion(venueId)
+                favoriteVenueIds: isFav ? arrayRemove(venueId) : arrayUnion(venueId)
             });
         } catch (error) {
             logger.error('Error saving favorite:', error);

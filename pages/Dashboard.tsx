@@ -52,10 +52,21 @@ const ActionCard: React.FC<{ to: string; title: string; subtitle: string; icon: 
 
 import { useDashboardStats } from '../hooks/useDashboardStats';
 import { useQuery } from '@tanstack/react-query';
+import { MerchantAIPredictions } from '../components/business/MerchantAIPredictions';
+import { Zap as ZapIcon } from 'lucide-react';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
-  const venueId = user?.venueIds?.[0] ?? user?.venueId;
+  const [activeVenueId, setActiveVenueId] = useState(user?.venueIds?.[0] ?? user?.venueId);
+  
+  // Listado de sedes para el selector (si tiene múltiples)
+  const { data: myVenues } = useQuery({
+    queryKey: ['myVenues', user?.venueIds],
+    queryFn: () => dataService.getVenuesByIds(user?.venueIds || []),
+    enabled: !!user?.venueIds?.length && user.venueIds.length > 1
+  });
+
+  const venueId = activeVenueId;
   
   // Usamos el nuevo hook cacheado de React Query para estadísticas en vivo ricas
   const { data: stats } = useDashboardStats(venueId);
@@ -89,21 +100,43 @@ const Dashboard: React.FC = () => {
           </h1>
           <p className="text-slate-500 font-medium mt-1 capitalize">{today}</p>
         </div>
-        <div className="px-5 py-2 rounded-full bg-white border border-slate-200 shadow-sm flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-          <span className="text-sm font-semibold text-slate-700">Rescatto Partner <span className="text-amber-500">Oro</span></span>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          {user?.venueIds && user.venueIds.length > 1 && (
+            <select 
+              value={activeVenueId}
+              onChange={(e) => setActiveVenueId(e.target.value)}
+              className="bg-white border border-slate-200 text-slate-700 text-sm font-bold rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none block p-2.5 shadow-sm transition-all"
+            >
+              {myVenues?.map(v => (
+                <option key={v.id} value={v.id}>{v.name}</option>
+              ))}
+            </select>
+          )}
+          <div className="px-5 py-2.5 rounded-xl bg-white border border-slate-200 shadow-sm flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+            <span className="text-sm font-black text-slate-700 uppercase tracking-tight">Rescatto Partner <span className="text-amber-500">Oro</span></span>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {user?.role !== UserRole.KITCHEN_STAFF && (
-          <MetricCard
-            title="Ingresos Recuperados"
-            value={formatCOP(displayMetrics.revenue)}
-            icon={<DollarSign size={24} className="text-blue-600" />}
-            color="bg-blue-500"
-            trend="+12%"
-          />
+          <>
+            <MetricCard
+              title="Ventas Brutas"
+              value={formatCOP(displayMetrics.revenue)}
+              icon={<DollarSign size={24} className="text-blue-600" />}
+              color="bg-blue-500"
+              trend="+12%"
+            />
+            <MetricCard
+              title="Ganancias Netas"
+              value={formatCOP(stats?.venueEarnings ?? displayMetrics.revenue * 0.9)}
+              icon={<DollarSign size={24} className="text-emerald-600" />}
+              color="bg-emerald-500"
+              trend="+12%"
+            />
+          </>
         )}
         <MetricCard
           title="Comida Salvada"
@@ -131,7 +164,11 @@ const Dashboard: React.FC = () => {
 
       {user?.role !== UserRole.KITCHEN_STAFF && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+          <div className="lg:col-span-2 space-y-6">
+            {/* [NUEVO] IA Predictiva - Capa 13 */}
+            {venueId && <MerchantAIPredictions venue={stats as any || { id: venueId, name: user?.fullName } as any} />}
+
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-lg font-bold text-slate-800">Tendencia de Impacto</h2>
               <select className="bg-slate-50 border border-slate-200 text-slate-600 text-base rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none block p-2 transition-all duration-200 cursor-pointer">
@@ -169,32 +206,61 @@ const Dashboard: React.FC = () => {
                   <BarChartIcon size={48} className="mb-2 opacity-50" />
                   <p>Sin datos suficientes aún</p>
                 </div>
-              )}         </div>
+              )}
+            </div>
           </div>
+        </div>
 
-          <div className="space-y-4">
-            <h2 className="text-lg font-bold text-slate-800 mb-2">Acciones Rápidas</h2>
-            <ActionCard
-              to="/products"
-              title="Nuevo Producto"
-              subtitle="Publicar oferta flash"
-              icon={<Plus size={24} className="text-emerald-600" />}
-              color="bg-emerald-500"
-            />
-            <ActionCard
-              to="/order-management"
-              title="Gestionar Pedidos"
-              subtitle="4 pendientes"
-              icon={<ClipboardList size={24} className="text-blue-600" />}
-              color="bg-blue-500"
-            />
-            <ActionCard
-              to="/settings"
-              title="Configuración"
-              subtitle="Perfil y horarios"
-              icon={<SettingsIcon size={24} className="text-purple-600" />}
-              color="bg-purple-500"
-            />
+          <div className="space-y-6">
+            {/* Top Products AI Insights */}
+            <div className="bg-slate-900 text-white p-6 rounded-2xl shadow-xl overflow-hidden relative">
+              <div className="absolute -right-4 -top-4 w-24 h-24 bg-emerald-500/20 rounded-full blur-2xl"></div>
+              <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                <span className="text-emerald-400">✨</span> Productos Estrella
+              </h2>
+              <div className="space-y-4">
+                {stats?.topProducts && stats.topProducts.length > 0 ? (
+                  stats.topProducts.map((p, i) => (
+                    <div key={i} className="flex justify-between items-center bg-white/5 p-3 rounded-xl border border-white/10 hover:bg-white/10 transition-colors">
+                      <span className="text-sm font-medium text-slate-300">{p.name}</span>
+                      <span className="bg-emerald-500/20 text-emerald-400 text-xs font-black px-2 py-0.5 rounded-full">
+                        {p.count} vendidos
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-slate-400 italic">No hay datos de ventas recientes.</p>
+                )}
+              </div>
+              <button className="w-full mt-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black rounded-xl transition-all active:scale-[0.98]">
+                ANALIZAR CON RESCATTO AI
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <h2 className="text-lg font-bold text-slate-800 mb-2">Acciones Rápidas</h2>
+              <ActionCard
+                to="/products"
+                title="Nuevo Producto"
+                subtitle="Publicar oferta flash"
+                icon={<Plus size={24} className="text-emerald-600" />}
+                color="bg-emerald-500"
+              />
+              <ActionCard
+                to="/order-management"
+                title="Gestionar Pedidos"
+                subtitle={`${stats?.ordersByStatus?.['PAID'] || 0} pendientes`}
+                icon={<ClipboardList size={24} className="text-blue-600" />}
+                color="bg-blue-500"
+              />
+              <ActionCard
+                to="/settings"
+                title="Configuración"
+                subtitle="Perfil y horarios"
+                icon={<SettingsIcon size={24} className="text-purple-600" />}
+                color="bg-purple-500"
+              />
+            </div>
           </div>
         </div>
       )}

@@ -15,6 +15,8 @@ import { Tooltip } from '../../components/common/Tooltip';
 import MobilePreview from '../../components/MobilePreview';
 import { logger } from '../../utils/logger';
 import { formatCOP } from '../../utils/formatters';
+import { geminiService } from '../../services/geminiService';
+import { Sparkles } from 'lucide-react';
 
 export const ProductManager: React.FC = () => {
     const toast = useToast();
@@ -46,10 +48,15 @@ export const ProductManager: React.FC = () => {
         discountedPrice: 0,
         quantity: 0,
         imageUrl: '',
+        description: '',
         availableUntil: '',
         isDynamicPricing: false,
+        isRecurring: false,
+        recurrencyDays: [] as string[],
         tags: [] as string[],
     });
+
+    const [isGeneratingAI, setIsGeneratingAI] = useState(false);
 
     useEffect(() => {
         if (user) {
@@ -133,8 +140,11 @@ export const ProductManager: React.FC = () => {
                 discountedPrice: product.discountedPrice,
                 quantity: product.quantity,
                 imageUrl: product.imageUrl,
+                description: product.description || '',
                 availableUntil: product.availableUntil.split('T')[0], // Format for input[type=date]
                 isDynamicPricing: product.isDynamicPricing,
+                isRecurring: product.isRecurring || false,
+                recurrencyDays: product.recurrencyDays || [],
                 tags: product.tags || [],
             });
         } else {
@@ -147,12 +157,41 @@ export const ProductManager: React.FC = () => {
                 discountedPrice: 0,
                 quantity: 0,
                 imageUrl: 'https://picsum.photos/400/300',
+                description: '',
                 availableUntil: new Date().toISOString().split('T')[0],
                 isDynamicPricing: false,
+                isRecurring: false,
+                recurrencyDays: [],
                 tags: [],
             });
         }
         setShowModal(true);
+    };
+
+    const handleAIGenerate = async () => {
+        if (!selectedVenueId) return;
+        
+        setIsGeneratingAI(true);
+        try {
+            const venue = venues.find(v => v.id === selectedVenueId);
+            const suggestion = await geminiService.generateProductSuggestion(
+                venue?.businessType || 'Restaurante',
+                formData.type
+            );
+            
+            setFormData(prev => ({
+                ...prev,
+                name: suggestion.name,
+                description: suggestion.description
+            }));
+            
+            toast.success('¡Sugerencia generada con éxito! ✨');
+        } catch (error) {
+            logger.error('Error fallback AI:', error);
+            toast.error('No se pudo generar la sugerencia');
+        } finally {
+            setIsGeneratingAI(false);
+        }
     };
 
     const handleCloseModal = () => {
@@ -182,6 +221,9 @@ export const ProductManager: React.FC = () => {
                 imageUrl: productData.imageUrl,
                 availableUntil: productData.availableUntil,
                 isDynamicPricing: productData.isDynamicPricing,
+                isRecurring: productData.isRecurring,
+                recurrencyDays: productData.recurrencyDays,
+                description: productData.description,
                 tags: productData.tags || [],
                 venueId: productData.venueId
             };
@@ -242,8 +284,11 @@ export const ProductManager: React.FC = () => {
             discountedPrice: product.discountedPrice,
             quantity: 0,
             imageUrl: product.imageUrl,
+            description: product.description || '',
             availableUntil: new Date().toISOString().split('T')[0],
             isDynamicPricing: product.isDynamicPricing,
+            isRecurring: product.isRecurring || false,
+            recurrencyDays: product.recurrencyDays || [],
             tags: product.tags || [],
         });
         setShowModal(true);
@@ -544,15 +589,39 @@ export const ProductManager: React.FC = () => {
                         <form onSubmit={handleSubmit} className="p-6 space-y-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="md:col-span-2">
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Nombre del Producto *
-                                    </label>
+                                    <div className="flex justify-between items-end mb-2">
+                                        <label className="block text-sm font-medium text-gray-700">
+                                            Nombre del Producto *
+                                        </label>
+                                        <button
+                                            type="button"
+                                            onClick={handleAIGenerate}
+                                            disabled={isGeneratingAI}
+                                            className="text-[10px] font-black uppercase tracking-widest text-emerald-600 flex items-center gap-1 hover:text-emerald-700 disabled:opacity-50 transition-all bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100"
+                                        >
+                                            <Sparkles size={12} className={isGeneratingAI ? 'animate-spin' : ''} />
+                                            {isGeneratingAI ? 'Generando...' : 'Sugerir con IA'}
+                                        </button>
+                                    </div>
                                     <input
                                         type="text"
                                         value={formData.name}
                                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                         className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-base transition-all duration-200"
                                         required
+                                        placeholder="Ej: Pack Sorpresa Familiar"
+                                    />
+                                </div>
+
+                                <div className="md:col-span-2">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Descripción
+                                    </label>
+                                    <textarea
+                                        value={formData.description}
+                                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm transition-all duration-200 h-24 resize-none"
+                                        placeholder="Describe brevemente qué puede incluir este pack..."
                                     />
                                 </div>
 
@@ -691,19 +760,48 @@ export const ProductManager: React.FC = () => {
                                 </div>
 
                                 <div className="md:col-span-2">
-                                    <div className="flex items-center gap-3 p-3 bg-yellow-50 rounded-lg border border-yellow-100">
+                                    <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
                                         <input
                                             type="checkbox"
-                                            id="dynamic-pricing"
-                                            className="w-4 h-4 text-emerald-600 rounded"
-                                            checked={formData.isDynamicPricing}
-                                            onChange={e => setFormData({ ...formData, isDynamicPricing: e.target.checked })}
+                                            id="is-recurring"
+                                            className="w-4 h-4 text-blue-600 rounded"
+                                            checked={formData.isRecurring}
+                                            onChange={e => setFormData({ ...formData, isRecurring: e.target.checked })}
                                         />
-                                        <label htmlFor="dynamic-pricing" className="text-sm text-gray-700 font-medium cursor-pointer">
-                                            Activar Precio Dinámico (IA)
-                                            <span className="block text-xs text-gray-500 font-normal">Reduce el precio automáticamente antes del cierre para maximizar rescates.</span>
+                                        <label htmlFor="is-recurring" className="text-sm text-gray-700 font-medium cursor-pointer">
+                                            Publicación Recurrente
+                                            <span className="block text-xs text-gray-500 font-normal">Publicar automáticamente este producto en los días seleccionados.</span>
                                         </label>
                                     </div>
+                                    
+                                    {formData.isRecurring && (
+                                        <div className="mt-3 flex flex-wrap gap-2">
+                                            {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((day, idx) => {
+                                                const dayCodes = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+                                                const code = dayCodes[idx];
+                                                const isActive = formData.recurrencyDays.includes(code);
+                                                return (
+                                                    <button
+                                                        key={code}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const newDays = isActive 
+                                                                ? formData.recurrencyDays.filter(d => d !== code)
+                                                                : [...formData.recurrencyDays, code];
+                                                            setFormData({ ...formData, recurrencyDays: newDays });
+                                                        }}
+                                                        className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                                                            isActive 
+                                                                ? 'bg-blue-600 text-white shadow-md' 
+                                                                : 'bg-white border border-gray-200 text-gray-400 hover:border-blue-300 hover:text-blue-500'
+                                                        }`}
+                                                    >
+                                                        {day}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 

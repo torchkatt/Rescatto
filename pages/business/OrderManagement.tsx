@@ -9,8 +9,9 @@ import { Order, OrderStatus, Permission, UserRole } from '../../types';
 import { PermissionGate } from '../../components/PermissionGate';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
 import { Package, Clock, CheckCircle, ChefHat, MessageSquare, Search, RotateCw, Heart, MapPin, Truck, X, User, ChevronDown } from 'lucide-react';
-import { formatCOP } from '../../utils/formatters';
+import { formatCOP, formatKgCO2 } from '../../utils/formatters';
 import { useNotifications } from '../../context/NotificationContext';
+import { Leaf, Gift } from 'lucide-react';
 import { dataService } from '../../services/dataService';
 import { logger } from '../../utils/logger';
 import { usePaginatedOrders } from '../../hooks/usePaginatedOrders';
@@ -404,10 +405,23 @@ export const OrderManagement: React.FC = () => {
 
                                 {/* Total */}
                                 <div className="flex justify-between items-center mb-4 pb-4 border-b">
-                                    <span className="font-semibold text-gray-700">Total</span>
-                                    <span className="text-2xl font-bold text-emerald-600">
-                                        {formatCOP(order.totalAmount)}
-                                    </span>
+                                    <div className="flex flex-col gap-1 items-end">
+                                        <span className="text-2xl font-bold text-emerald-600">
+                                            {formatCOP(order.totalAmount)}
+                                        </span>
+                                        <div className="flex gap-2">
+                                            {order.estimatedCo2 && (
+                                                <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                    <Leaf size={10} /> -{formatKgCO2(order.estimatedCo2)}
+                                                </span>
+                                            )}
+                                            {order.pointsEarned && (
+                                                <span className="text-[10px] font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                    <Gift size={10} /> +{order.pointsEarned} pts
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <PermissionGate requires={Permission.MANAGE_ORDERS}>

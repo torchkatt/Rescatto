@@ -24,7 +24,11 @@ interface DashboardStats {
     pendingOrders: number;
 }
 
-export const AdminOverview: React.FC = () => {
+interface Props {
+    city?: string;
+}
+
+export const AdminOverview: React.FC<Props> = ({ city }) => {
     const [stats, setStats] = useState<DashboardStats>({
         totalUsers: 0,
         totalVenues: 0,
@@ -51,14 +55,13 @@ export const AdminOverview: React.FC = () => {
             );
 
             // Run optimized queries in parallel — cuts dashboard load time by ~95%
-            const [users, venues, productsSnapshot, todayOrdersSnapshot, activeDeliveriesCount, pendingOrdersCount, globalStatsDoc] = await Promise.all([
-                adminService.getAllUsers(),
-                adminService.getAllVenues(),
-                getCountFromServer(collection(db, 'products')),
-                getDocs(todayOrdersQuery), // Fetches only today's orders for the specific sum
-                getCountFromServer(query(collection(db, 'orders'), where('status', '==', 'IN_TRANSIT'))),
-                getCountFromServer(query(collection(db, 'orders'), where('status', 'in', ['PENDING', 'PAID']))),
-                getDoc(doc(db, 'stats', 'global'))
+            const [users, venues, productsSnapshot, todayOrdersSnapshot, activeDeliveriesCount, pendingOrdersCount] = await Promise.all([
+                adminService.getAllUsers(city),
+                adminService.getAllVenues(true, city),
+                getCountFromServer(city ? query(collection(db, 'products'), where('city', '==', city)) : collection(db, 'products')),
+                getDocs(city ? query(todayOrdersQuery, where('city', '==', city)) : todayOrdersQuery),
+                getCountFromServer(query(collection(db, 'orders'), where('status', '==', 'IN_TRANSIT'), ...(city ? [where('city', '==', city)] : []))),
+                getCountFromServer(query(collection(db, 'orders'), where('status', 'in', ['PENDING', 'PAID']), ...(city ? [where('city', '==', city)] : []))),
             ]);
 
             const totalProducts = productsSnapshot.data().count;
@@ -70,7 +73,12 @@ export const AdminOverview: React.FC = () => {
 
             // Build 7-day chart data
             const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); sevenDaysAgo.setHours(0, 0, 0, 0);
-            const weekOrdersSnap = await getDocs(query(collection(db, 'orders'), where('createdAt', '>=', Timestamp.fromDate(sevenDaysAgo))));
+            const weekOrdersQuery = query(
+                collection(db, 'orders'), 
+                where('createdAt', '>=', Timestamp.fromDate(sevenDaysAgo)),
+                ...(city ? [where('city', '==', city)] : [])
+            );
+            const weekOrdersSnap = await getDocs(weekOrdersQuery);
             const dayMap: Record<string, number> = {};
             for (let i = 0; i < 7; i++) {
                 const d = new Date(); d.setDate(d.getDate() - (6 - i)); d.setHours(0, 0, 0, 0);
@@ -151,7 +159,9 @@ export const AdminOverview: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-gray-800">Vista General de la Plataforma</h2>
+            <h2 className="text-2xl font-bold text-gray-800">
+                {city ? `Vista General: ${city}` : 'Vista General de la Plataforma'}
+            </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {statCards.map((card, index) => {

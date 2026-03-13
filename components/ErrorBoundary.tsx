@@ -2,6 +2,8 @@ import React, { Component, ErrorInfo, ReactNode } from 'react';
 import * as Sentry from '@sentry/react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
 
+import { ErrorState } from './common/ErrorState';
+
 interface ErrorBoundaryProps {
   children: ReactNode;
   /** Custom fallback UI to show on error */
@@ -81,53 +83,13 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     }
 
     // Full page error
-    const { section } = this.props;
-    const { error } = this.state;
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-2xl shadow-lg p-8 text-center">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <AlertTriangle className="w-8 h-8 text-red-500" />
-          </div>
-
-          <h2 className="text-xl font-bold text-gray-900 mb-2">
-            Algo salió mal
-          </h2>
-
-          <p className="text-gray-500 text-sm mb-1">
-            {section
-              ? `La sección "${section}" encontró un error inesperado.`
-              : 'Se produjo un error inesperado en la aplicación.'}
-          </p>
-
-          {import.meta.env.DEV && error && (
-            <details className="mt-3 mb-4 text-left">
-              <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-600">
-                Detalles del error (solo desarrollo)
-              </summary>
-              <pre className="mt-2 p-3 bg-gray-100 rounded text-xs text-red-700 overflow-auto max-h-32 whitespace-pre-wrap">
-                {error.message}
-              </pre>
-            </details>
-          )}
-
-          <div className="flex gap-3 mt-6">
-            <button
-              onClick={this.handleGoHome}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors"
-            >
-              <Home className="w-4 h-4" />
-              Ir al inicio
-            </button>
-            <button
-              onClick={this.handleReset}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 transition-colors"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Reintentar
-            </button>
-          </div>
-        </div>
+        <ErrorState 
+          error={this.state.error || new Error('Unknown Error')}
+          resetErrorBoundary={this.handleReset}
+          title={this.props.section ? `Error en ${this.props.section}` : undefined}
+        />
       </div>
     );
   }

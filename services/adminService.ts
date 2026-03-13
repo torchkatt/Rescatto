@@ -12,7 +12,8 @@ import {
     startAfter,
     QueryDocumentSnapshot,
     DocumentData,
-    getCountFromServer
+    getCountFromServer,
+    where
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from './firebase';
@@ -48,8 +49,13 @@ export const adminService = {
 
     // --- USUARIOS ---
 
-    getAllUsers: async (): Promise<User[]> => {
-        const querySnapshot = await getDocs(collection(db, 'users'));
+    getAllUsers: async (cityFilter?: string): Promise<User[]> => {
+        const usersRef = collection(db, 'users');
+        let q = query(usersRef);
+        if (cityFilter) {
+            q = query(usersRef, where('city', '==', cityFilter));
+        }
+        const querySnapshot = await getDocs(q);
         return querySnapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
@@ -126,22 +132,30 @@ export const adminService = {
 
     // --- GESTIÓN DE SEDES ---
 
-    getAllVenues: async (forceRefresh: boolean = false): Promise<Venue[]> => {
+    getAllVenues: async (forceRefresh: boolean = false, cityFilter?: string): Promise<Venue[]> => {
+        const cacheKey = cityFilter ? `${VENUES_CACHE_KEY}_${cityFilter}` : VENUES_CACHE_KEY;
+        
         if (!forceRefresh) {
-            const cached = localStorage.getItem(VENUES_CACHE_KEY);
+            const cached = localStorage.getItem(cacheKey);
             if (cached) {
                 const parsed = JSON.parse(cached);
                 if (Date.now() < parsed.expiry) return parsed.data;
             }
         }
 
-        const querySnapshot = await getDocs(collection(db, 'venues'));
+        const venuesRef = collection(db, 'venues');
+        let q = query(venuesRef);
+        if (cityFilter) {
+            q = query(venuesRef, where('city', '==', cityFilter));
+        }
+        
+        const querySnapshot = await getDocs(q);
         const venues = querySnapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
         })) as Venue[];
 
-        localStorage.setItem(VENUES_CACHE_KEY, JSON.stringify({
+        localStorage.setItem(cacheKey, JSON.stringify({
             expiry: Date.now() + CACHE_TTL,
             data: venues
         }));
@@ -170,9 +184,15 @@ export const adminService = {
         };
     },
 
-    createVenue: async (venueData: Omit<Venue, 'id'>) => {
+    createVenue: async (venueData: Omit<Venue, 'id'>, adminId: string) => {
         // Crea un nuevo documento en colección 'venues'
         const docRef = await addDoc(collection(db, 'venues'), venueData);
+
+        // Registrar acción en auditoría
+        await loggerService.logAction('VENUE_CREATED', adminId, docRef.id, 'venues', {
+            name: venueData.name,
+            type: venueData.businessType
+        });
 
         // Invalidar Cachés Administrativos y de Cliente
         localStorage.removeItem(VENUES_CACHE_KEY);
@@ -181,19 +201,37 @@ export const adminService = {
         return { id: docRef.id, ...venueData };
     },
 
-    updateVenue: async (venueId: string, data: Partial<Venue>) => {
+    updateVenue: async (venueId: string, data: Partial<Venue>, adminId: string) => {
         const venueRef = doc(db, 'venues', venueId);
         await updateDoc(venueRef, data);
+
+        // Registrar acción en auditoría
+        await loggerService.logAction('VENUE_UPDATED', adminId, venueId, 'venues', data);
+
         localStorage.removeItem(VENUES_CACHE_KEY); // Limpiar caché
     },
 
-    deleteVenue: async (venueId: string) => {
+    deleteVenue: async (venueId: string, adminId: string) => {
         await deleteDoc(doc(db, 'venues', venueId));
+
+        // Registrar acción en auditoría
+        await loggerService.logAction('VENUE_DELETED', adminId, venueId, 'venues', {});
+
         localStorage.removeItem(VENUES_CACHE_KEY); // Limpiar caché
     },
 
-    getAllProducts: async (): Promise<Product[]> => {
-        const querySnapshot = await getDocs(collection(db, 'products'));
+    getAllProducts: async (cityFilter?: string): Promise<Product[]> => {
+        const productsRef = collection(db, 'products');
+        let q = query(productsRef);
+        
+        if (cityFilter) {
+            // Requiere que los productos tengan un campo 'city'. 
+            // Si no lo tienen, podríamos filtrar por venueIds de esa ciudad.
+            // Por simplicidad en esta fase, asumimos que los productos tienen 'city' o filtramos en memoria.
+            q = query(productsRef, where('city', '==', cityFilter));
+        }
+
+        const querySnapshot = await getDocs(q);
         return querySnapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
@@ -215,20 +253,30 @@ export const adminService = {
         }
     },
 
-    createCategory: async (data: any) => {
+    createCategory: async (data: any, adminId: string) => {
         const docRef = await addDoc(collection(db, 'categories'), data);
+        
+        await loggerService.logAction('CATEGORY_CREATED', adminId, docRef.id, 'categories', {
+            name: data.name,
+            slug: data.slug
+        });
+
         return { id: docRef.id, ...data };
     },
 
-    updateCategory: async (id: string, data: any) => {
+    updateCategory: async (id: string, data: any, adminId: string) => {
         await updateDoc(doc(db, 'categories', id), data);
+        
+        await loggerService.logAction('CATEGORY_UPDATED', adminId, id, 'categories', data);
     },
 
-    deleteCategory: async (id: string) => {
+    deleteCategory: async (id: string, adminId: string) => {
         await deleteDoc(doc(db, 'categories', id));
+
+        await loggerService.logAction('CATEGORY_DELETED', adminId, id, 'categories', {});
     },
 
-    seedDefaultCategories: async () => {
+    seedDefaultCategories: async (adminId: string) => {
         const defaults = [
             { name: 'Restaurante', slug: 'restaurante', icon: '🍽️', isActive: true },
             { name: 'Cafetería', slug: 'cafeteria', icon: '☕', isActive: true },
@@ -244,18 +292,25 @@ export const adminService = {
 
         const batch = [];
         for (const cat of defaults) {
-            // Verificar si existe para evitar duplicados sería bueno, pero por ahora solo añadir
-            // Enfoque simple: Lógica de añadir si no existe es compleja con auto-IDs.
             // Simplemente creémoslas. El usuario puede borrar.
             await addDoc(collection(db, 'categories'), cat);
         }
+
+        await loggerService.logAction('SYSTEM_SEED_CATEGORIES', adminId, 'multiple', 'categories', {
+            count: defaults.length
+        });
     },
 
     // --- PEDIDOS / FINANZAS ---
 
-    getAllOrders: async (): Promise<Order[]> => {
+    getAllOrders: async (cityFilter?: string): Promise<Order[]> => {
         const ordersRef = collection(db, 'orders');
-        const q = query(ordersRef, orderBy('createdAt', 'desc'), limit(500));
+        let q = query(ordersRef, orderBy('createdAt', 'desc'), limit(500));
+        
+        if (cityFilter) {
+            q = query(ordersRef, where('city', '==', cityFilter), orderBy('createdAt', 'desc'), limit(500));
+        }
+
         const querySnapshot = await getDocs(q);
         return querySnapshot.docs.map(doc => ({
             id: doc.id,
@@ -295,5 +350,70 @@ export const adminService = {
         return {
             totalOrders: snapshot.data().count
         };
+    },
+
+    getVenueFinancialReportData: async (venueId: string, month: number, year: number) => {
+        const startOfMonth = new Date(year, month, 1).toISOString();
+        const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
+
+        const ordersRef = collection(db, 'orders');
+        const q = query(
+            ordersRef, 
+            where('venueId', '==', venueId),
+            where('status', '==', 'COMPLETED'),
+            where('createdAt', '>=', startOfMonth),
+            where('createdAt', '<=', endOfMonth)
+        );
+
+        const snapshot = await getDocs(q);
+        const orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Order[];
+
+        const summary = {
+            totalOrders: orders.length,
+            grossSales: orders.reduce((sum, o) => sum + (o.totalAmount || 0), 0),
+            netEarnings: orders.reduce((sum, o) => sum + (o.venueEarnings || 0), 0),
+            platformFees: orders.reduce((sum, o) => sum + (o.platformFee || 0), 0),
+            co2Saved: orders.reduce((sum, o) => sum + (o.estimatedCo2 || 0), 0),
+            moneySavedForCustomers: orders.reduce((sum, o) => sum + (o.moneySaved || 0), 0),
+            ordersByStatus: orders.reduce((acc: any, o) => {
+                acc[o.status] = (acc[o.status] || 0) + 1;
+                return acc;
+            }, {}),
+            period: { month, year, label: new Date(year, month).toLocaleString('es-ES', { month: 'long', year: 'numeric' }) }
+        };
+
+        return {
+            venueId,
+            orders,
+            summary
+        };
+    },
+
+    getCompletedOrdersLocations: async (cityFilter?: string) => {
+        const ordersRef = collection(db, 'orders');
+        let q = query(
+            ordersRef, 
+            where('status', '==', 'COMPLETED'),
+            limit(1000)
+        );
+
+        if (cityFilter) {
+            q = query(q, where('city', '==', cityFilter));
+        }
+
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => {
+            const data = doc.data();
+            // Try to find coordinates in metadata or venue data
+            // Since orders might not have lat/lng directly (usually they have venueId),
+            // We'll need to join or assume the order happened at the venue location for now,
+            // or if it was a delivery, use the delivery address coordinates.
+            // For now, let's use the venue coordinates but aggregated.
+            return {
+                lat: data.venueLatitude || 4.6097,
+                lng: data.venueLongitude || -74.0817,
+                weight: 1
+            };
+        });
     }
 };

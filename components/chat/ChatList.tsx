@@ -35,11 +35,18 @@ export const ChatList: React.FC<ChatListProps> = ({ onChatSelect, className = ''
 
     const getUnreadBadge = (chat: Chat) => {
         if (!user?.id) return null;
-        if (chat.lastMessage.senderId === user.id || chat.lastMessage.read || !chat.lastMessage.text) {
+        // Logic: if last message is not from me AND it's not read
+        const isFromMe = chat.lastMessage.senderId === user.id;
+        const isUnread = !chat.lastMessage.read;
+        
+        if (isFromMe || !isUnread || !chat.lastMessage.text) {
             return null;
         }
+        
         return (
-            <div className="w-2.5 h-2.5 bg-emerald-600 rounded-full"></div>
+            <div className="min-w-[20px] h-5 px-1.5 flex items-center justify-center bg-emerald-600 text-white rounded-full text-[10px] font-black shadow-sm shadow-emerald-100 animate-pulse">
+                NEW
+            </div>
         );
     };
 
@@ -58,81 +65,96 @@ export const ChatList: React.FC<ChatListProps> = ({ onChatSelect, className = ''
     };
 
     return (
-        <div className={`flex flex-col h-full bg-white ${className}`}>
-            {/* Header */}
-            <div className="px-4 py-4 border-b border-gray-200">
-                <h2 className="text-xl font-bold text-gray-800 mb-4">Mensajes</h2>
-
-                {/* Search */}
-                <div className="relative">
-                    <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+        <div className={`flex flex-col h-full bg-white/50 ${className}`}>
+            {/* Search Container */}
+            <div className="px-5 py-4">
+                <div className="relative group">
+                    <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                        <Search size={18} className="text-gray-400 group-focus-within:text-emerald-500 transition-colors" />
+                    </div>
                     <input
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Buscar conversaciones..."
-                        className="w-full pl-10 pr-4 py-2.5 border border-gray-100 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-base outline-none bg-gray-50 transition-all font-medium"
+                        placeholder="Buscar chats..."
+                        className="w-full pl-11 pr-4 py-3 bg-gray-100/80 border-2 border-gray-200/50 focus:border-emerald-500/30 focus:bg-white focus:shadow-xl focus:shadow-emerald-500/10 rounded-2xl outline-none transition-all font-bold placeholder:font-bold placeholder:text-gray-400 text-sm"
                     />
                 </div>
             </div>
 
-            {/* Chat List */}
-            <div className="flex-1 overflow-y-auto">
+            {/* List Content */}
+            <div className="flex-1 overflow-y-auto px-2 pb-4">
                 {filteredChats.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full p-8 text-center bg-gray-50/50">
-                        <div className="bg-white p-4 rounded-full shadow-sm mb-4">
-                            <MessageCircle size={32} className="text-emerald-500" />
+                    <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+                        <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mb-4">
+                            <MessageCircle size={32} className="text-emerald-600/30" />
                         </div>
-                        <h3 className="text-gray-900 font-medium mb-1">
+                        <h3 className="text-gray-900 font-black text-sm mb-1">
                             {searchQuery ? 'Sin resultados' : 'Bandeja vacía'}
                         </h3>
-                        <p className="text-gray-500 text-sm max-w-[200px]">
+                        <p className="text-gray-400 text-xs font-bold leading-relaxed px-4">
                             {searchQuery
-                                ? 'No encontramos chats con ese nombre.'
+                                ? 'No encontramos nada que coincida con tu búsqueda.'
                                 : 'Tus conversaciones activas aparecerán aquí.'}
                         </p>
                     </div>
                 ) : (
-                    <div className="divide-y divide-gray-100">
-                        {filteredChats.map(chat => (
-                            <button
-                                key={chat.id}
-                                onClick={() => handleChatClick(chat.id)}
-                                className="w-full px-4 py-4 hover:bg-gray-50 active:bg-gray-100 transition-colors text-left"
-                            >
-                                <div className="flex gap-3">
-                                    {/* Avatar */}
-                                    <div className="flex-shrink-0 w-12 h-12 rounded-full bg-emerald-600 flex items-center justify-center text-white font-semibold text-lg">
-                                        {getOtherParticipantName(chat).charAt(0).toUpperCase()}
-                                    </div>
-
-                                    {/* Content */}
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center justify-between mb-1">
-                                            <h4 className="font-semibold text-gray-800 truncate">
-                                                {getOtherParticipantName(chat)}
-                                            </h4>
-                                            <span className="text-xs text-gray-500 ml-2 flex-shrink-0">
-                                                {chat.lastMessage.timestamp && formatTimestamp(chat.lastMessage.timestamp)}
-                                            </span>
+                    <div className="space-y-1">
+                        {filteredChats.map(chat => {
+                            const unread = !chat.lastMessage.read && chat.lastMessage.senderId !== user?.id;
+                            return (
+                                <button
+                                    key={chat.id}
+                                    onClick={() => handleChatClick(chat.id)}
+                                    className="w-full group p-3 rounded-2xl hover:bg-emerald-50 transition-all active:scale-[0.98] text-left relative overflow-hidden"
+                                >
+                                    <div className="flex gap-4 relative z-10">
+                                        {/* Avatar with status ring */}
+                                        <div className="relative">
+                                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-lg transition-transform group-hover:scale-105 ${
+                                                unread ? 'bg-emerald-600 shadow-emerald-200' : 'bg-gray-200 text-gray-400 shadow-transparent'
+                                            }`}>
+                                                {getOtherParticipantName(chat).charAt(0).toUpperCase()}
+                                            </div>
+                                            {unread && (
+                                                <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 border-4 border-white rounded-full animate-bounce" />
+                                            )}
                                         </div>
 
-                                        <div className="flex items-center justify-between">
-                                            <p className="text-sm text-gray-600 truncate pr-2">
+                                        {/* Info */}
+                                        <div className="flex-1 min-w-0 py-1">
+                                            <div className="flex items-center justify-between mb-1">
+                                                <h4 className="font-black text-gray-900 truncate">
+                                                    {getOtherParticipantName(chat)}
+                                                </h4>
+                                                <span className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">
+                                                    {chat.lastMessage.timestamp && formatTimestamp(chat.lastMessage.timestamp)}
+                                                </span>
+                                            </div>
+
+                                            <p className={`text-xs truncate pr-4 ${unread ? 'text-gray-900 font-black' : 'text-gray-500 font-bold'}`}>
+                                                {chat.lastMessage.senderId === user?.id ? (
+                                                    <span className="text-emerald-600/60 mr-1">Tú:</span>
+                                                ) : ''}
                                                 {chat.lastMessage.text || 'Sin mensajes'}
                                             </p>
-                                            {getUnreadBadge(chat)}
-                                        </div>
 
-                                        {chat.metadata.orderNumber && (
-                                            <p className="text-xs text-gray-400 mt-1">
-                                                Pedido #{chat.metadata.orderNumber.slice(0, 8)}
-                                            </p>
-                                        )}
+                                            {chat.metadata.orderNumber && (
+                                                <div className="inline-flex items-center gap-1.5 mt-2 px-2 py-0.5 bg-gray-100 rounded-full group-hover:bg-white transition-colors">
+                                                    <div className="w-1 h-1 bg-gray-400 rounded-full" />
+                                                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
+                                                        Pedido #{chat.metadata.orderNumber.slice(0, 8)}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
-                            </button>
-                        ))}
+                                    
+                                    {/* Hover background effect */}
+                                    <div className="absolute inset-0 bg-emerald-600/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </button>
+                            );
+                        })}
                     </div>
                 )}
             </div>

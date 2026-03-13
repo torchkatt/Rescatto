@@ -291,7 +291,7 @@ export const UsersManager: React.FC = () => {
 
     const handleRoleChange = async (userId: string, newRole: UserRole) => {
         try {
-            await adminService.updateUser(userId, { role: newRole });
+            await adminService.updateUser(userId, { role: newRole }, currentUser?.id || 'system');
             setUsers(users.map(u => u.id === userId ? { ...u, role: newRole } : u));
         } catch (error) {
             logger.error('Error updating role', error);
@@ -309,7 +309,7 @@ export const UsersManager: React.FC = () => {
         try {
             // Optimistic update
             setUsers(users.map(u => u.id === userId ? { ...u, isActive: newStatus } : u));
-            await adminService.updateUser(userId, { isActive: newStatus });
+            await adminService.updateUser(userId, { isActive: newStatus }, currentUser?.id || 'system');
         } catch (error) {
             logger.error('Error updating status', error);
             // Revert on error
@@ -324,7 +324,7 @@ export const UsersManager: React.FC = () => {
         if (!userToDelete) return;
 
         try {
-            await adminService.deleteUserDoc(userToDelete);
+            await adminService.deleteUserDoc(userToDelete, currentUser?.id || 'system');
             setUsers(users.filter(u => u.id !== userToDelete));
             toast.success('Usuario eliminado permanentemente');
             setUserToDelete(null); // Close modal
@@ -402,11 +402,11 @@ export const UsersManager: React.FC = () => {
         try {
             const userIds = Array.from(selectedUsers);
             if (action === 'delete') {
-                await Promise.all(userIds.map(id => adminService.deleteUserDoc(id)));
+                await Promise.all(userIds.map(id => adminService.deleteUserDoc(id, currentUser?.id || 'system')));
                 setUsers(users.filter(u => !selectedUsers.has(u.id)));
             } else {
                 const isActive = action === 'activate';
-                await Promise.all(userIds.map(id => adminService.updateUser(id, { isActive })));
+                await Promise.all(userIds.map(id => adminService.updateUser(id, { isActive }, currentUser?.id || 'system')));
                 setUsers(users.map(u => selectedUsers.has(u.id) ? { ...u, isActive } : u));
             }
             toast.success('Acción completada con éxito');
@@ -471,7 +471,7 @@ export const UsersManager: React.FC = () => {
         try {
             const updateData: Partial<User> = { permissions: tempPermissions };
 
-            await adminService.updateUser(permissionUser.id, updateData);
+            await adminService.updateUser(permissionUser.id, updateData, currentUser?.id || 'system');
 
             const updatedUser = {
                 ...permissionUser,
@@ -507,7 +507,7 @@ export const UsersManager: React.FC = () => {
                 venueId
             };
 
-            await adminService.updateUser(venueAssignmentUser.id, updateData);
+            await adminService.updateUser(venueAssignmentUser.id, updateData, currentUser?.id || 'system');
 
             const updatedUser = {
                 ...venueAssignmentUser,
@@ -541,7 +541,7 @@ export const UsersManager: React.FC = () => {
             // If this fails to actually remove the field in Firestore, it might set it to null.
             // The usePermissions hook should check if (user.permissions) which might need to handle null.
             // Ideally we delete the field, but let's send null for now as a reset signal.
-            await adminService.updateUser(permissionUser.id, { permissions: null as any });
+            await adminService.updateUser(permissionUser.id, { permissions: null as any }, currentUser?.id || 'system');
 
             setUsers(users.map(u => {
                 if (u.id === permissionUser.id) {

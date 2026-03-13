@@ -257,6 +257,36 @@ De todas formas, puedo ayudarte con dudas comunes enviando palabras clave. Puede
     getHistory(): AIMessage[] {
         return [...this.conversationHistory];
     }
+
+    /**
+     * Generate a product name and description suggestion based on venue type
+     */
+    async generateProductSuggestion(venueType: string, packType: string): Promise<{ name: string; description: string }> {
+        // En un entorno real, llamaríamos a Gemini. Aquí simulamos la respuesta inteligente.
+        const suggestions: Record<string, Array<{ name: string; description: string }>> = {
+            'Restaurante': [
+                { name: 'Pack Gourmet del Día', description: 'Una selección de nuestras mejores preparaciones del turno, listas para que las disfrutes en casa. Puede incluir proteína, acompañamiento y ensalada.' },
+                { name: 'Caja Regalo del Chef', description: 'Platos premium que no salieron a Sala pero conservan todo el sabor. ¡Una sorpresa deliciosa y sostenible!' }
+            ],
+            'Panadería': [
+                { name: 'Bolsa de Pan Artesanal', description: 'Surtido de panes recién horneados: croissants, baguettes y pan de bono. Perfecto para el desayuno de mañana.' },
+                { name: 'Mix de Pastelería Dulce', description: 'Una selección de nuestros postres y galletas del día. Dulzura pura salvada del desperdicio.' }
+            ],
+            'Cafetería': [
+                { name: 'Combo Merienda Rescatto', description: 'Sándwich del día acompañado de un snack dulce. Ideal para una tarde productiva.' },
+                { name: 'Pack Coffee Break', description: 'Muffins, wraps y bites ligeros. Calidad de cafetería premium a mitad de precio.' }
+            ]
+        };
+
+        const venueKey = venueType || 'Restaurante';
+        const options = suggestions[venueKey] || suggestions['Restaurante'];
+        const randomIdx = Math.floor(Math.random() * options.length);
+        
+        // Simular latencia de IA
+        await new Promise(resolve => setTimeout(resolve, 800));
+
+        return options[randomIdx];
+    }
 }
 
 // Export singleton instance

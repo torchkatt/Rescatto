@@ -56,12 +56,10 @@ const CustomerLogin: React.FC = () => {
         sessionStorage.removeItem('rescatto_manual_logout');
     }, []);
 
-    // Navegar DESPUÉS de que el auth state se estabilice (isAuthenticated = true).
-    // Esto evita la race condition donde navigate() se ejecuta antes de que
-    // onAuthStateChanged haya propagado el nuevo usuario al contexto.
+    // Redirigir cuando se detecte sesión activa
     useEffect(() => {
-        if (loginSucceeded.current && !authLoading && isAuthenticated) {
-            loginSucceeded.current = false;
+        if (!authLoading && isAuthenticated) {
+            logger.log('CustomerLogin: Sesión detectada, redirigiendo a', redirectTo);
             navigate(redirectTo, { replace: true });
         }
     }, [isAuthenticated, authLoading, navigate, redirectTo]);

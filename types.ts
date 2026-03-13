@@ -31,15 +31,30 @@ export enum OrderStatus {
 export enum UserRole {
   SUPER_ADMIN = 'SUPER_ADMIN',     // Dueños de la plataforma Rescatto
   ADMIN = 'ADMIN',                 // Administrador (Gestiona usuarios y sedes)
+  CITY_ADMIN = 'CITY_ADMIN',       // Admin de ciudad (Ve datos solo de su ciudad)
   VENUE_OWNER = 'VENUE_OWNER',     // Dueño del restaurante (Acceso total a la sede)
   KITCHEN_STAFF = 'KITCHEN_STAFF', // Personal de cocina (Solo ve KDS/Pedidos)
   DRIVER = 'DRIVER',               // Domiciliario
   CUSTOMER = 'CUSTOMER',           // Usuario final (App Cliente)
 }
 
+export type MembershipStatus = 'active' | 'pending' | 'suspended' | 'banned' | 'deleted';
+
+export interface Membership {
+  id: string;
+  userId: string;
+  role: UserRole;
+  venueId?: string;
+  permissions?: Permission[];
+  status: MembershipStatus;
+  createdAt: string;
+  createdBy?: string;
+}
+
 export interface User {
   id: string;
   email: string;
+  activeMembershipId?: string; // [V2 Multi-Role] Reference to currently active membership
   fullName: string;
   role: UserRole;
   venueId?: string; // Enlace al restaurante específico para el que trabajan
@@ -84,6 +99,25 @@ export interface User {
   };
   // Canjes de puntos pendientes de aplicar en la próxima compra
   redemptions?: ActiveRedemption[];
+  // [NUEVO] Favoritos
+  favoriteVenueIds?: string[];
+  // [NUEVO] Rescatto Pass (Suscripciones Capa 13)
+  rescattoPass?: RescattoPass;
+}
+
+export interface RescattoPass {
+  isActive: boolean;
+  planId: 'monthly' | 'annual';
+  status: 'active' | 'expired' | 'cancelled';
+  startsAt: string;
+  expiresAt: string;
+  autoRenew: boolean;
+  paymentMethodId?: string;
+  benefits: {
+    freeDelivery: boolean;
+    exclusiveDeals: boolean;
+    multiplierBonus?: number;
+  };
 }
 
 /** Un canje de puntos que ya fue procesado y aún no se ha consumido en una orden */
@@ -181,6 +215,12 @@ export interface Product {
   dynamicTier?: string;
   tags?: string[]; // Descriptores extra ej., "Picante", "Sin Gluten"
   dietaryTags?: string[]; // ej., ['VEGAN', 'GLUTEN_FREE']
+  isRecurring?: boolean; // [NUEVO] Si el producto se vuelve a publicar automáticamente
+  recurrencyDays?: string[]; // ['MON', 'TUE', ...]
+  searchKeywords?: string[]; // [NUEVO] Para búsqueda optimizada
+  city?: string; // [NUEVO] Ciudad del producto (heredada de venue)
+  createdAt?: any;
+  updatedAt?: any;
 }
 
 export interface OrderProduct {
@@ -233,6 +273,11 @@ export interface Order {
   isDonation?: boolean;
   donationCenterId?: string;
   donationCenterName?: string;
+
+  // Métricas de Impacto
+  estimatedCo2?: number;
+  moneySaved?: number; // [NUEVO]
+  pointsEarned?: number;
 }
 
 export interface DonationCenter {
@@ -469,6 +514,15 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     Permission.VIEW_ORDERS,
   ],
 
+  [UserRole.CITY_ADMIN]: [
+    Permission.VIEW_USERS,
+    Permission.VIEW_VENUES,
+    Permission.VIEW_PRODUCTS,
+    Permission.VIEW_ORDERS,
+    Permission.VIEW_ANALYTICS,
+    Permission.EXPORT_REPORTS,
+  ],
+
   [UserRole.CUSTOMER]: [
     // Clientes crean pedidos y ven los suyos
     Permission.CREATE_ORDERS,
@@ -497,4 +551,15 @@ export interface AdditionalUserData {
       orderUpdates?: boolean;
     };
   };
+}
+
+// --- LOGÍSTICA & SEGUIMIENTO ---
+export interface DriverLocation {
+  userId: string;
+  latitude: number;
+  longitude: number;
+  heading?: number;
+  speed?: number;
+  lastUpdate: string;
+  isActive: boolean;
 }

@@ -1,22 +1,42 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Mail, Lock, ArrowRight, Eye, EyeOff, User } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Eye, EyeOff, User, Gift } from 'lucide-react';
 import { Logo } from '../components/common/Logo';
 import { logger } from '../utils/logger';
+import { auditService, AuditAction } from '../services/auditService';
+import { SEO } from '../components/common/SEO';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [referralCode, setReferralCode] = useState('');
   const [isRegistering, setIsRegistering] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [selectedRole, setSelectedRole] = useState<'CUSTOMER' | 'BUSINESS'>('BUSINESS');
-  const { login, loginWithGoogle, loginWithApple, loginWithFacebook, loginAsGuest } = useAuth();
+  const { user, isAuthenticated, login, loginWithGoogle, loginWithApple, loginWithFacebook, loginAsGuest } = useAuth();
   const navigate = useNavigate();
+
+  // Redirigir si el usuario ya está autenticado (y no es invitado, o si lo es pero no estamos en modo registro/login explícito)
+  useEffect(() => {
+    // Si el usuario es real (no invitado) y está autenticado, redirigir siempre
+    if (isAuthenticated && user && !user.isGuest) {
+      logger.log('Login: Usuario real autenticado, redirigiendo a /');
+      navigate('/');
+    }
+  }, [isAuthenticated, user, navigate]);
+
+  // Manejar parámetros de URL (?mode=register)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('mode') === 'register') {
+      setIsRegistering(true);
+    }
+  }, []);
 
   // Auto-dismiss error after 5 seconds
   useEffect(() => {
@@ -63,7 +83,9 @@ const Login: React.FC = () => {
         const { UserRole } = await import('../types');
         // El registro usa el rol seleccionado en las pestañas
         const role = selectedRole === 'BUSINESS' ? UserRole.ADMIN : UserRole.CUSTOMER;
-        await authService.register(email, password, fullName, role);
+        await authService.register(email, password, fullName, role, { 
+            invitedBy: referralCode.trim().toUpperCase() 
+        });
         navigate('/');
       } else {
         await login(email, password);
@@ -73,6 +95,13 @@ const Login: React.FC = () => {
     } catch (err: any) {
       logger.error('Login error:', err);
       setError(getErrorMessage(err.code || err.message));
+      
+      auditService.logEvent({
+        action: AuditAction.LOGIN_FAILURE,
+        performedBy: email,
+        details: { error: err.code || err.message, isRegistering, selectedRole },
+        path: '/login'
+      });
     }
   };
 
@@ -82,6 +111,12 @@ const Login: React.FC = () => {
       navigate('/');
     } catch (err: any) {
       setError(err.message || 'Error al iniciar sesión con Google');
+      auditService.logEvent({
+        action: AuditAction.LOGIN_FAILURE,
+        performedBy: user?.id || 'anonymous', // Added performedBy
+        details: { error: err.code || err.message, method: 'google' },
+        path: '/login'
+      });
     }
   }
 
@@ -105,6 +140,10 @@ const Login: React.FC = () => {
 
   return (
     <div className="min-h-screen flex bg-white font-outfit">
+      <SEO 
+        title={isRegistering ? "Crear cuenta" : "Iniciar Sesión"} 
+        description="Accede a Rescatto Business y gestiona tu excedente gastronómico de forma inteligente."
+      />
       {/* ... Contenido del lado izquierdo ... */}
       <div className="hidden lg:flex lg:w-1/2 bg-slate-900 relative overflow-hidden">
         <div className="absolute inset-0 z-0">
@@ -207,19 +246,41 @@ const Login: React.FC = () => {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {isRegistering && (
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700 ml-1">Nombre Completo</label>
-                <div className="relative group">
-                  <User className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-emerald-500 transition-colors" size={20} />
-                  <input
-                    type="text"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="block w-full pl-12 pr-4 py-3.5 border border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all bg-white text-base hover:border-slate-300"
-                    placeholder="Ej. Ana García"
-                    required
-                  />
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700 ml-1">Nombre Completo</label>
+                  <div className="relative group">
+                    <User className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-emerald-500 transition-colors" size={20} />
+                    <input
+                      type="text"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      className="block w-full pl-12 pr-4 py-3.5 border border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all bg-white text-base hover:border-slate-300"
+                      placeholder="Ej. Ana García"
+                      required
+                    />
+                  </div>
                 </div>
+
+                {selectedRole === 'CUSTOMER' && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-slate-700 ml-1 flex items-center gap-1.5">
+                      Código de Referido 
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">(Opcional)</span>
+                    </label>
+                    <div className="relative group">
+                      <Gift className="absolute left-4 top-3.5 text-slate-400 group-focus-within:text-emerald-500 transition-colors" size={20} />
+                      <input
+                        type="text"
+                        value={referralCode}
+                        onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                        className="block w-full pl-12 pr-4 py-3.5 border border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all bg-white text-base hover:border-slate-300 font-mono tracking-widest"
+                        placeholder="ABC123"
+                        maxLength={6}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -335,7 +396,20 @@ const Login: React.FC = () => {
           </form>
 
           <button
-            onClick={() => loginAsGuest()}
+            onClick={async () => {
+              try {
+                setError('');
+                await loginAsGuest();
+                // La redirección ocurrirá automáticamente por el useEffect
+              } catch (err: any) {
+                setError('Error al ingresar como invitado. Intenta de nuevo.');
+                auditService.logEvent({
+                  action: AuditAction.LOGIN_FAILURE,
+                  details: { error: err.code || err.message, method: 'guest' },
+                  path: '/login'
+                });
+              }
+            }}
             type="button"
             className="w-full mt-6 bg-emerald-50 border border-emerald-100 hover:bg-emerald-100/50 text-emerald-700 py-4 rounded-xl text-sm font-bold transition-all active:scale-95 flex items-center justify-center gap-2 group shadow-sm"
           >

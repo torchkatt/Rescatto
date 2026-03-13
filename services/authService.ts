@@ -17,12 +17,13 @@ import {
   sendPasswordResetEmail,
   reauthenticateWithCredential
 } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, collection, addDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import app, { auth, db, functions } from './firebase';
 import { User, UserRole, AdditionalUserData } from '../types';
 import { initializeApp } from 'firebase/app';
 import { logger } from '../utils/logger';
+import { loggerService } from './loggerService';
 
 // Ayudante para crear usuario sin cerrar sesión del administrador actual
 const createSecondaryUser = async (email: string, password: string) => {
@@ -69,6 +70,7 @@ const mapFirebaseUserToAppUser = async (firebaseUser: FirebaseUser): Promise<Use
     isVerified: userData.isVerified,
     impact: userData.impact,
     createdAt: userData.createdAt || firebaseUser.metadata.creationTime,
+    activeMembershipId: userData.activeMembershipId, // [V2]
   };
 };
 
@@ -84,28 +86,63 @@ const generateReferralCode = (): string => {
 
 // Crear o actualizar documento de usuario en Firestore
 const createUserDocument = async (firebaseUser: FirebaseUser, additionalData: AdditionalUserData = {}) => {
-  const userDocRef = doc(db, 'users', firebaseUser.uid);
-  const userDoc = await getDoc(userDocRef);
+  logger.log('createUserDocument: Iniciando para', firebaseUser.uid);
+  try {
+    const userDocRef = doc(db, 'users', firebaseUser.uid);
+    const userDoc = await getDoc(userDocRef);
 
-  if (!userDoc.exists()) {
-    const defaultReferralCode = generateReferralCode();
+    if (!userDoc.exists()) {
+      logger.log('createUserDocument: El documento no existe, creando...');
+      const defaultReferralCode = generateReferralCode();
 
-    // Crear nuevo documento de usuario
-    await setDoc(userDocRef, {
-      fullName: additionalData.fullName || firebaseUser.displayName || 'Usuario',
-      email: firebaseUser.email,
-      role: additionalData.role || UserRole.CUSTOMER,
-      createdAt: new Date().toISOString(),
-      referralCode: additionalData.referralCode || defaultReferralCode,
-      ...additionalData,
-    });
+      // Crear nuevo documento de usuario
+      await setDoc(userDocRef, {
+        fullName: additionalData.fullName || firebaseUser.displayName || 'Usuario',
+        email: firebaseUser.email,
+        role: additionalData.role || UserRole.CUSTOMER,
+        createdAt: new Date().toISOString(),
+        referralCode: additionalData.referralCode || defaultReferralCode,
+        ...additionalData,
+      });
+      logger.log('createUserDocument: Perfil base creado');
+
+      // --- V2 Architecture Migration ---
+      try {
+        const membershipData = {
+          userId: firebaseUser.uid,
+          role: additionalData.role || UserRole.CUSTOMER,
+          venueId: additionalData.venueId || null,
+          status: 'active',
+          createdAt: new Date().toISOString(),
+        };
+        
+        const membershipRef = await addDoc(collection(db, 'memberships'), membershipData);
+        await setDoc(userDocRef, { activeMembershipId: membershipRef.id }, { merge: true });
+        logger.log('createUserDocument: Membresía V2 vinculada');
+      } catch (error) {
+        logger.error('createUserDocument: Error en Membresía V2 (no bloqueante):', error);
+      }
+    } else {
+      logger.log('createUserDocument: El usuario ya tiene perfil');
+    }
+  } catch (error) {
+    logger.error('createUserDocument: ERROR FATAL:', error);
+    throw error; // Re-lanzar para que loginAsGuest lo capture
   }
 };
 
 export const authService = {
   login: async (email: string, password: string): Promise<User> => {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    return mapFirebaseUserToAppUser(userCredential.user);
+    const appUser = await mapFirebaseUserToAppUser(userCredential.user);
+    
+    // Registrar acción en auditoría
+    await loggerService.logAction('LOGIN', appUser.id, appUser.id, 'users', {
+      method: 'email',
+      email: appUser.email
+    });
+
+    return appUser;
   },
 
   register: async (email: string, password: string, name: string, role: UserRole, additionalData: AdditionalUserData = {}): Promise<User> => {
@@ -119,14 +156,31 @@ export const authService = {
     }
 
     await createUserDocument(userCredential.user, { fullName: name, role, ...additionalData });
-    return mapFirebaseUserToAppUser(userCredential.user);
+    const appUser = await mapFirebaseUserToAppUser(userCredential.user);
+
+    // Registrar acción en auditoría
+    await loggerService.logAction('USER_CREATED', appUser.id, appUser.id, 'users', {
+      role: appUser.role,
+      email: appUser.email
+    });
+
+    return appUser;
   },
 
   loginAsGuest: async (): Promise<User> => {
     logger.log('authService: loginAsGuest iniciando...');
     const userCredential = await signInAnonymously(auth);
+    logger.log('authService: loginAsGuest signInAnonymously éxito', userCredential.user.uid);
     await createUserDocument(userCredential.user, { fullName: 'Invitado', role: UserRole.CUSTOMER });
-    return mapFirebaseUserToAppUser(userCredential.user);
+    logger.log('authService: loginAsGuest createUserDocument éxito');
+    const appUser = await mapFirebaseUserToAppUser(userCredential.user);
+
+    // Registrar acción en auditoría
+    await loggerService.logAction('LOGIN', appUser.id, appUser.id, 'users', {
+      method: 'guest'
+    });
+
+    return appUser;
   },
 
   /**
@@ -143,6 +197,13 @@ export const authService = {
     // Upgrade the Firestore doc: set real name, email, remove guest status
     const userDocRef = doc(db, 'users', linked.user.uid);
     await setDoc(userDocRef, { fullName, email, isGuest: false }, { merge: true });
+    
+    // Registrar acción en auditoría
+    await loggerService.logAction('USER_CONVERTED', linked.user.uid, linked.user.uid, 'users', {
+      email,
+      fullName
+    });
+
     return mapFirebaseUserToAppUser(linked.user);
   },
 
@@ -164,7 +225,15 @@ export const authService = {
       const userCredential = await signInWithPopup(auth, provider);
       logger.log('authService: éxito en signInWithPopup:', userCredential.user.email);
       await createUserDocument(userCredential.user);
-      return mapFirebaseUserToAppUser(userCredential.user);
+      const appUser = await mapFirebaseUserToAppUser(userCredential.user);
+
+      // Registrar acción en auditoría
+      await loggerService.logAction('LOGIN', appUser.id, appUser.id, 'users', {
+        method: 'google',
+        email: appUser.email
+      });
+
+      return appUser;
     } catch (error: any) {
       logger.error('authService: ERROR en loginWithGoogle:', error.code, error.message);
       if (error.code === 'auth/network-request-failed') {
@@ -178,17 +247,37 @@ export const authService = {
     const provider = new OAuthProvider('apple.com');
     const userCredential = await signInWithPopup(auth, provider);
     await createUserDocument(userCredential.user);
-    return mapFirebaseUserToAppUser(userCredential.user);
+    const appUser = await mapFirebaseUserToAppUser(userCredential.user);
+
+    // Registrar acción en auditoría
+    await loggerService.logAction('LOGIN', appUser.id, appUser.id, 'users', {
+      method: 'apple',
+      email: appUser.email
+    });
+
+    return appUser;
   },
 
   loginWithFacebook: async (): Promise<User> => {
     const provider = new FacebookAuthProvider();
     const userCredential = await signInWithPopup(auth, provider);
     await createUserDocument(userCredential.user);
-    return mapFirebaseUserToAppUser(userCredential.user);
+    const appUser = await mapFirebaseUserToAppUser(userCredential.user);
+
+    // Registrar acción en auditoría
+    await loggerService.logAction('LOGIN', appUser.id, appUser.id, 'users', {
+      method: 'facebook',
+      email: appUser.email
+    });
+
+    return appUser;
   },
 
   logout: async (): Promise<void> => {
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+      await loggerService.logAction('LOGOUT', currentUser.uid, currentUser.uid, 'users', {});
+    }
     await firebaseSignOut(auth);
   },
 

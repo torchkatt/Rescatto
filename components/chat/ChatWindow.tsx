@@ -4,6 +4,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { MessageBubble } from './MessageBubble';
 import { X, Send, Loader2, MessageSquare, MapPin } from 'lucide-react';
+import { doc, setDoc, serverTimestamp, collection, onSnapshot } from 'firebase/firestore';
+import { db } from '../../services/firebase';
 import { logger } from '../../utils/logger';
 import { LoadingSpinner } from '../customer/common/Loading';
 
@@ -17,12 +19,59 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onClose, className = '' 
     const { user } = useAuth();
     const { error: toastError } = useToast();
     const [messageText, setMessageText] = useState('');
+    const [typing, setTyping] = useState<Record<string, boolean>>({});
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    // Auto-scroll to bottom when new messages arrive
+    // Typing presence logic
+    useEffect(() => {
+        if (!currentChat?.id || !user?.id) return;
+        const typingRef = doc(db, 'chats', currentChat.id, 'typing', user.id);
+
+        const setTypingStatus = async (isTyping: boolean) => {
+            try {
+                await setDoc(typingRef, { isTyping, updatedAt: serverTimestamp() }, { merge: true });
+            } catch (e) {
+                logger.error('Error setting typing status:', e);
+            }
+        };
+
+        if (messageText.length > 0) {
+            setTypingStatus(true);
+            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+            typingTimeoutRef.current = setTimeout(() => setTypingStatus(false), 3000);
+        } else {
+            setTypingStatus(false);
+        }
+
+        return () => {
+            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+            setTypingStatus(false);
+        };
+    }, [messageText, currentChat?.id, user?.id]);
+
+    // Subscribe to others typing
+    useEffect(() => {
+        if (!currentChat?.id || !user?.id) return;
+        const typingCollection = collection(db, 'chats', currentChat.id, 'typing');
+
+        return onSnapshot(typingCollection, (snapshot) => {
+            const typingData: Record<string, boolean> = {};
+            snapshot.docs.forEach(doc => {
+                const data = doc.data();
+                // Only if it's someone else and they updated recently (< 10s)
+                if (doc.id !== user.id && data.isTyping) {
+                    typingData[doc.id] = true;
+                }
+            });
+            setTyping(typingData);
+        });
+    }, [currentChat?.id, user?.id]);
+
+    // Auto-scroll to bottom when new messages or typing status arrive
     useEffect(() => {
         scrollToBottom();
-    }, [messages]);
+    }, [messages, typing]);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -92,42 +141,43 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onClose, className = '' 
     }
 
     return (
-        <div className={`flex flex-col h-full bg-white ${className}`}>
+        <div className={`flex flex-col h-full bg-gray-50/30 ${className}`}>
             {/* Header */}
-            <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-200 bg-white">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 bg-white/50 backdrop-blur-md sticky top-0 z-10">
                 <div className="flex items-center gap-3">
                     {/* Botón de volver para móvil */}
                     <button
                         onClick={() => closeChat()}
-                        className="md:hidden p-2 hover:bg-gray-100 rounded-full transition-all active:scale-90"
+                        className="md:hidden p-2 hover:bg-gray-100 rounded-xl transition-all active:scale-90"
                     >
                         <X size={20} className="text-gray-600" />
                     </button>
 
-                    <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center text-white font-bold shadow-sm">
-                        {getOtherParticipantName().charAt(0).toUpperCase()}
+                    <div className="relative">
+                        <div className="w-11 h-11 rounded-2xl bg-emerald-600 flex items-center justify-center text-white font-black text-xl shadow-lg shadow-emerald-100">
+                            {getOtherParticipantName().charAt(0).toUpperCase()}
+                        </div>
+                        <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 border-2 border-white rounded-full" />
                     </div>
-                    <div>
-                        <h3 className="font-bold text-gray-800 leading-tight">{getOtherParticipantName()}</h3>
-                        {currentChat.metadata?.orderNumber && (
+                    
+                    <div className="flex flex-col">
+                        <h3 className="font-black text-gray-900 leading-none mb-1 text-sm">{getOtherParticipantName()}</h3>
+                        {currentChat.metadata?.orderNumber ? (
                             <button
                                 onClick={() => {
-                                    if (onClose) onClose();
-                                    // For customers, the order is in /app/orders?orderId=...
-                                    // For venues, it's /order-management?search=...
-                                    // The safest route is just emitting an event or using window.location if navigate is tricky here,
-                                    // but we can import useNavigate 
                                     const role = user?.role;
-                                    const url = role === 'CUSTOMER' 
+                                    const url = role === 'CUSTOMER'
                                         ? `/app/orders?orderId=${currentChat.metadata.orderNumber}`
                                         : `/order-management?search=${currentChat.metadata.orderNumber}`;
                                     window.location.href = url;
                                 }}
-                                className="text-[10px] uppercase font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full mt-0.5 transition-colors cursor-pointer inline-flex items-center gap-1"
+                                className="text-[9px] font-black text-emerald-600 uppercase tracking-widest hover:text-emerald-700 transition-colors flex items-center gap-1"
                             >
-                                <span>Ver Pedido #{currentChat.metadata.orderNumber.slice(0, 8)}</span>
-                                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                                <span>Pedido #{currentChat.metadata.orderNumber.slice(0, 8)}</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
                             </button>
+                        ) : (
+                            <span className="text-[10px] font-bold text-gray-400">En línea ahora</span>
                         )}
                     </div>
                 </div>
@@ -138,22 +188,25 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onClose, className = '' 
                             closeChat();
                             onClose();
                         }}
-                        className="p-2 hover:bg-gray-100 rounded-xl transition-all active:scale-90"
+                        className="p-2.5 bg-gray-50 hover:bg-gray-100 text-gray-400 rounded-2xl transition-all active:scale-90"
                     >
-                        <X size={20} className="text-gray-600" />
+                        <X size={20} />
                     </button>
                 )}
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
+            <div className="flex-1 overflow-y-auto px-5 py-6">
                 {loading && messages.length === 0 ? (
                     <div className="flex justify-center items-center h-full">
                         <LoadingSpinner />
                     </div>
                 ) : messages.length === 0 ? (
-                    <div className="flex items-center justify-center h-full">
-                        <p className="text-gray-400">No hay mensajes aún. ¡Comienza la conversación!</p>
+                    <div className="flex flex-col items-center justify-center h-full text-center">
+                        <div className="w-16 h-16 bg-gray-100 rounded-3xl flex items-center justify-center mb-4">
+                            <MessageSquare size={24} className="text-gray-300" />
+                        </div>
+                        <p className="text-gray-400 font-bold text-xs max-w-[180px]">No hay mensajes aún. ¡Comienza la conversación!</p>
                     </div>
                 ) : (
                     <>
@@ -170,21 +223,36 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onClose, className = '' 
                                 />
                             );
                         })}
+
+                        {/* Typing Indicator */}
+                        {Object.keys(typing).length > 0 && (
+                            <div className="flex gap-2 mb-4 items-center animate-in fade-in slide-in-from-left-2 duration-300">
+                                <div className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-400 border border-gray-200 shadow-sm">
+                                    <MessageSquare size={14} className="fill-gray-400/10" />
+                                </div>
+                                <div className="bg-white border border-gray-100 px-3 py-2 rounded-2xl shadow-sm flex items-center gap-1">
+                                    <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                                    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                                    <div className="w-1.5 h-1.5 bg-emerald-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                                </div>
+                            </div>
+                        )}
+
                         <div ref={messagesEndRef} />
                     </>
                 )}
             </div>
 
             {/* Input */}
-            <div className="px-4 sm:px-6 py-4 bg-white border-t border-gray-100">
-                <div className="flex gap-2 items-center">
+            <div className="px-5 py-5 pb-8 bg-white border-t border-gray-100">
+                <div className="flex gap-2 p-1 bg-gray-50 rounded-2xl border border-gray-100 focus-within:border-emerald-200 focus-within:bg-white focus-within:shadow-xl focus-within:shadow-emerald-500/5 transition-all duration-300">
                     <button
                         onClick={handleSendLocation}
                         disabled={sending}
-                        className="p-3 bg-gray-100 text-gray-500 rounded-xl hover:bg-gray-200 disabled:opacity-50 transition-all flex items-center justify-center w-12 h-12 active:scale-95"
+                        className="p-3.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all disabled:opacity-30"
                         title="Compartir ubicación"
                     >
-                        <MapPin size={20} />
+                        <MapPin size={22} />
                     </button>
                     <input
                         type="text"
@@ -193,15 +261,15 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onClose, className = '' 
                         onKeyPress={handleKeyPress}
                         placeholder="Escribe un mensaje..."
                         disabled={sending}
-                        className="flex-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent disabled:bg-gray-100 text-base outline-none transition-all"
+                        className="flex-1 py-3 bg-transparent text-gray-900 placeholder-gray-400 font-bold focus:outline-none text-sm"
                     />
                     <button
                         onClick={handleSend}
                         disabled={!messageText.trim() || sending}
-                        className="p-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all shadow-md shadow-emerald-100 flex items-center justify-center w-12 h-12 active:scale-95"
+                        className="p-3 bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-200 hover:scale-105 active:scale-95 disabled:opacity-30 disabled:scale-100 transition-all flex items-center justify-center w-12 h-12"
                     >
                         {sending ? (
-                            <LoadingSpinner size="xs" color="white" />
+                            <Loader2 size={20} className="animate-spin" />
                         ) : (
                             <Send size={20} />
                         )}

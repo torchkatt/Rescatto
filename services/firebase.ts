@@ -1,9 +1,11 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
+import { getAnalytics, logEvent } from 'firebase/analytics';
 import { initializeFirestore } from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
 import { getStorage } from 'firebase/storage';
 import { getMessaging } from 'firebase/messaging';
+import { getRemoteConfig } from 'firebase/remote-config';
 import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 import { logger } from '../utils/logger';
 
@@ -22,6 +24,9 @@ const app = initializeApp(firebaseConfig);
 
 // Initialize Firebase Authentication and get a reference to the service
 export const auth = getAuth(app);
+ 
+// Initialize Analytics
+export const analytics = typeof window !== 'undefined' ? getAnalytics(app) : null;
 
 // Initialize Firebase App Check (reCAPTCHA v3) to prevent backend abuse
 // In local development, you need to set `self.FIREBASE_APPCHECK_DEBUG_TOKEN = true`
@@ -56,5 +61,17 @@ export const messaging = typeof window !== 'undefined' ? (async () => {
         return null;
     }
 })() : null;
+
+// Initialize Remote Config
+export const remoteConfig = typeof window !== 'undefined' ? getRemoteConfig(app) : null;
+if (remoteConfig) {
+    remoteConfig.settings.minimumFetchIntervalMillis = 3600000; // 1 hour
+    remoteConfig.defaultConfig = {
+        'enable_rescatto_pass': true,
+        'enable_ai_predictions': true,
+        'enable_referrals_v2': true,
+        'maintenance_mode': false
+    };
+}
 
 export default app;

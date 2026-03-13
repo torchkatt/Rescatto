@@ -11,10 +11,11 @@ import { Venue, Product } from '../types';
 import { cacheService } from './cacheService';
 import { logger } from '../utils/logger';
 import { isProductExpired } from '../utils/productAvailability';
+import { safeParseVenue, safeParseProduct } from '../schemas';
 
 // Claves de caché
 const CACHE_KEYS = {
-    ALL_VENUES: 'rescatto_all_venues',
+    ALL_VENUES: (city?: string) => `rescatto_all_venues_${city || 'global'}`,
     VENUE_DETAILS: (id: string) => `rescatto_venue_${id}`,
     VENUE_PRODUCTS: (id: string) => `rescatto_products_${id}`,
 };
@@ -28,27 +29,37 @@ const TTL = {
 
 export const venueService = {
     // Obtener todos los venues activos
-    getAllVenues: async (): Promise<Venue[]> => {
+    getAllVenues: async (city?: string): Promise<Venue[]> => {
         // 1. Intentar leer desde caché
-        const cached = cacheService.get<Venue[]>(CACHE_KEYS.ALL_VENUES);
+        const cacheKey = CACHE_KEYS.ALL_VENUES(city);
+        const cached = cacheService.get<Venue[]>(cacheKey);
         if (cached) {
-            logger.log('⚡️ Sirviendo venues desde caché');
+            // Log only in development or use debug level
             return cached;
         }
 
-        logger.log('🔥 Leyendo venues de Firestore');
+        logger.log(`🔥 Leyendo venues (${city || 'global'}) de Firestore`);
         const venuesRef = collection(db, 'venues');
-        // En una app real, filtraríamos por ubicación geográfica
-        const q = query(venuesRef);
+
+        let q = query(venuesRef);
+        if (city) {
+            q = query(venuesRef, where('city', '==', city));
+        }
+
         const querySnapshot = await getDocs(q);
 
-        const venues = querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-        })) as Venue[];
+        const venues = querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            const result = safeParseVenue({ id: doc.id, ...data });
+            if (!result.success) {
+                logger.error(`❌ Venue ${doc.id} parsing failed:`, result.error.format());
+                return null;
+            }
+            return result.data;
+        }).filter(v => v !== null) as Venue[];
 
         // 2. Guardar en caché
-        cacheService.set(CACHE_KEYS.ALL_VENUES, venues, TTL.ALL_VENUES);
+        cacheService.set(cacheKey, venues, TTL.ALL_VENUES);
 
         return venues;
     },
@@ -64,10 +75,12 @@ export const venueService = {
 
         if (!venueDoc.exists()) return null;
 
-        const venue = {
-            id: venueDoc.id,
-            ...venueDoc.data(),
-        } as Venue;
+        const result = safeParseVenue({ id: venueDoc.id, ...venueDoc.data() });
+        if (!result.success) {
+            logger.error(`❌ Venue ${venueId} parsing failed:`, result.error.format());
+            return null;
+        }
+        const venue = result.data as Venue;
 
         cacheService.set(cacheKey, venue, TTL.VENUE_DETAILS);
         return venue;
@@ -88,9 +101,16 @@ export const venueService = {
 
         const now = Date.now();
         const products = querySnapshot.docs
-            .map(doc => ({ id: doc.id, ...doc.data() }) as Product)
-            // Solo mostrar productos con stock > 0 y que no hayan expirado
-            .filter(p => (p.quantity ?? 0) > 0 && !isProductExpired(p.availableUntil, now));
+            .map(doc => {
+                const data = doc.data();
+                const result = safeParseProduct({ id: doc.id, ...data });
+                if (!result.success) {
+                    logger.error(`❌ Product ${doc.id} parsing failed:`, result.error.format());
+                    return null;
+                }
+                return result.data;
+            })
+            .filter(p => p !== null && (p.quantity ?? 0) > 0 && !isProductExpired(p.availableUntil, now)) as Product[];
 
         cacheService.set(cacheKey, products, TTL.VENUE_PRODUCTS);
         return products;
@@ -200,7 +220,7 @@ export const venueService = {
 
     // Invalidar caché (útil para pull-to-refresh)
     clearCache: () => {
-        cacheService.remove(CACHE_KEYS.ALL_VENUES);
+        cacheService.clearByPrefix('rescatto_all_venues_');
         cacheService.clearByPrefix('rescatto_venue_');
         cacheService.clearByPrefix('rescatto_products_');
     }

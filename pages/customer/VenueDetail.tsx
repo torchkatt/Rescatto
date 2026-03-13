@@ -13,6 +13,7 @@ import { getRatingStats } from '../../services/ratingService';
 import { logger } from '../../utils/logger';
 import { isProductAvailable, isProductExpired } from '../../utils/productAvailability';
 import { formatCOP } from '../../utils/formatters';
+import { SEO } from '../../components/common/SEO';
 
 // ── Product FOMO helpers ──────────────────────────────────────────────────────
 function getStockUrgency(quantity: number): { label: string; color: string; bg: string } | null {
@@ -151,6 +152,13 @@ export const VenueDetail: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-gray-50 overflow-x-hidden">
+            <SEO 
+                title={venue.name}
+                description={`Rescata comida deliciosa en ${venue.name}. ${venue.address}. Ayuda al planeta con Rescatto.`}
+                image={venue.coverImageUrl || venue.logoUrl}
+                type="restaurant"
+                venueName={venue.name}
+            />
             {/* Header */}
             <div className="relative border-b border-gray-100 bg-white">
                 <div className="max-w-7xl mx-auto w-full relative">

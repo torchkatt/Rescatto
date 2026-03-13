@@ -37,8 +37,21 @@ export const dataService = {
         const venueRef = doc(db, 'venues', id);
         await updateDoc(venueRef, {
             ...updates,
-            // actualizaciones de latitud/longitud necesitarían conversión de GeoPoint si fuera estrictamente tipado, pero mantenemos simple por ahora
         });
+    },
+
+    getVenuesByIds: async (ids: string[]): Promise<Venue[]> => {
+        if (!ids.length) return [];
+        // Firestore 'in' query supports up to 30 document IDs
+        const limitedIds = ids.slice(0, 30);
+        const venuesRef = collection(db, 'venues');
+        const q = query(venuesRef, where('__name__', 'in', limitedIds));
+        const querySnapshot = await getDocs(q);
+
+        return querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        })) as Venue[];
     },
 
 

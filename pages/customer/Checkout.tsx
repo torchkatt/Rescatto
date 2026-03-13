@@ -6,7 +6,7 @@ import { useToast } from '../../context/ToastContext';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../services/firebase';
 import { OrderStatus, DonationCenter, ActiveRedemption } from '../../types';
-import { ArrowLeft, CreditCard, Wallet, MapPin, Phone, Store, Leaf, Heart, Gift, Tag } from 'lucide-react';
+import { ArrowLeft, CreditCard, Wallet, MapPin, Phone, Store, Leaf, Heart, Gift, Tag, Zap } from 'lucide-react';
 import { PaymentForm } from '../../components/customer/checkout/PaymentForm';
 import { DonationCenterSelector } from '../../components/customer/checkout/DonationCenterSelector';
 import { dataService } from '../../services/dataService';
@@ -18,6 +18,9 @@ import { GuestConversionBanner } from '../../components/customer/common/GuestCon
 import { NotificationPermissionModal, hasAskedForNotifications } from '../../components/customer/common/NotificationPermissionModal';
 import { isProductExpired } from '../../utils/productAvailability';
 import { formatCOP, formatKgCO2 } from '../../utils/formatters';
+import { useOrderFlow } from '../../hooks/useOrderFlow';
+import { safeParseCheckoutForm } from '../../schemas';
+import { useTranslation } from 'react-i18next';
 
 type DeliveryMethod = 'delivery' | 'pickup' | 'donation';
 
@@ -27,6 +30,16 @@ export const Checkout: React.FC = () => {
     const { user, loginAsGuest, isAuthenticated, isLoading: authLoading } = useAuth();
     const { city, latitude, longitude } = useLocation();
     const { success, error } = useToast();
+    const { t } = useTranslation();
+
+    // Custom Order Flow Hook
+    const { 
+        loading, 
+        processOrder, 
+        showNotifModal, 
+        setShowNotifModal, 
+        pendingNavPath 
+    } = useOrderFlow();
 
     // State Hooks
     const [deliveryCosts, setDeliveryCosts] = useState<Record<string, DeliveryCalculationResult>>({});
@@ -34,31 +47,15 @@ export const Checkout: React.FC = () => {
 
     const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>('delivery');
     const [paymentMethod, setPaymentMethod] = useState<'card' | 'cash'>('cash');
-    // Pre-fill from user profile
     const [address, setAddress] = useState(user?.address || '');
     const [phone, setPhone] = useState(user?.phone || '');
     const [selectedDonationCenter, setSelectedDonationCenter] = useState<DonationCenter | null>(null);
-    const [loading, setLoading] = useState(false);
     const [cityError, setCityError] = useState<string | null>(null);
-    const [showNotifModal, setShowNotifModal] = useState(false);
-    const [pendingNavPath, setPendingNavPath] = useState<string>('/app/orders');
-    // Evita que el useEffect de carrito vacío redirija tras colocar un pedido
     const orderJustPlacedRef = React.useRef(false);
-    // Canje de puntos seleccionado para aplicar en esta compra
     const [selectedRedemption, setSelectedRedemption] = useState<ActiveRedemption | null>(null);
+
     const phoneDigits = phone.replace(/\D/g, '');
     const isPhoneValid = phoneDigits.length >= 7 && phoneDigits.length <= 15;
-
-    // After order success: show notification modal on first order if not asked yet,
-    // then navigate. On subsequent orders, navigate immediately.
-    const navigateAfterOrder = (path: string) => {
-        if (!user?.isGuest && !hasAskedForNotifications()) {
-            setPendingNavPath(path);
-            setShowNotifModal(true);
-        } else {
-            navigate(path);
-        }
-    };
 
     // Auto-login guiado para Guest Checkout (máximo un intento para evitar loops)
     const guestLoginAttempted = useRef(false);
@@ -104,9 +101,6 @@ export const Checkout: React.FC = () => {
 
     // Calculate Fees when dependencies change
     useEffect(() => {
-        // If no user location available, we can't calculate precisely. Assume delivery allowed or fallback.
-        // In this implementation, we rely on the venue's config.
-
         const newCosts: Record<string, DeliveryCalculationResult> = {};
 
         venueGroups.forEach((groupItems, venueId) => {
@@ -114,8 +108,6 @@ export const Checkout: React.FC = () => {
             if (!venue) return;
 
             const subtotal = groupItems.reduce((sum, item) => sum + (item.discountedPrice * item.quantity), 0);
-
-            // Use real GPS from LocationContext; fall back to Bogotá center only if unavailable
             const userLat = latitude ?? 4.6097;
             const userLng = longitude ?? -74.0817;
 
@@ -129,7 +121,7 @@ export const Checkout: React.FC = () => {
         });
         setDeliveryCosts(newCosts);
 
-    }, [venuesData, items, deliveryMethod]); // Recalculate if venues loaded or items change
+    }, [venuesData, items, deliveryMethod]);
 
 
     // Validate City Consistency
@@ -162,15 +154,20 @@ export const Checkout: React.FC = () => {
 
         let deliveryFee = 0;
         if (deliveryMethod === 'delivery') {
-            // Use calculated fee or default if calculation not ready/possible (fallback)
-            // If calculation says impossible, we should probably block checkout, but for now use fee.
-            const calc = deliveryCosts[venueId];
-            if (calc && calc.possible) {
-                deliveryFee = calc.fee;
+            const hasFreeDelivery = user?.rescattoPass?.isActive && 
+                                  user?.rescattoPass?.status === 'active' && 
+                                  user?.rescattoPass?.benefits?.freeDelivery;
+
+            if (hasFreeDelivery) {
+                deliveryFee = 0;
             } else {
-                // Fallback: cálculo no listo o imposible, usar tarifa por defecto
-                deliveryFee = DEFAULT_DELIVERY_FEE;
-                logger.warn(`Delivery fee fallback para venue ${venueId}: calc=${JSON.stringify(calc)}, usando DEFAULT_DELIVERY_FEE=${DEFAULT_DELIVERY_FEE}`);
+                const calc = deliveryCosts[venueId];
+                if (calc && calc.possible) {
+                    deliveryFee = calc.fee;
+                } else {
+                    deliveryFee = DEFAULT_DELIVERY_FEE;
+                    logger.warn(`Delivery fee fallback para venue ${venueId}: calc=${JSON.stringify(calc)}, usando DEFAULT_DELIVERY_FEE=${DEFAULT_DELIVERY_FEE}`);
+                }
             }
         }
 
@@ -190,24 +187,20 @@ export const Checkout: React.FC = () => {
         return Math.max(0, total - discount);
     };
 
-    // Total de descuento activo
     const activeDiscount = selectedRedemption?.discountAmount ?? 0;
 
-    // Canjes válidos (no usados, no vencidos)
     const availableRedemptions = (user?.redemptions ?? []).filter(
         r => !r.usedAt && new Date(r.expiresAt) > new Date()
     );
 
-    // Calculate CO2 Impact
     const calculateCo2Impact = () => {
         const itemsCount = items.reduce((acc, item) => acc + item.quantity, 0);
-        let baseImpact = itemsCount * 0.5; // 0.5kg per item base
+        let baseImpact = itemsCount * 0.5;
 
-        // Bonus based on delivery method
         if (deliveryMethod === 'pickup') {
-            baseImpact += 0.3; // Bonus for pickup
+            baseImpact += 0.3;
         } else if (deliveryMethod === 'donation') {
-            baseImpact += 0.2; // Bonus for donation
+            baseImpact += 0.2;
         }
 
         return Number(baseImpact.toFixed(1));
@@ -215,23 +208,12 @@ export const Checkout: React.FC = () => {
 
     const estimatedCo2 = calculateCo2Impact();
 
-    // Estimate points user will earn from this order
     const estimatedPoints = React.useMemo(() => {
         const moneySaved = items.reduce((sum, item) => sum + ((item.originalPrice - item.discountedPrice) * item.quantity), 0);
         const pointsFromSavings = Math.floor(moneySaved / 1000);
         const pointsFromCo2 = Math.floor(estimatedCo2 * 10);
         return Math.min(pointsFromSavings + pointsFromCo2, 500);
     }, [items, estimatedCo2]);
-
-    const getRedirectPath = (orderIds: string[]) => {
-        const orderId = orderIds[0] || '';
-        // Si el usuario es gestor, llevarlo a la gestión de pedidos
-        if (user?.role === 'VENUE_OWNER' || user?.role === 'SUPER_ADMIN') {
-            return `/order-management?search=${orderId}`;
-        }
-        // Si es cliente, llevarlo a "Mis Pedidos" filtrado por este ID
-        return `/app/orders?orderId=${orderId}`;
-    };
 
     const handleUnavailableProductsError = (err: any): boolean => {
         const products = Array.isArray(err?.details?.products) ? err.details.products : [];
@@ -282,28 +264,23 @@ export const Checkout: React.FC = () => {
             return;
         }
 
-        if (deliveryMethod === 'delivery' && !address) {
-            error('Por favor ingresa una dirección de entrega.');
+        const validation = safeParseCheckoutForm({
+            address,
+            phone: phoneDigits,
+            deliveryMethod,
+            selectedDonationCenterId: selectedDonationCenter?.id
+        });
+
+        if (!validation.success) {
+            error(validation.error.issues[0]?.message || 'Datos inválidos.');
             return;
         }
 
-        if (!isPhoneValid) {
-            error('Ingresa un teléfono válido (7 a 15 dígitos).');
-            return;
-        }
-
-        if (deliveryMethod === 'donation' && !selectedDonationCenter) {
-            error('Por favor selecciona un centro de donación.');
-            return;
-        }
-
-        // Validate City Consistency again (blocking)
         if (cityError) {
             error(cityError);
             return;
         }
 
-        // Validate Delivery Feasibility
         if (deliveryMethod === 'delivery') {
             for (const [venueId] of venueGroups.entries()) {
                 const calc = deliveryCosts[venueId];
@@ -314,101 +291,17 @@ export const Checkout: React.FC = () => {
             }
         }
 
-        setLoading(true);
-
-        try {
-            const createOrderFn = httpsCallable(functions, 'createOrder');
-
-            const venueEntries = Array.from(venueGroups.entries());
-            const orderResults = await Promise.allSettled(
-                venueEntries.map(async ([venueId, venueItems]) => {
-                    const { deliveryFee } = calculateOrderTotals(venueId, venueItems);
-
-                    const payload = {
-                        venueId,
-                        products: venueItems.map(item => ({
-                            productId: item.id,
-                            quantity: item.quantity
-                        })),
-                        paymentMethod: 'cash',
-                        deliveryMethod,
-                        deliveryFee,
-                        address: address || null,
-                        city: city || 'Bogotá',
-                        phone: phoneDigits,
-                        transactionId: null,
-                        isDonation: deliveryMethod === 'donation',
-                        donationCenterId: selectedDonationCenter?.id,
-                        donationCenterName: selectedDonationCenter?.name,
-                        estimatedCo2: calculateCo2Impact() / venueGroups.size,
-                        redemptionId: selectedRedemption?.id ?? null,
-                    };
-                    
-                    // Robust Retry Pattern with Exponential Backoff
-                    let attempt = 0;
-                    const maxAttempts = 3;
-                    while (attempt < maxAttempts) {
-                        try {
-                            const result: any = await createOrderFn(payload);
-                            return { orderId: result.data.orderId as string, venueId };
-                        } catch (err: any) {
-                            attempt++;
-                            if (attempt >= maxAttempts || err?.code === 'failed-precondition' || err?.code === 'invalid-argument') {
-                                throw err; // Don't retry validation or stock errors
-                            }
-                            logger.warn(`Retrying cash order creation for ${venueId} (Attempt ${attempt}/${maxAttempts})...`);
-                            await new Promise(res => setTimeout(res, 1000 * Math.pow(2, attempt))); // 2s, 4s, 8s...
-                        }
-                    }
-                    throw new Error('Fallback block reached (should not happen)');
-                })
-            );
-
-            const succeeded = orderResults.filter((r): r is PromiseFulfilledResult<{ orderId: string; venueId: string }> => r.status === 'fulfilled');
-            const failed = orderResults.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
-
-            // Remover del carrito solo los items de venues que se crearon exitosamente
-            if (succeeded.length > 0) {
-                const successVenueIds = new Set(succeeded.map(r => r.value.venueId));
-                const itemsToRemove = items.filter(item => successVenueIds.has(item.venueId));
-                itemsToRemove.forEach(item => removeFromCart(item.id));
-            }
-
-            if (failed.length > 0 && succeeded.length > 0) {
-                // Éxito parcial: algunos pedidos creados, otros fallaron
-                const failedVenueNames = failed.map((_, i) => {
-                    const venueId = venueEntries[orderResults.indexOf(failed[i])]?.[0];
-                    const venueItems = venueGroups.get(venueId || '');
-                    return venueItems?.[0]?.venueName || 'un negocio';
-                }).join(', ');
-                error(`Algunos pedidos fallaron (${failedVenueNames}). Los exitosos fueron procesados. Reintenta los restantes.`);
-                logger.error('Partial order failure:', failed.map(f => f.reason));
-                setLoading(false);
-                return;
-            }
-
-            if (failed.length > 0 && succeeded.length === 0) {
-                // Todos fallaron — propagar el primer error
-                throw failed[0].reason;
-            }
-
-            const orderIds = succeeded.map(r => r.value.orderId);
-
-            orderJustPlacedRef.current = true;
-            clearCart();
-            const pointsMsg = estimatedPoints > 0 ? ` +${estimatedPoints} puntos ganados 🎯` : '';
-            success(`¡Pedido realizado con éxito! 🎉${pointsMsg}`);
-            navigateAfterOrder(getRedirectPath(orderIds));
-
-        } catch (err: any) {
-            logger.error("Error creating order:", err);
-            if (handleUnavailableProductsError(err)) {
-                return;
-            }
-            error(err.message || 'Error al procesar el pedido. Intenta nuevamente.');
-        } finally {
-            setLoading(false);
-        }
+        orderJustPlacedRef.current = true;
+        await processOrder({
+            paymentMethod: 'cash',
+            deliveryMethod,
+            address,
+            phoneDigits,
+            selectedDonationCenter,
+            estimatedCo2,
+            selectedRedemption,
+            calculateOrderTotals
+        });
     };
 
     const handleCardPaymentSuccess = async (transactionId: string) => {
@@ -416,11 +309,6 @@ export const Checkout: React.FC = () => {
             error('Debes iniciar sesión para realizar pedidos.');
             sessionStorage.setItem('rescatto_post_login_redirect', '/app/checkout');
             navigate('/login');
-            return;
-        }
-
-        if (deliveryMethod === 'donation' && !selectedDonationCenter) {
-            error('Por favor selecciona un centro de donación.');
             return;
         }
 
@@ -432,104 +320,20 @@ export const Checkout: React.FC = () => {
             return;
         }
 
-        if (!isPhoneValid) {
-            error('Ingresa un teléfono válido (7 a 15 dígitos).');
-            return;
-        }
-
-        setLoading(true);
-        try {
-            const createOrderFn = httpsCallable(functions, 'createOrder');
-
-            const venueEntries = Array.from(venueGroups.entries());
-            const orderResults = await Promise.allSettled(
-                venueEntries.map(async ([venueId, venueItems]) => {
-                    const { deliveryFee } = calculateOrderTotals(venueId, venueItems);
-
-                    const payload = {
-                        venueId,
-                        products: venueItems.map(item => ({
-                            productId: item.id,
-                            quantity: item.quantity
-                        })),
-                        paymentMethod: 'card',
-                        deliveryMethod,
-                        deliveryFee,
-                        address: address || null,
-                        city: city || 'Bogotá',
-                        phone: phoneDigits,
-                        transactionId,
-                        isDonation: deliveryMethod === 'donation',
-                        donationCenterId: selectedDonationCenter?.id,
-                        donationCenterName: selectedDonationCenter?.name,
-                        estimatedCo2: calculateCo2Impact() / venueGroups.size,
-                        redemptionId: selectedRedemption?.id ?? null,
-                    };
-                    
-                    // Robust Retry Pattern with Exponential Backoff
-                    let attempt = 0;
-                    const maxAttempts = 3;
-                    while (attempt < maxAttempts) {
-                        try {
-                            const result: any = await createOrderFn(payload);
-                            return { orderId: result.data.orderId as string, venueId };
-                        } catch (err: any) {
-                            attempt++;
-                            if (attempt >= maxAttempts || err?.code === 'failed-precondition' || err?.code === 'invalid-argument') {
-                                throw err; // Don't retry validation or stock errors, only network/transient ones
-                            }
-                            logger.warn(`Retrying order creation for ${venueId} (Attempt ${attempt}/${maxAttempts})...`);
-                            await new Promise(res => setTimeout(res, 1000 * Math.pow(2, attempt))); // 2s, 4s, 8s...
-                        }
-                    }
-                    throw new Error('Fallback block reached (should not happen)');
-                })
-            );
-
-            const succeeded = orderResults.filter((r): r is PromiseFulfilledResult<{ orderId: string; venueId: string }> => r.status === 'fulfilled');
-            const failed = orderResults.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
-
-            if (succeeded.length > 0) {
-                const successVenueIds = new Set(succeeded.map(r => r.value.venueId));
-                const itemsToRemove = items.filter(item => successVenueIds.has(item.venueId));
-                itemsToRemove.forEach(item => removeFromCart(item.id));
-            }
-
-            if (failed.length > 0 && succeeded.length > 0) {
-                const failedVenueNames = failed.map((_, i) => {
-                    const venueId = venueEntries[orderResults.indexOf(failed[i])]?.[0];
-                    const venueItems = venueGroups.get(venueId || '');
-                    return venueItems?.[0]?.venueName || 'un negocio';
-                }).join(', ');
-                error(`Algunos pedidos fallaron (${failedVenueNames}). Los exitosos fueron procesados. Contacta a soporte.`);
-                logger.error('Partial card order failure:', failed.map(f => f.reason));
-                setLoading(false);
-                return;
-            }
-
-            if (failed.length > 0 && succeeded.length === 0) {
-                throw failed[0].reason;
-            }
-
-            const orderIds = succeeded.map(r => r.value.orderId);
-            orderJustPlacedRef.current = true;
-            clearCart();
-            const pointsMsg = estimatedPoints > 0 ? ` +${estimatedPoints} puntos ganados 🎯` : '';
-            success(`¡Pago exitoso! Tu pedido ha sido confirmado. ✅${pointsMsg}`);
-            navigateAfterOrder(getRedirectPath(orderIds));
-        } catch (err: any) {
-            logger.error('Error creating paid order:', err);
-            if (handleUnavailableProductsError(err)) {
-                return;
-            }
-            error('Error al crear el pedido pagado. Contacta a soporte.');
-        } finally {
-            setLoading(false);
-        }
+        orderJustPlacedRef.current = true;
+        await processOrder({
+            paymentMethod: 'card',
+            deliveryMethod,
+            address,
+            phoneDigits,
+            selectedDonationCenter,
+            estimatedCo2,
+            selectedRedemption,
+            calculateOrderTotals,
+            transactionId
+        });
     };
 
-    // Redirigir al carrito si no hay items y el auth ya está estable.
-    // authLoading previene redirigir durante transiciones de auth (userId cambia → cart sync).
     useEffect(() => {
         if (items.length === 0 && !loading && !orderJustPlacedRef.current && !authLoading && isAuthenticated) {
             navigate('/app/cart');
@@ -546,8 +350,6 @@ export const Checkout: React.FC = () => {
     }
 
     if (items.length === 0) {
-        // Si acabamos de colocar una orden, mostramos el modal de notificaciones si aplica
-        // y esperamos la navegación. Si no, redirigimos al carrito.
         if (showNotifModal && user) {
             return (
                 <NotificationPermissionModal
@@ -574,7 +376,6 @@ export const Checkout: React.FC = () => {
                         Volver al Carrito
                     </button>
 
-                    {/* Banner de conversión para usuarios invitados (anónimos) */}
                     <GuestConversionBanner context="checkout" />
 
                     {/* Hero Banner */}
@@ -806,7 +607,7 @@ export const Checkout: React.FC = () => {
 
                         <div className="lg:col-span-1">
                             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 sticky top-6">
-                                <h3 className="font-bold text-lg mb-4">Resumen del Pedido</h3>
+                                <h3 className="font-bold text-lg mb-4">{t('checkout_title')}</h3>
 
                                 <div className="space-y-2 mb-4">
                                     <div className="flex justify-between text-gray-600">
@@ -816,8 +617,21 @@ export const Checkout: React.FC = () => {
                                     <div className="flex justify-between text-gray-600">
                                         <span>Domicilio ({venueGroups.size} {venueGroups.size === 1 ? 'negocio' : 'negocios'})</span>
                                         {deliveryMethod === 'delivery' ? (
-                                            // Sum up all delivery fees 
-                                            <span>{formatCOP(Array.from(venueGroups.keys()).reduce((sum, vid) => sum + (calculateOrderTotals(vid, venueGroups.get(vid) || []).deliveryFee), 0))}</span>
+                                            <div className="text-right">
+                                                {user?.rescattoPass?.isActive && user?.rescattoPass?.benefits?.freeDelivery ? (
+                                                    <div className="flex flex-col items-end">
+                                                        <span className="text-gray-400 line-through text-xs">
+                                                            {formatCOP(Array.from(venueGroups.keys()).reduce((sum, vid) => sum + (calculateOrderTotals(vid, venueGroups.get(vid) || []).deliveryFee), 0))}
+                                                        </span>
+                                                        <span className="text-emerald-600 font-black flex items-center gap-1">
+                                                            <Zap size={12} className="fill-emerald-600" />
+                                                            Pass: $0
+                                                        </span>
+                                                    </div>
+                                                ) : (
+                                                    <span>{formatCOP(Array.from(venueGroups.keys()).reduce((sum, vid) => sum + (calculateOrderTotals(vid, venueGroups.get(vid) || []).deliveryFee), 0))}</span>
+                                                )}
+                                            </div>
                                         ) : (
                                             <span className="text-emerald-600 font-semibold">GRATIS ({deliveryMethod === 'pickup' ? 'Recogida' : 'Donación'})</span>
                                         )}
@@ -825,26 +639,43 @@ export const Checkout: React.FC = () => {
 
                                     {/* Canjes de puntos disponibles */}
                                     {availableRedemptions.length > 0 && (
-                                        <div className="border border-dashed border-emerald-200 rounded-xl p-3 bg-emerald-50 space-y-2">
-                                            <p className="text-xs font-bold text-emerald-700 flex items-center gap-1">
-                                                <Gift size={12} /> Canjes disponibles
-                                            </p>
-                                            {availableRedemptions.map(r => (
-                                                <button
-                                                    key={r.id}
-                                                    onClick={() => setSelectedRedemption(prev => prev?.id === r.id ? null : r)}
-                                                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold border transition-all active:scale-95 ${selectedRedemption?.id === r.id
-                                                        ? 'bg-emerald-600 text-white border-emerald-600'
-                                                        : 'bg-white text-emerald-700 border-emerald-200 hover:border-emerald-400'
-                                                        }`}
-                                                >
-                                                    <span className="flex items-center gap-1.5">
-                                                        <Tag size={11} />
-                                                        {r.label}
-                                                    </span>
-                                                    <span>{selectedRedemption?.id === r.id ? '✓ Aplicado' : 'Aplicar'}</span>
-                                                </button>
-                                            ))}
+                                        <div className="border-2 border-emerald-100 rounded-2xl p-4 bg-emerald-50/50 space-y-3 shadow-sm">
+                                            <div className="flex items-center justify-between">
+                                                <p className="text-xs font-black text-emerald-800 flex items-center gap-1.5 uppercase tracking-wider">
+                                                    <Gift size={14} className="text-emerald-500" /> 
+                                                    Tus Recompensas
+                                                </p>
+                                                <span className="bg-emerald-200 text-emerald-800 text-[10px] font-black px-2 py-0.5 rounded-full">
+                                                    {availableRedemptions.length} DISPONIBLES
+                                                </span>
+                                            </div>
+                                            <div className="space-y-2">
+                                                {availableRedemptions.map(r => (
+                                                    <button
+                                                        key={r.id}
+                                                        onClick={() => setSelectedRedemption(prev => prev?.id === r.id ? null : r)}
+                                                        className={`w-full group flex items-center justify-between px-4 py-3 rounded-xl text-sm font-bold border-2 transition-all active:scale-[0.97] ${selectedRedemption?.id === r.id
+                                                            ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-200'
+                                                            : 'bg-white border-white text-emerald-700 hover:border-emerald-200 shadow-sm'
+                                                            }`}
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            <div className={`p-1.5 rounded-lg transition-colors ${selectedRedemption?.id === r.id ? 'bg-white/20' : 'bg-emerald-50'}`}>
+                                                                <Tag size={16} className={selectedRedemption?.id === r.id ? 'text-white' : 'text-emerald-600'} />
+                                                            </div>
+                                                            <span className="truncate">{r.label}</span>
+                                                        </div>
+                                                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${selectedRedemption?.id === r.id ? 'border-white bg-white text-emerald-600' : 'border-emerald-100 bg-white'}`}>
+                                                            {selectedRedemption?.id === r.id && <span className="text-[10px] font-black">✓</span>}
+                                                        </div>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            {selectedRedemption && (
+                                                <p className="text-[10px] text-emerald-600 font-bold text-center animate-pulse">
+                                                    ✨ Descuento aplicado automáticamente
+                                                </p>
+                                            )}
                                         </div>
                                     )}
 
@@ -871,7 +702,7 @@ export const Checkout: React.FC = () => {
                                 {paymentMethod === 'cash' ? (
                                     <button
                                         onClick={user?.isGuest ? () => { sessionStorage.setItem('rescatto_post_login_redirect', '/app/checkout'); navigate('/login'); } : handlePlaceOrder}
-                                        disabled={loading || (deliveryMethod === 'delivery' && !address) || !isPhoneValid || !!cityError}
+                                        disabled={loading || !!cityError}
                                         className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white font-bold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-lg flex items-center justify-center gap-2 active:scale-95"
                                     >
                                         {loading ? (

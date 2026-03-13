@@ -9,6 +9,9 @@ import { CartProvider } from './context/CartContext';
 import { ChatProvider } from './context/ChatContext';
 import { LocationProvider } from './context/LocationContext';
 import { NotificationProvider } from './context/NotificationContext';
+import { featureFlagService } from './services/featureFlagService';
+import { analytics } from './services/firebase';
+import { logEvent } from 'firebase/analytics';
 // Helper for lazy loading to avoid TS errors with named exports
 const lazyLoad = (importFunc: () => Promise<any>, exportName?: string) => {
     return React.lazy(() => importFunc().then(m => ({ default: exportName && m[exportName] ? m[exportName] : m.default || Object.values(m)[0] })));
@@ -24,7 +27,14 @@ const FinanceManager = lazyLoad(() => import('./pages/admin/FinanceManager'), 'F
 const AdminDeliveriesPage = lazyLoad(() => import('./pages/admin/sections/AdminDeliveries'), 'AdminDeliveries');
 const AdminSalesPage = lazyLoad(() => import('./pages/admin/sections/AdminSales'), 'AdminSales');
 const AdminSettingsPage = lazyLoad(() => import('./pages/admin/sections/AdminSettings'), 'AdminSettings');
+const RegionalDashboard = lazyLoad(() => import('./pages/admin/RegionalDashboard'), 'RegionalDashboard');
 import { VerifyEmail } from './pages/VerifyEmail';
+
+// --- Backoffice V2 ---
+import SuperAdminRoute from './components/admin/SuperAdminRoute';
+import BackofficeLayout from './components/admin/layout/BackofficeLayout';
+const DashboardOverview = lazyLoad(() => import('./pages/backoffice/DashboardOverview'), 'default');
+const BackofficeVenuesManager = lazyLoad(() => import('./pages/backoffice/VenuesManager'), 'default');
 
 // Components
 import ProtectedRoute from './components/ProtectedRoute';
@@ -67,7 +77,7 @@ const UnifiedProfile = lazyLoad(() => import('./pages/profile/UnifiedProfile'), 
 import { ReloadPrompt } from './components/ReloadPrompt';
 
 import { LoadingScreen, LoadingSpinner } from './components/customer/common/Loading';
-
+import { CustomerBottomNav } from './components/customer/layout/CustomerBottomNav';
 import { messagingService } from './services/messagingService';
 
 // Smart Redirect Component
@@ -83,6 +93,7 @@ const RootRedirect: React.FC = () => {
             messagingService.requestPermissionAndSaveToken(user.id).catch(() => {});
         }
     }, [user?.id]);
+    const { hasRole } = useAuth();
     if (isLoading) return <LoadingScreen />;
 
     // Sin sesión → ir al app como invitado (auto-login se activa en CustomerLayout)
@@ -93,16 +104,26 @@ const RootRedirect: React.FC = () => {
         return <Navigate to="/verify-email" replace />;
     }
 
-    if (user.role === UserRole.CUSTOMER) {
-        return <Navigate to="/app" replace />;
-    } else if (user.role === UserRole.SUPER_ADMIN) {
-        return <Navigate to="/admin" replace />;
-    } else if (user.role === UserRole.ADMIN) {
-        return <Navigate to="/admin/users" replace />;
+    // V2-Aware Redirection
+    const isSuperAdminOrAdmin = hasRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]);
+    
+    console.log('RootRedirect: Checking roles...', {
+        userId: user?.id,
+        role: user?.role,
+        isSuperAdminOrAdmin,
+        currentPath: window.location.hash
+    });
+
+    if (isSuperAdminOrAdmin) {
+        console.log('RootRedirect: Redirecting to backoffice dashboard');
+        return <Navigate to="/backoffice/dashboard" replace />;
+    } else if (user.role === UserRole.CITY_ADMIN) {
+        return <Navigate to="/regional-dashboard" replace />;
     } else if (user.role === UserRole.DRIVER) {
         return <Navigate to="/driver" replace />;
     } else {
-        return <Navigate to="/dashboard" replace />;
+        // Default to Customer App for everything else (including UserRole.CUSTOMER)
+        return <Navigate to="/app" replace />;
     }
 };
 
@@ -149,6 +170,8 @@ const CustomerLayout: React.FC = () => {
     return (
         <div className="pt-safe-top min-h-screen bg-gray-50 pb-[calc(5rem+env(safe-area-inset-bottom))] overflow-x-hidden">
             <Outlet />
+            {/* Navigación Global Inferior (Persistente) */}
+            <CustomerBottomNav />
             {/* Global Floating Chat Button */}
             <ChatButton />
             {/* Global Persistent Cart Button */}
@@ -172,6 +195,8 @@ const ProfileRedirect: React.FC = () => {
         case UserRole.SUPER_ADMIN:
         case UserRole.ADMIN:
             return <Navigate to="/admin/profile" replace />;
+        case UserRole.CITY_ADMIN:
+            return <Navigate to="/regional-dashboard/profile" replace />; // O simplemente /admin/profile
         default:
             return <Navigate to="/dashboard/profile" replace />;
     }
@@ -198,10 +223,33 @@ const AppRoutes: React.FC = () => {
                 {/* EMAIL VERIFICATION */}
                 <Route path="/verify-email" element={<VerifyEmail />} />
 
-                {/* --- ADMIN ROUTES --- */}
+                {/* --- BACKOFFICE V2 ROUTES --- */}
+                <Route path="/backoffice" element={
+                    <SuperAdminRoute>
+                        <BackofficeLayout />
+                    </SuperAdminRoute>
+                }>
+                    <Route index element={<Navigate to="dashboard" replace />} />
+                    <Route path="dashboard" element={<DashboardOverview />} />
+                    <Route path="users" element={<UsersManager />} /> {/* Reusing existing for now */}
+                    <Route path="venues" element={<BackofficeVenuesManager />} />
+                    <Route path="audit" element={<AuditLogs />} /> {/* Reusing existing for now */}
+                    {/* Placeholder routes for layout links */}
+                    <Route path="drivers" element={<div className="p-8 text-white">Pronto: Conductores</div>} />
+                    <Route path="orders" element={<div className="p-8 text-white">Pronto: Pedidos Globales</div>} />
+                    <Route path="support" element={<div className="p-8 text-white">Pronto: Soporte</div>} />
+                    <Route path="settings" element={<div className="p-8 text-white">Pronto: Settings</div>} />
+                </Route>
+
+                {/* --- LEGACY ADMIN ROUTES (Will be deprecated) --- */}
                 <Route path="/admin" element={
                     <ProtectedRoute allowedRoles={[UserRole.SUPER_ADMIN]}>
                         <Layout><SuperAdminDashboard /></Layout>
+                    </ProtectedRoute>
+                } />
+                <Route path="/regional-dashboard" element={
+                    <ProtectedRoute allowedRoles={[UserRole.CITY_ADMIN, UserRole.SUPER_ADMIN]}>
+                        <Layout><RegionalDashboard /></Layout>
                     </ProtectedRoute>
                 } />
 
@@ -351,7 +399,7 @@ const AppRoutes: React.FC = () => {
                         </ProtectedRoute>
                     } />
                     <Route path="profile" element={
-                        <ProtectedRoute allowedRoles={[UserRole.CUSTOMER]} disallowGuests={true}>
+                        <ProtectedRoute allowedRoles={[UserRole.CUSTOMER]}>
                             <UnifiedProfile />
                         </ProtectedRoute>
                     } />
@@ -389,6 +437,16 @@ const queryClient = new QueryClient({
 });
 
 const App: React.FC = () => {
+    useEffect(() => {
+        featureFlagService.init();
+        if (analytics) {
+            logEvent(analytics, 'app_initialize', {
+                version: '1.0.0',
+                platform: 'web'
+            });
+        }
+    }, []);
+
     return (
         <QueryClientProvider client={queryClient}>
             <ErrorBoundary section="Rescatto App">

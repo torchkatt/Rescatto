@@ -11,10 +11,12 @@ import { useToast } from '../../context/ToastContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import { Tooltip } from '../../components/common/Tooltip';
 import { logger } from '../../utils/logger';
+import { useAuth } from '../../context/AuthContext';
 
 export const CategoriesManager: React.FC = () => {
     const toast = useToast();
     const confirm = useConfirm();
+    const { user: currentUser } = useAuth();
     const [categories, setCategories] = useState<VenueCategory[]>([]);
     const [venues, setVenues] = useState<Venue[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
@@ -56,9 +58,9 @@ export const CategoriesManager: React.FC = () => {
             const dataToSave = { ...formData, slug };
 
             if (formData.id) {
-                await adminService.updateCategory(formData.id, dataToSave);
+                await adminService.updateCategory(formData.id, dataToSave, currentUser?.id || 'system');
             } else {
-                await adminService.createCategory(dataToSave);
+                await adminService.createCategory(dataToSave, currentUser?.id || 'system');
             }
             toast.success(formData.id ? 'Etiqueta actualizada' : 'Etiqueta creada');
             setIsModalOpen(false);
@@ -80,7 +82,7 @@ export const CategoriesManager: React.FC = () => {
 
         if (confirmed) {
             try {
-                await adminService.deleteCategory(id);
+                await adminService.deleteCategory(id, currentUser?.id || 'system');
                 toast.success('Etiqueta eliminada correctamente');
                 loadCategories();
             } catch (error) {
@@ -95,7 +97,7 @@ export const CategoriesManager: React.FC = () => {
         try {
             // Optimistic update
             setCategories(prev => prev.map(c => c.id === category.id ? { ...c, isActive: newStatus } : c));
-            await adminService.updateCategory(category.id, { isActive: newStatus });
+            await adminService.updateCategory(category.id, { isActive: newStatus }, currentUser?.id || 'system');
         } catch (error) {
             logger.error('Error updating status', error);
             loadCategories(); // Revert
@@ -123,7 +125,7 @@ export const CategoriesManager: React.FC = () => {
         if (confirmed) {
             setLoading(true);
             try {
-                await adminService.seedDefaultCategories();
+                await adminService.seedDefaultCategories(currentUser?.id || 'system');
                 toast.success('Etiquetas cargadas correctamente');
                 loadCategories();
             } catch (error) {
@@ -166,7 +168,7 @@ export const CategoriesManager: React.FC = () => {
                     const toDelete = group.filter(c => c.id !== toKeep.id);
 
                     for (const cat of toDelete) {
-                        await adminService.deleteCategory(cat.id);
+                        await adminService.deleteCategory(cat.id, currentUser?.id || 'system');
                     }
                 }
                 toast.success('Deduplicación completada con éxito.');

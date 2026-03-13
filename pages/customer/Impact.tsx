@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import {
     ArrowLeft, Leaf, Zap, Star, Award, TrendingUp,
     TreePine, ShoppingBag, Gift, Share2, Flame,
-    Trophy, ChevronRight, Bell, Medal
+    Trophy, ChevronRight, Bell, Medal, Target, User,
+    ShieldCheck, Info, InfoIcon, Heart, Tag
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { GuestPromptBanner } from '../../components/customer/common/GuestPromptBanner';
@@ -13,6 +14,7 @@ import { useToast } from '../../context/ToastContext';
 import { logger } from '../../utils/logger';
 import { messagingService } from '../../services/messagingService';
 import { leaderboardService, LeaderboardEntry } from '../../services/leaderboardService';
+import { useTranslation } from 'react-i18next';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -362,11 +364,14 @@ const Impact: React.FC = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
     const { success, error: toastError, info } = useToast();
+    const { t } = useTranslation();
     const [redeeming, setRedeeming] = useState<string | null>(null);
     const [showShareCard, setShowShareCard] = useState(false);
     const [requestingNotifs, setRequestingNotifs] = useState(false);
     const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
     const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+    const [leaderboardPeriod, setLeaderboardPeriod] = useState<'all-time' | 'monthly' | 'weekly'>('all-time');
+    const [userRank, setUserRank] = useState<{ rank: number, totalPlayers: number } | null>(null);
     const [showGuestBanner, setShowGuestBanner] = useState(!!user?.isGuest);
 
     const impact = user?.impact;
@@ -385,11 +390,15 @@ const Impact: React.FC = () => {
     // Load leaderboard for user's city
     useEffect(() => {
         setLeaderboardLoading(true);
-        leaderboardService.getTopRescuers(user?.city, 10)
-            .then(setLeaderboard)
-            .catch(err => logger.error('Leaderboard load error:', err))
-            .finally(() => setLeaderboardLoading(false));
-    }, [user?.city]);
+        Promise.all([
+            leaderboardService.getTopRescuers(user?.city, 10, leaderboardPeriod),
+            user?.id ? leaderboardService.getMyRank(user.id, user.city, leaderboardPeriod) : Promise.resolve(null)
+        ]).then(([topRescuers, rank]) => {
+            setLeaderboard(topRescuers);
+            setUserRank(rank);
+        }).catch(err => logger.error('Leaderboard/Rank load error:', err))
+        .finally(() => setLeaderboardLoading(false));
+    }, [user?.city, user?.id, leaderboardPeriod]);
 
     // Trees equivalent (1 tree absorbs ~21kg CO2/year)
     const treesEquivalent = Math.max(0, Math.round((co2Saved / 21) * 10) / 10);
@@ -461,7 +470,7 @@ const Impact: React.FC = () => {
                         </button>
                         <div className="flex items-center gap-2">
                             <Leaf size={20} className="text-emerald-500" />
-                            <h1 className="text-lg font-bold text-gray-900">Mi Impacto</h1>
+                            <h1 className="text-lg font-bold text-gray-900">{t('impact_title')}</h1>
                         </div>
                     </div>
                     <button
@@ -539,7 +548,7 @@ const Impact: React.FC = () => {
                             unit="kg"
                             color="bg-gradient-to-br from-green-500 to-emerald-600"
                         />
-                        <StatCard
+                         <StatCard
                             icon={<TreePine size={14} />}
                             label="Equiv. árboles"
                             value={treesEquivalent}
@@ -591,64 +600,6 @@ const Impact: React.FC = () => {
                     </button>
                 )}
 
-                {/* Badges */}
-                {impact?.badges && impact.badges.length > 0 && (
-                    <div>
-                        <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-3">Insignias</h3>
-                        <div className="bg-white rounded-2xl p-4 shadow-sm">
-                            <div className="flex flex-wrap gap-3">
-                                {impact.badges.map(badge => (
-                                    <div
-                                        key={badge.id}
-                                        className="flex flex-col items-center gap-1 p-3 bg-amber-50 rounded-xl border border-amber-100"
-                                    >
-                                        <span className="text-2xl">{badge.icon}</span>
-                                        <span className="text-xs font-bold text-amber-700 text-center leading-tight max-w-[64px]">
-                                            {badge.name}
-                                        </span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Streak Milestones */}
-                <div>
-                    <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-3">Logros de Racha</h3>
-                    <div className="space-y-2">
-                        {STREAK_MILESTONES.map(milestone => {
-                            const unlocked = streakLongest >= milestone.days;
-                            return (
-                                <div
-                                    key={milestone.days}
-                                    className={`flex items-center gap-4 p-3 rounded-xl border transition-all ${unlocked
-                                        ? 'bg-orange-50 border-orange-200'
-                                        : 'bg-white border-gray-100 opacity-60'
-                                        }`}
-                                >
-                                    <div className={`text-2xl ${unlocked ? '' : 'grayscale'}`}>
-                                        {unlocked ? '🔥' : '⬜'}
-                                    </div>
-                                    <div className="flex-1">
-                                        <p className={`font-bold text-sm ${unlocked ? 'text-orange-700' : 'text-gray-500'}`}>
-                                            Racha de {milestone.label}
-                                        </p>
-                                        <p className={`text-xs ${unlocked ? 'text-orange-500' : 'text-gray-400'}`}>
-                                            {milestone.bonus} mientras mantengas la racha
-                                        </p>
-                                    </div>
-                                    {unlocked ? (
-                                        <Trophy size={18} className="text-orange-500" />
-                                    ) : (
-                                        <span className="text-xs text-gray-400">{milestone.days - streakCurrent}d más</span>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-
                 {/* City Leaderboard */}
                 <div>
                     <div className="flex items-center justify-between mb-3">
@@ -663,6 +614,41 @@ const Impact: React.FC = () => {
                             <span className="text-[10px] text-gray-400">Global</span>
                         )}
                     </div>
+
+                    {/* Period Tabs */}
+                    <div className="flex bg-gray-100 p-1 rounded-xl mb-4">
+                        {(['all-time', 'monthly', 'weekly'] as const).map((p) => (
+                            <button
+                                key={p}
+                                onClick={() => setLeaderboardPeriod(p)}
+                                className={`flex-1 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all ${
+                                    leaderboardPeriod === p 
+                                        ? 'bg-white text-emerald-600 shadow-sm' 
+                                        : 'text-gray-500'
+                                }`}
+                            >
+                                {p === 'all-time' ? 'Histórico' : p === 'monthly' ? 'Mensual' : 'Semanal'}
+                            </button>
+                        ))}
+                    </div>
+
+                    {userRank && userRank.rank > 0 && (
+                        <div className="mb-3 bg-emerald-600 rounded-2xl p-4 text-white shadow-lg flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-white/20 p-2 rounded-xl">
+                                    <Trophy size={20} className="text-yellow-300" />
+                                </div>
+                                <div>
+                                    <p className="text-white/70 text-[10px] font-black uppercase tracking-widest">Tu posición</p>
+                                    <p className="text-xl font-black"># {userRank.rank}</p>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-white/70 text-[10px] font-black uppercase tracking-widest">Nivel</p>
+                                <p className="text-sm font-bold">{LEVEL_CONFIG[level].emoji} {LEVEL_CONFIG[level].label}</p>
+                            </div>
+                        </div>
+                    )}
 
                     <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
                         {leaderboardLoading ? (
@@ -684,7 +670,6 @@ const Impact: React.FC = () => {
                                             key={entry.userId}
                                             className={`flex items-center gap-3 px-4 py-3 transition-colors ${isCurrentUser ? 'bg-emerald-50 border-l-4 border-emerald-500' : 'hover:bg-gray-50'}`}
                                         >
-                                            {/* Rank */}
                                             <div className="w-7 text-center flex-shrink-0">
                                                 {medal ? (
                                                     <span className="text-lg">{medal}</span>
@@ -693,7 +678,6 @@ const Impact: React.FC = () => {
                                                 )}
                                             </div>
 
-                                            {/* Avatar */}
                                             <div className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center font-black text-sm shadow-sm overflow-hidden bg-emerald-600 text-white">
                                                 {entry.avatarUrl ? (
                                                     <img src={entry.avatarUrl} alt={firstName} className="w-full h-full object-cover" />
@@ -702,7 +686,6 @@ const Impact: React.FC = () => {
                                                 )}
                                             </div>
 
-                                            {/* Info */}
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-1.5">
                                                     <p className={`font-bold text-sm truncate ${isCurrentUser ? 'text-emerald-700' : 'text-gray-900'}`}>
@@ -711,11 +694,10 @@ const Impact: React.FC = () => {
                                                     <span className="text-xs">{lvl.emoji}</span>
                                                 </div>
                                                 <p className="text-xs text-gray-400">
-                                                    {entry.totalRescues} rescates · {entry.co2Saved.toFixed(1)}kg CO₂
+                                                    {leaderboardPeriod === 'all-time' ? entry.totalRescues : (leaderboardPeriod === 'monthly' ? entry.monthlyRescues : entry.weeklyRescues) || 0} rescates · {entry.co2Saved.toFixed(1)}kg CO₂
                                                 </p>
                                             </div>
 
-                                            {/* Streak badge */}
                                             {(entry.streak ?? 0) >= 3 && (
                                                 <div className="flex items-center gap-0.5 text-orange-500 text-xs font-bold flex-shrink-0">
                                                     <Flame size={12} />
@@ -729,7 +711,6 @@ const Impact: React.FC = () => {
                         )}
                     </div>
 
-                    {/* Motivational CTA if user not in top 10 */}
                     {!leaderboardLoading && leaderboard.length > 0 && !leaderboard.find(e => e.userId === user?.id) && (
                         <p className="text-center text-xs text-gray-400 mt-2">
                             Sigue rescatando para aparecer en el top 10 de {user?.city || 'tu ciudad'} 🚀

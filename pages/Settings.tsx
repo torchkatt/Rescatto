@@ -7,10 +7,12 @@ import { formatCOP } from '../utils/formatters';
 import { useToast } from '../context/ToastContext';
 import { Venue } from '../types';
 import { logger } from '../utils/logger';
+import { useTranslation } from 'react-i18next';
 
 const Settings: React.FC = () => {
     const { user } = useAuth();
     const { showToast } = useToast();
+    const { t, i18n } = useTranslation();
 
     const [venue, setVenue] = useState<Venue | null>(null);
     const [loading, setLoading] = useState(true);
@@ -156,8 +158,35 @@ const Settings: React.FC = () => {
     return (
         <div className="max-w-4xl mx-auto space-y-8 pb-12">
             <div>
-                <h1 className="text-2xl font-bold text-gray-900">Configuración del Comercio</h1>
+                <h1 className="text-2xl font-bold text-gray-900">{t('settings_title')}</h1>
                 <p className="text-gray-500">Gestiona tus preferencias de venta y automatización.</p>
+            </div>
+
+            {/* Idioma y Preferencias */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
+                    <Zap className="text-gray-400" />
+                    <h2 className="text-lg font-bold text-gray-900">{t('language')}</h2>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">{t('language')}</label>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => i18n.changeLanguage('es')}
+                                className={`flex-1 px-4 py-3 rounded-xl font-bold border transition-all ${i18n.language === 'es' ? 'bg-emerald-50 border-emerald-500 text-emerald-700 shadow-sm' : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'}`}
+                            >
+                                🇪🇸 Español
+                            </button>
+                            <button
+                                onClick={() => i18n.changeLanguage('en')}
+                                className={`flex-1 px-4 py-3 rounded-xl font-bold border transition-all ${i18n.language === 'en' ? 'bg-emerald-50 border-emerald-500 text-emerald-700 shadow-sm' : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'}`}
+                            >
+                                🇺🇸 English
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {/* Motor de Precios Dinámicos - Configuración de Característica Estrella */}

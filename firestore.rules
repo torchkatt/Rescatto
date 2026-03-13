@@ -10,23 +10,36 @@ service cloud.firestore {
     }
 
     function getUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-    }
-
-    function getRole() {
-      return getUserData().role;
-    }
-
-    function hasRole(role) {
-      return isAuthenticated() && getRole() == role;
-    }
-
-    function isSuperAdmin() {
-      return isAuthenticated() && getRole() == 'SUPER_ADMIN';
+      return (isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid))) 
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data 
+        : null;
     }
 
     function isAdmin() {
-      return isAuthenticated() && (getRole() == 'SUPER_ADMIN' || getRole() == 'ADMIN');
+      return isAuthenticated() && 
+        (getUserData() != null && 
+         (getUserData().role == 'SUPER_ADMIN' || getUserData().role == 'ADMIN' || 
+          (('activeMembershipId' in getUserData() && getUserData().activeMembershipId != null) ? 
+           get(/databases/$(database)/documents/memberships/$(getUserData().activeMembershipId)).data.role in ['SUPER_ADMIN', 'ADMIN'] : 
+           false)));
+    }
+
+    function isSuperAdmin() {
+      return isAuthenticated() && 
+        (getUserData() != null && 
+         (getUserData().role == 'SUPER_ADMIN' || 
+          (('activeMembershipId' in getUserData() && getUserData().activeMembershipId != null) ? 
+           get(/databases/$(database)/documents/memberships/$(getUserData().activeMembershipId)).data.role == 'SUPER_ADMIN' : 
+           false)));
+    }
+
+    function hasRole(roleName) {
+      return isAuthenticated() && 
+        (getUserData() != null && 
+         (getUserData().role == roleName || 
+          (('activeMembershipId' in getUserData() && getUserData().activeMembershipId != null) ? 
+           get(/databases/$(database)/documents/memberships/$(getUserData().activeMembershipId)).data.role == roleName : 
+           false)));
     }
 
     function isOwner(userId) {
@@ -99,18 +112,60 @@ service cloud.firestore {
     }
 
     function belongsToVenue(venueId) {
-      return isAuthenticated() &&
-        getRole() in ['VENUE_OWNER', 'KITCHEN_STAFF'] &&
-        (getUserData().venueId == venueId ||
-         (getUserData().venueIds != null && venueId in getUserData().venueIds));
+      return isAuthenticated() && (
+        (
+          getUserData() != null &&
+          getUserData().role in ['VENUE_OWNER', 'KITCHEN_STAFF'] &&
+          (getUserData().venueId == venueId || ('venueIds' in getUserData() && venueId in getUserData().venueIds))
+        ) ||
+        (
+          (getUserData() != null && 'activeMembershipId' in getUserData() && getUserData().activeMembershipId != null) ?
+          (get(/databases/$(database)/documents/memberships/$(getUserData().activeMembershipId)).data.role in ['VENUE_OWNER', 'KITCHEN_STAFF'] &&
+           get(/databases/$(database)/documents/memberships/$(getUserData().activeMembershipId)).data.venueId == venueId) :
+          false
+        )
+      );
     }
 
     function isVenueOwnerOf(venueId) {
-      return isAuthenticated() && getRole() == 'VENUE_OWNER' && belongsToVenue(venueId);
+      return isAuthenticated() && (
+        (getUserData() != null && getUserData().role == 'VENUE_OWNER' && (getUserData().venueId == venueId || ('venueIds' in getUserData() && venueId in getUserData().venueIds))) ||
+        (
+          (getUserData() != null && 'activeMembershipId' in getUserData() && getUserData().activeMembershipId != null) ?
+          (get(/databases/$(database)/documents/memberships/$(getUserData().activeMembershipId)).data.role == 'VENUE_OWNER' &&
+           get(/databases/$(database)/documents/memberships/$(getUserData().activeMembershipId)).data.venueId == venueId) :
+          false
+        )
+      );
     }
 
     function isKitchenStaffOf(venueId) {
-      return isAuthenticated() && getRole() == 'KITCHEN_STAFF' && belongsToVenue(venueId);
+      return isAuthenticated() && (
+        (getUserData() != null && getUserData().role == 'KITCHEN_STAFF' && (getUserData().venueId == venueId || ('venueIds' in getUserData() && venueId in getUserData().venueIds))) ||
+        (
+          (getUserData() != null && 'activeMembershipId' in getUserData() && getUserData().activeMembershipId != null) ?
+          (get(/databases/$(database)/documents/memberships/$(getUserData().activeMembershipId)).data.role == 'KITCHEN_STAFF' &&
+           get(/databases/$(database)/documents/memberships/$(getUserData().activeMembershipId)).data.venueId == venueId) :
+          false
+        )
+      );
+    }
+
+    // ─── SCHEMA VALIDATION HELPERS ──────────────────────────────────────
+
+    function isValidAuditLog() {
+      return request.resource.data.keys().hasAll(['performedBy', 'action', 'timestamp']) &&
+             request.resource.data.keys().hasOnly([
+               'performedBy', 'action', 'timestamp', 'userRole', 'details', 'path', 
+               'userAgent', 'device', 'metadata'
+             ]) &&
+             request.resource.data.performedBy is string &&
+             request.resource.data.action is string;
+    }
+
+    function isValidUser() {
+      return request.resource.data.keys().hasAll(['fullName', 'role', 'createdAt']) &&
+             request.resource.data.role in ['CUSTOMER', 'ADMIN', 'VENUE_OWNER', 'KITCHEN_STAFF', 'DRIVER', 'SUPER_ADMIN'];
     }
 
 
@@ -125,17 +180,38 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
       
-      // Solo el propio usuario puede auto-crear perfil como CUSTOMER.
-      // Roles elevados se crean/gestionan por admin.
-      allow create: if canUserCreateOwnProfile(userId) || isAdmin();
+      // Allow any authenticated user to create their own profile.
+      // Guest users (anonymous) need this to initialize their documents.
+      allow create: if isOwner(userId) && isValidUser();
       
-      // El usuario solo puede actualizar campos de perfil permitidos.
-      // isVerified puede sincronizarse solo si email_verified=true en Auth token.
-      allow update: if isAdmin()
-        || canUserUpdateOwnProfile(userId)
-        || canUserConvertGuest(userId)
-        || canUserSyncVerification(userId);
+      // Allow profile updates and sync verification. 
+      // Also allow updating activeMembershipId during initial setup.
+      allow update: if (isAdmin()
+        || isOwner(userId)
+        || canUserSyncVerification(userId)) && isValidUser();
                       
+      allow delete: if isSuperAdmin();
+    }
+
+    // ─── MEMBERSHIPS (V2 Architecture) ───────────────────────────────────
+
+    match /memberships/{membershipId} {
+      // Users can read their own memberships. Admins can read all.
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      // For now, only Cloud Functions (Admin SDK) or existing Admins can create/update memberships 
+      // except for the user auto-creating their first CUSTOMER membership during signup.
+      allow create: if isAdmin() || (
+        isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.role == 'CUSTOMER'
+      );
+      // Users can only update their own membership status (e.g. deactivate), 
+      // but modifying roles or venueId requires Admin permissions.
+      allow update: if isAdmin() || (
+        isAuthenticated() && 
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+      );
       allow delete: if isSuperAdmin();
     }
 
@@ -143,17 +219,17 @@ service cloud.firestore {
     // ─── VENUES ──────────────────────────────────────────────────────────
 
     match /venues/{venueId} {
-      allow read: if isAuthenticated();
+      allow read: if true; // Marketplace visibility for guests
       allow update: if isVenueOwnerOf(venueId) || isAdmin();
       allow create, delete: if isAdmin();
 
       // Stats subcollection
       match /stats/{statId} {
-        allow read: if isAuthenticated();
+        allow read: if true;
         // Only customers and admins can update rating stats (after creating a rating)
         // Revenue/orders stats are Cloud Function only (statId != 'ratings' is blocked)
         allow write: if statId == 'ratings' &&
-          (isSuperAdmin() || (isAuthenticated() && getRole() == 'CUSTOMER'));
+          (isSuperAdmin() || (isAuthenticated() && getUserData() != null && getUserData().role == 'CUSTOMER'));
       }
     }
 
@@ -161,7 +237,7 @@ service cloud.firestore {
     // ─── PRODUCTS ────────────────────────────────────────────────────────
 
     match /products/{productId} {
-      allow read: if isAuthenticated();
+      allow read: if true; // Visible to guests
 
       allow create: if isAdmin() ||
         (hasRole('VENUE_OWNER') &&
@@ -265,7 +341,7 @@ service cloud.firestore {
     // ─── CATEGORIES ──────────────────────────────────────────────────────
 
     match /categories/{categoryId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow write: if isAdmin();
     }
 
@@ -298,7 +374,7 @@ service cloud.firestore {
 
     match /wallet_transactions/{txId} {
       allow read: if isAdmin() ||
-        (isAuthenticated() && (
+        (isAuthenticated() && getUserData() != null && (
           resource.data.venueId == getUserData().venueId ||
           (getUserData().venueIds != null && resource.data.venueId in getUserData().venueIds)
         ));
@@ -314,7 +390,8 @@ service cloud.firestore {
 
       allow create: if isAuthenticated() &&
         request.auth.uid in request.resource.data.participants &&
-        request.resource.data.participants.size() >= 2;
+        request.resource.data.participants.size() >= 2 &&
+        (request.resource.data.type != 'admin-support' || isAdmin());
 
       allow update: if isAdmin() ||
         (isAuthenticated() && request.auth.uid in resource.data.participants);
@@ -340,6 +417,19 @@ service cloud.firestore {
             request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants));
 
         allow delete: if isSuperAdmin();
+      }
+
+      // ─── TYPING (subcollection of chats) ────────────────────────────
+      match /typing/{userId} {
+        // Only chat participants can see who is typing
+        allow read: if isAdmin() ||
+          (isAuthenticated() &&
+           request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants);
+
+        // Participants can only write their own typing status
+        allow write: if isAuthenticated() &&
+          request.auth.uid == userId &&
+          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
       }
     }
 
@@ -368,9 +458,9 @@ service cloud.firestore {
     match /audit_logs/{logId} {
       allow read: if isAdmin();
       // Only allow creating a log entry for your own actions (prevents spoofing other users)
-      allow create: if isAuthenticated()
-          && request.resource.data.performedBy == request.auth.uid
-          && request.resource.data.keys().hasAll(['performedBy', 'action', 'timestamp']);
+      allow create: if (isAuthenticated() || request.resource.data.performedBy == 'anonymous')
+          && (request.resource.data.performedBy == request.auth.uid || request.resource.data.performedBy == 'anonymous' || request.resource.data.performedBy == request.auth.token.email)
+          && isValidAuditLog();
       allow update, delete: if false;     // Immutable
     }
 
@@ -428,7 +518,7 @@ service cloud.firestore {
     }
 
     match /rating_stats/{statsId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow write: if false; // Updated by Cloud Functions (onRatingCreated)
     }
 

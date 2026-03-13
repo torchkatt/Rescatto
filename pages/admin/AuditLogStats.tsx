@@ -24,9 +24,21 @@ export const AuditLogStats: React.FC<AuditLogStatsProps> = ({ logs, totalCount }
         }
 
         logs.forEach(log => {
-            const key = log.timestamp.split('T')[0];
-            if (daysMap.has(key)) {
-                daysMap.set(key, (daysMap.get(key) || 0) + 1);
+            let dateStr = '';
+            if (typeof log.timestamp === 'string') {
+                dateStr = log.timestamp;
+            } else if (log.timestamp && typeof (log.timestamp as any).toDate === 'function') {
+                dateStr = (log.timestamp as any).toDate().toISOString();
+            } else if (log.timestamp && (log.timestamp as any).seconds) {
+                // Handle raw timestamp object if toDate is not available
+                dateStr = new Date((log.timestamp as any).seconds * 1000).toISOString();
+            }
+
+            if (dateStr) {
+                const key = dateStr.split('T')[0];
+                if (daysMap.has(key)) {
+                    daysMap.set(key, (daysMap.get(key) || 0) + 1);
+                }
             }
         });
 

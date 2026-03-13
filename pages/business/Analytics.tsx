@@ -19,6 +19,7 @@ import { DollarSign, ShoppingCart, TrendingUp, Package, Download, BarChart3 } fr
 import * as Papa from 'papaparse';
 import { logger } from '../../utils/logger';
 import { formatCOP } from '../../utils/formatters';
+import RescueHeatmap from '../../components/admin/sections/RescueHeatmap';
 
 export const Analytics: React.FC = () => {
     const { user } = useAuth();
@@ -194,6 +195,13 @@ export const Analytics: React.FC = () => {
                 {/* Top Products */}
                 <TopProductsChart data={topProducts} />
             </div>
+
+            {/* Heatmap for Super Admins */}
+            {user.role === UserRole.SUPER_ADMIN && (
+                <div className="mt-8">
+                    <RescueHeatmap />
+                </div>
+            )}
 
             {loading && (
                 <div className="fixed inset-0 bg-black/10 backdrop-blur-sm flex items-center justify-center z-50">

@@ -60,47 +60,108 @@ const Bone: React.FC<{ className?: string }> = ({ className = '' }) => (
 
 // ─── Home skeleton ────────────────────────────────────────────────────────────
 
-export const HomeSkeletonLoader: React.FC = () => (
-    <div className="pb-20 bg-gray-50 min-h-screen">
-        {/* Header */}
-        <div className="bg-white sticky top-safe z-50 shadow-sm border-b border-gray-100 px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-                <Bone className="w-9 h-9 rounded-full" />
-                <div className="space-y-1.5">
-                    <Bone className="w-20 h-2.5 rounded-full" />
-                    <Bone className="w-32 h-3.5 rounded-full" />
-                </div>
-            </div>
-            <Bone className="w-9 h-9 rounded-full" />
-        </div>
+// ─── Home skeleton ────────────────────────────────────────────────────────────
 
-        <div className="px-4 space-y-6 pt-4">
-            {/* Search bar */}
-            <Bone className="w-full h-11 rounded-2xl" />
-            {/* Flash deals banner */}
-            <Bone className="w-full h-20 rounded-2xl" />
-            {/* Section header */}
-            <div className="flex items-center gap-2">
-                <Bone className="w-5 h-5 rounded-md" />
-                <Bone className="w-32 h-4 rounded-full" />
+const CategorySkeleton = () => (
+    <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 px-6">
+        {[1, 2, 3, 4, 5].map(i => (
+            <Bone key={i} className="px-10 py-5 rounded-full whitespace-nowrap" />
+        ))}
+    </div>
+);
+
+const DealCardSkeleton = () => (
+    <div className="w-[280px] shrink-0 bg-white rounded-[2.5rem] border border-gray-100 overflow-hidden shadow-sm">
+        <Bone className="w-full h-40 rounded-none" />
+        <div className="p-5 space-y-3">
+            <Bone className="w-3/4 h-5 rounded-full" />
+            <div className="flex justify-between items-center">
+                <Bone className="w-20 h-6 rounded-full" />
+                <Bone className="w-10 h-5 rounded-full" />
             </div>
-            {/* Venue cards */}
-            {[1, 2, 3].map(i => (
-                <div key={i} className="bg-white rounded-3xl overflow-hidden shadow-sm border border-gray-100">
-                    <Bone className="w-full h-44 rounded-none" />
-                    <div className="p-4 space-y-2">
-                        <div className="flex justify-between items-start">
-                            <Bone className="w-2/3 h-5 rounded-full" />
-                            <Bone className="w-12 h-5 rounded-full" />
-                        </div>
-                        <Bone className="w-1/2 h-3.5 rounded-full" />
-                        <div className="flex gap-2 pt-1">
-                            <Bone className="w-16 h-6 rounded-full" />
-                            <Bone className="w-20 h-6 rounded-full" />
-                        </div>
-                    </div>
+            <Bone className="w-1/2 h-3 rounded-full" />
+        </div>
+    </div>
+);
+
+const ListItemSkeleton = () => (
+    <div className="flex items-center gap-4 bg-white p-3 rounded-[1.5rem] border border-gray-100 shadow-sm">
+        <Bone className="w-24 h-24 rounded-2xl shrink-0" />
+        <div className="flex-1 space-y-3">
+            <Bone className="w-3/4 h-5 rounded-full" />
+            <Bone className="w-1/2 h-3 rounded-full" />
+            <div className="flex justify-between items-center">
+                <Bone className="w-20 h-6 rounded-full" />
+                <Bone className="w-12 h-6 rounded-full" />
+            </div>
+        </div>
+    </div>
+);
+
+export const HomeSkeletonLoader: React.FC = () => (
+    <div className="pb-32 bg-white min-h-screen">
+        {/* Premium Header Skeleton */}
+        <header className="px-6 pt-8 pb-4 bg-white">
+            <div className="flex items-center justify-between mb-6">
+                <Bone className="w-40 h-10 rounded-full" />
+                <Bone className="w-11 h-11 rounded-full" />
+            </div>
+
+            <div className="mb-6 space-y-2">
+                <Bone className="w-48 h-10 rounded-full" />
+                <Bone className="w-64 h-6 rounded-full" />
+            </div>
+        </header>
+
+        {/* Categories Bar Skeleton */}
+        <CategorySkeleton />
+
+        <div className="space-y-10 mt-6">
+            {/* Featured Deals Section */}
+            <div>
+                <div className="px-6 flex items-center justify-between mb-5">
+                    <Bone className="w-44 h-8 rounded-full" />
+                    <Bone className="w-16 h-4 rounded-full" />
                 </div>
-            ))}
+                <div className="flex gap-6 overflow-x-auto no-scrollbar px-6 pb-6">
+                    {[1, 2, 3].map(i => <DealCardSkeleton key={i} />)}
+                </div>
+            </div>
+
+            {/* Ending Soon Section */}
+            <div className="px-6">
+                <div className="flex items-center justify-between mb-5">
+                    <div className="flex items-center gap-3">
+                        <Bone className="w-8 h-8 rounded-lg" />
+                        <Bone className="w-36 h-8 rounded-full" />
+                        <Bone className="w-16 h-5 rounded-md" />
+                    </div>
+                    <Bone className="w-16 h-4 rounded-full" />
+                </div>
+                <div className="space-y-4">
+                    {[1, 2, 3].map(i => <ListItemSkeleton key={i} />)}
+                </div>
+            </div>
+
+            {/* All Places Grid Header */}
+            <div className="px-6">
+                <Bone className="w-32 h-8 rounded-full mb-5" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {[1, 2, 3, 4, 5, 6].map(i => (
+                        <div key={i} className="bg-white rounded-3xl overflow-hidden shadow-sm border border-gray-100">
+                            <Bone className="w-full h-48 rounded-none" />
+                            <div className="p-4 space-y-3">
+                                <Bone className="w-3/4 h-5 rounded-full" />
+                                <Bone className="w-1/2 h-3.5 rounded-full" />
+                                <div className="flex gap-2">
+                                    <Bone className="w-20 h-6 rounded-full" />
+                                    <Bone className="w-24 h-6 rounded-full" />
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
         </div>
     </div>
 );

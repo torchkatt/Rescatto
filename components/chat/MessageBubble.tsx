@@ -31,8 +31,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         <div className={`flex gap-2 mb-4 ${isMine ? 'flex-row-reverse' : 'flex-row'}`}>
             {/* Avatar (Only for other participants) */}
             {showAvatar && !isMine && (
-                <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-gray-400">
-                    <User size={18} className="text-white" />
+                <div className="flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center bg-gray-100 shadow-sm border border-gray-200 mt-1">
+                    <User size={16} className="text-gray-400" />
                 </div>
             )}
 
@@ -47,9 +47,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
                 {/* Bubble */}
                 <div
-                    className={`px-4 py-2 rounded-2xl shadow-sm ${isMine
-                        ? 'bg-emerald-100 text-emerald-900 rounded-tr-none'
-                        : 'bg-white border border-gray-100 text-gray-800 rounded-tl-none'
+                    className={`px-4 py-2.5 rounded-2xl shadow-sm ${isMine
+                        ? 'bg-emerald-600 text-white rounded-tr-none shadow-emerald-100'
+                        : 'bg-white border border-gray-100 text-gray-800 rounded-tl-none shadow-gray-100'
                         }`}
                 >
                     {message.type === 'location' && message.location ? (
@@ -73,17 +73,17 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 </div>
 
                 {/* Timestamp and Read Status */}
-                <div className={`flex items-center gap-1 mt-1 px-1 ${isMine ? 'flex-row-reverse' : 'flex-row'}`}>
-                    <span className="text-xs text-gray-400">
+                <div className={`flex items-center gap-1.5 mt-1.5 px-1 ${isMine ? 'flex-row-reverse' : 'flex-row'}`}>
+                    <span className="text-[10px] font-black text-gray-300 uppercase tracking-tighter">
                         {format(new Date(message.timestamp), 'HH:mm', { locale: es })}
                     </span>
 
                     {isMine && (
-                        <div className="text-gray-400">
+                        <div className="flex items-center">
                             {message.read ? (
-                                <CheckCheck size={14} className="text-emerald-600" />
+                                <CheckCheck size={12} className="text-emerald-500" />
                             ) : (
-                                <Check size={14} />
+                                <Check size={12} className="text-gray-300" />
                             )}
                         </div>
                     )}

@@ -10,6 +10,8 @@ import { ArrowLeft, ShoppingCart, Info, Store, Clock, MapPin, Star, ChevronRight
 import { logger } from '../../utils/logger';
 import { isProductAvailable, isProductExpired } from '../../utils/productAvailability';
 import { formatCOP } from '../../utils/formatters';
+import { sanitizeHtml } from '../../utils/sanitize';
+import { SEO } from '../../components/common/SEO';
 
 export const ProductDetail: React.FC = () => {
     const { productId } = useParams<{ productId: string }>();
@@ -87,6 +89,13 @@ export const ProductDetail: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white pb-24">
+            <SEO 
+                title={product.name}
+                description={`¡Solo ${formatCOP(activePrice)}! ${product.name}. Rescata este pack en ${venue?.name || 'Rescatto'} y ahorra un ${discount}%.`}
+                image={product.imageUrl}
+                type="product"
+                venueName={venue?.name}
+            />
             {/* Header / Nav */}
             <div className="bg-white/80 backdrop-blur-md px-4 py-3 shadow-sm sticky top-safe z-30 flex items-center gap-3 border-b border-gray-100">
                 <button
@@ -155,9 +164,12 @@ export const ProductDetail: React.FC = () => {
                     {/* Description */}
                     <div className="mt-5 pt-5 border-t border-gray-100">
                         <h3 className="text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide">Descripción</h3>
-                        <p className="text-gray-600 text-sm leading-relaxed">
-                            {product.description || 'Ayuda a rescatar esta comida de alta calidad antes de que cierre el local.'}
-                        </p>
+                        <div 
+                            className="text-gray-600 text-sm leading-relaxed"
+                            dangerouslySetInnerHTML={{ 
+                                __html: sanitizeHtml(product.description || 'Ayuda a rescatar esta comida de alta calidad antes de que cierre el local.') 
+                            }}
+                        />
                     </div>
 
                     {/* Pickup Info */}

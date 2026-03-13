@@ -144,48 +144,45 @@ export const AIChat: React.FC<AIChatProps> = ({ className = '' }) => {
     };
 
     return (
-        <div className={`flex flex-col h-full bg-gradient-to-br from-purple-50 to-blue-50 ${className}`}>
-            {/* Header */}
-            <div className="px-6 py-4 border-b border-purple-200 bg-white/80 backdrop-blur-sm">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center">
-                        <Sparkles size={20} className="text-white" />
-                    </div>
-                    <div>
-                        <h3 className="font-semibold text-gray-800">RescattoBot IA</h3>
-                        <p className="text-xs text-purple-600">Tu asistente virtual</p>
-                    </div>
-                </div>
-            </div>
-
+        <div className={`flex flex-col h-full bg-white/50 ${className}`}>
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-6" ref={chatContainerRef}>
+            <div className="flex-1 overflow-y-auto p-5" ref={chatContainerRef}>
                 {messages.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-center">
-                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center mb-4">
-                            <Sparkles size={32} className="text-white" />
+                    <div className="flex flex-col items-center justify-start min-h-full text-center pt-5 pb-10">
+                        {/* Profile Info in Empty State */}
+                        <div className="flex flex-col items-center mb-6">
+                            <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center mb-4 shadow-xl shadow-purple-200">
+                                <Sparkles size={40} className="text-white bg-white/20 p-2 rounded-xl" />
+                            </div>
+                            <h3 className="text-xl font-black text-gray-900">RescattoBot IA</h3>
+                            <p className="text-sm font-bold text-purple-600 tracking-tight">Tu asistente personal</p>
                         </div>
-                        <h4 className="text-lg font-semibold text-gray-800 mb-2">
-                            ¡Hola! Soy tu asistente virtual 👋
-                        </h4>
-                        <p className="text-gray-600 text-sm mb-6 max-w-xs">
-                            Puedo ayudarte con información sobre restaurantes, productos, pedidos y cómo usar Rescatto.
-                        </p>
-                        <div className="space-y-2 w-full max-w-xs">
-                            <p className="text-xs text-gray-500 font-medium mb-2">Preguntas frecuentes:</p>
-                            {quickSuggestions.map((suggestion, index) => {
-                                const Icon = suggestion.icon;
-                                return (
-                                    <button
-                                        key={index}
-                                        onClick={() => handleSuggestionClick(suggestion.text)}
-                                        className="w-full flex items-center gap-2 px-4 py-2 bg-white border border-purple-200 rounded-lg hover:border-purple-400 hover:bg-purple-50 transition-all text-left text-sm"
-                                    >
-                                        <Icon size={16} className="text-purple-600" />
-                                        <span className="text-gray-700">{suggestion.text}</span>
-                                    </button>
-                                );
-                            })}
+
+                        <div className="w-full space-y-6">
+                            <h4 className="text-lg font-black text-gray-800">
+                                ¿En qué puedo ayudarte hoy?
+                            </h4>
+
+                            <div className="space-y-3 px-4">
+                                <p className="text-[10px] text-gray-400 font-black uppercase tracking-[0.2em] mb-2">Sugerencias Rápidas</p>
+                                <div className="grid grid-cols-1 gap-2.5">
+                                    {quickSuggestions.map((suggestion, index) => {
+                                        const Icon = suggestion.icon;
+                                        return (
+                                            <button
+                                                key={index}
+                                                onClick={() => handleSuggestionClick(suggestion.text)}
+                                                className="flex items-center gap-4 px-5 py-4 bg-white border border-purple-100 rounded-2xl hover:border-purple-300 hover:bg-purple-50 hover:shadow-lg hover:shadow-purple-500/5 transition-all active:scale-95 text-sm font-bold text-left text-gray-700 group shadow-sm shadow-purple-100/20"
+                                            >
+                                                <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center group-hover:bg-purple-100 transition-colors">
+                                                    <Icon size={18} className="text-purple-600" />
+                                                </div>
+                                                <span className="flex-1">{suggestion.text}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
                         </div>
                     </div>
                 ) : (
@@ -193,21 +190,21 @@ export const AIChat: React.FC<AIChatProps> = ({ className = '' }) => {
                         {messages.map((message, index) => (
                             <div
                                 key={index}
-                                className={`flex gap-3 mb-4 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                                className={`flex gap-3 mb-6 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                             >
                                 {message.role === 'assistant' && (
-                                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center flex-shrink-0 mt-1">
+                                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center flex-shrink-0 mt-1 shadow-md">
                                         <Sparkles size={16} className="text-white" />
                                     </div>
                                 )}
                                 <div
-                                    className={`max-w-[85%] px-4 py-3 rounded-2xl ${message.role === 'user'
-                                        ? 'bg-gradient-to-br from-purple-600 to-blue-600 text-white'
-                                        : 'bg-white border border-purple-200 text-gray-800 shadow-sm'
+                                    className={`max-w-[85%] px-4 py-3 rounded-2xl shadow-sm ${message.role === 'user'
+                                        ? 'bg-gradient-to-br from-purple-600 to-indigo-600 text-white shadow-purple-100'
+                                        : 'bg-white border border-purple-50 text-gray-800'
                                         }`}
                                 >
                                     {message.role === 'assistant' ? (
-                                        <div className="markdown-content text-sm">
+                                        <div className="markdown-content text-sm font-medium">
                                             <ReactMarkdown
                                                 remarkPlugins={[remarkGfm]}
                                                 components={{
@@ -215,18 +212,18 @@ export const AIChat: React.FC<AIChatProps> = ({ className = '' }) => {
                                                     ul: ({ node, ...props }) => <ul className="list-disc pl-4 mb-2 space-y-1" {...props} />,
                                                     ol: ({ node, ...props }) => <ol className="list-decimal pl-4 mb-2 space-y-1" {...props} />,
                                                     li: ({ node, ...props }) => <li className="pl-1" {...props} />,
-                                                    strong: ({ node, ...props }) => <strong className="font-semibold text-purple-700" {...props} />,
-                                                    a: ({ node, ...props }) => <a className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
-                                                    blockquote: ({ node, ...props }) => <blockquote className="border-l-4 border-purple-200 pl-3 italic my-2" {...props} />,
+                                                    strong: ({ node, ...props }) => <strong className="font-black text-purple-700" {...props} />,
+                                                    a: ({ node, ...props }) => <a className="text-blue-600 hover:underline font-bold" target="_blank" rel="noopener noreferrer" {...props} />,
+                                                    blockquote: ({ node, ...props }) => <blockquote className="border-l-4 border-purple-200 pl-3 italic my-2 bg-purple-50/50 py-1" {...props} />,
                                                 }}
                                             >
                                                 {sanitizeHtml(message.content)}
                                             </ReactMarkdown>
                                         </div>
                                     ) : (
-                                        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                                        <p className="text-sm font-bold whitespace-pre-wrap">{message.content}</p>
                                     )}
-                                    <p className={`text-[10px] mt-1 text-right ${message.role === 'user' ? 'text-purple-100' : 'text-gray-400'
+                                    <p className={`text-[9px] font-black mt-2 tracking-widest ${message.role === 'user' ? 'text-purple-100/60' : 'text-gray-300'
                                         }`}>
                                         {new Date(message.timestamp).toLocaleTimeString('es-ES', {
                                             hour: '2-digit',
@@ -235,22 +232,22 @@ export const AIChat: React.FC<AIChatProps> = ({ className = '' }) => {
                                     </p>
                                 </div>
                                 {message.role === 'user' && (
-                                    <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center flex-shrink-0 text-white font-semibold text-sm mt-1">
+                                    <div className="w-8 h-8 rounded-xl bg-emerald-600 flex items-center justify-center flex-shrink-0 text-white font-black text-xs mt-1 shadow-md">
                                         {user?.fullName?.charAt(0).toUpperCase() || 'U'}
                                     </div>
                                 )}
                             </div>
                         ))}
                         {isThinking && (
-                            <div className="flex gap-3 mb-4">
-                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center mt-1">
+                            <div className="flex gap-3 mb-6">
+                                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center mt-1 shadow-md">
                                     <Sparkles size={16} className="text-white animate-pulse" />
                                 </div>
-                                <div className="bg-white border border-purple-200 px-4 py-3 rounded-2xl shadow-sm">
-                                    <div className="flex gap-1">
-                                        <div className="w-2 h-2 bg-purple-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                                        <div className="w-2 h-2 bg-purple-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                                        <div className="w-2 h-2 bg-purple-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                                <div className="bg-white border border-purple-50 px-5 py-4 rounded-2xl shadow-sm">
+                                    <div className="flex gap-1.5 item-center">
+                                        <div className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                                        <div className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                                        <div className="w-1.5 h-1.5 bg-purple-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                                     </div>
                                 </div>
                             </div>
@@ -260,9 +257,9 @@ export const AIChat: React.FC<AIChatProps> = ({ className = '' }) => {
                 )}
             </div>
 
-            {/* Input */}
-            <div className="px-6 py-4 bg-white/80 backdrop-blur-sm border-t border-purple-200">
-                <div className="flex gap-2">
+            {/* Input Area */}
+            <div className="px-6 py-5 bg-white border-t border-purple-100">
+                <div className="flex gap-2 p-1 bg-gray-50 rounded-2xl border border-gray-100 focus-within:border-purple-200 focus-within:bg-white focus-within:shadow-xl focus-within:shadow-purple-500/5 transition-all duration-300">
                     <input
                         type="text"
                         value={inputText}
@@ -270,15 +267,15 @@ export const AIChat: React.FC<AIChatProps> = ({ className = '' }) => {
                         onKeyPress={handleKeyPress}
                         placeholder="Escribe tu pregunta..."
                         disabled={isThinking}
-                        className="flex-1 px-4 py-2 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100"
+                        className="flex-1 px-4 py-3 bg-transparent placeholder:text-gray-400 text-sm font-bold focus:outline-none disabled:opacity-50"
                     />
                     <button
                         onClick={() => sendMessage(inputText)}
                         disabled={!inputText.trim() || isThinking}
-                        className="px-4 py-2 bg-gradient-to-br from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center w-12 h-10"
+                        className="p-3 bg-gradient-to-br from-purple-600 to-indigo-600 text-white rounded-xl shadow-lg shadow-purple-200 hover:scale-105 active:scale-95 disabled:opacity-30 disabled:scale-100 transition-all flex items-center justify-center w-12 h-12"
                     >
                         {isThinking ? (
-                            <LoadingSpinner size="xs" color="white" />
+                            <Loader2 size={20} className="animate-spin" />
                         ) : (
                             <Send size={20} />
                         )}
