@@ -45,7 +45,7 @@ export const NotificationDisplay: React.FC = () => {
             </button>
 
             {isOpen && (
-                <div className="absolute left-0 bottom-full mb-2 sm:bottom-auto sm:top-full sm:mt-2 sm:right-0 sm:left-auto w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50 animate-in slide-in-from-top-2 duration-200">
+                <div className="absolute right-0 top-full mt-3 w-80 sm:w-96 bg-white/95 backdrop-blur-xl rounded-[1.5rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] border border-gray-100 overflow-hidden z-[100] origin-top-right animate-in fade-in zoom-in-95 duration-200">
                     <div className="p-4 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
                         <h3 className="font-bold text-gray-800">Notificaciones</h3>
                         {unreadCount > 0 && (
