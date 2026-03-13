@@ -280,6 +280,7 @@ const CustomerHome: React.FC = () => {
 
             <main className="max-w-7xl mx-auto">
                 {/* Featured Deals Section */}
+                {hotDealsVenues.length > 0 && (
                 <section className="mb-10">
                     <div className="px-6 flex items-center justify-between mb-5">
                         <div className="flex items-center gap-2">
@@ -290,32 +291,20 @@ const CustomerHome: React.FC = () => {
                     </div>
                     
                     <div className="flex gap-6 overflow-x-auto no-scrollbar px-6 pb-6">
-                        {hotDealsVenues.length > 0 ? (
-                            hotDealsVenues.map(venue => (
-                                <FeaturedDealCard 
-                                    key={venue.id}
-                                    venue={venue}
-                                    userLocation={hasUserLocation ? { lat: latitude as number, lng: longitude as number } : undefined}
-                                    ratingStats={venueRatingMap.get(venue.id)}
-                                />
-                            ))
-                        ) : (
-                            // Fallback mock cards if no real deals
-                            <div className="flex gap-6">
-                                <FeaturedDealCard 
-                                    venue={{ id: '1', name: 'Bella Italia', address: 'Calle 10', latitude: 0, longitude: 0, rating: 4.8 } as Venue}
-                                />
-                                <FeaturedDealCard 
-                                    venue={{ id: '2', name: 'Le Petit Bistro', address: 'Ave Central', latitude: 0, longitude: 0, rating: 4.7 } as Venue}
-                                    productName="French Steak Frites Pack"
-                                    discount={40}
-                                />
-                            </div>
-                        )}
+                        {hotDealsVenues.map(venue => (
+                            <FeaturedDealCard 
+                                key={venue.id}
+                                venue={venue}
+                                userLocation={hasUserLocation ? { lat: latitude as number, lng: longitude as number } : undefined}
+                                ratingStats={venueRatingMap.get(venue.id)}
+                            />
+                        ))}
                     </div>
                 </section>
+                )}
 
                 {/* Ending Soon Section (List View) */}
+                {filteredVenues.length > 0 && (
                 <section className="px-6 mb-12">
                     <div className="flex items-center justify-between mb-5">
                         <div className="flex items-center gap-2">
@@ -372,6 +361,7 @@ const CustomerHome: React.FC = () => {
                 </section>
 
                 {/* All Places Grid */}
+                {filteredVenues.length > 0 ? (
                 <section className="px-6 pb-20">
                     <h2 className="text-2xl font-black text-gray-900 tracking-tight mb-5">All Places</h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -385,6 +375,17 @@ const CustomerHome: React.FC = () => {
                         ))}
                     </div>
                 </section>
+                ) : (
+                    <div className="px-6 pb-20 text-center py-16">
+                        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
+                            <Search size={24} className="text-gray-400" />
+                        </div>
+                        <h3 className="text-xl font-black text-gray-900 mb-2">No encontramos lugares</h3>
+                        <p className="text-gray-500 max-w-sm mx-auto">
+                            Intenta ajustar tus filtros de búsqueda o explorar otras categorías para encontrar rescates deliciosos.
+                        </p>
+                    </div>
+                )}
             </main>
 
             {/* Bottom Navigation */}
