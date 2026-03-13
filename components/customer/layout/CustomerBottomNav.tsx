@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, Search, ShoppingBag, Heart, User } from 'lucide-react';
+import { Home, ShoppingBag, ShoppingCart, Heart, User } from 'lucide-react';
 
 export const CustomerBottomNav: React.FC = () => {
     const navigate = useNavigate();
@@ -8,7 +8,7 @@ export const CustomerBottomNav: React.FC = () => {
 
     const navItems = [
         { icon: Home, label: 'Inicio', path: '/app' },
-        { icon: Search, label: 'Buscar', path: '/app' }, // Se activa el buscador en Home
+        { icon: ShoppingCart, label: 'Carrito', path: '/app/cart' },
         { icon: ShoppingBag, label: 'Pedidos', path: '/app/orders' },
         { icon: Heart, label: 'Favoritos', path: '/app/favorites' },
         { icon: User, label: 'Perfil', path: '/app/profile' },
@@ -34,17 +34,7 @@ export const CustomerBottomNav: React.FC = () => {
                     <button
                         key={item.label}
                         onClick={() => {
-                            if (item.label === 'Buscar' && (location.pathname === '/app' || location.pathname === '/app/')) {
-                                window.dispatchEvent(new CustomEvent('focus-rescatto-search'));
-                            } else {
-                                navigate(item.path);
-                                if (item.label === 'Buscar') {
-                                    // Pequeño delay para asegurar que la página cargue si no estamos en /app
-                                    setTimeout(() => {
-                                        window.dispatchEvent(new CustomEvent('focus-rescatto-search'));
-                                    }, 100);
-                                }
-                            }
+                            navigate(item.path);
                         }}
                         className={`relative flex flex-col items-center gap-1.5 flex-1 py-1 transition-all active:scale-90 ${
                             active ? 'text-emerald-600' : 'text-gray-400 hover:text-gray-600'
