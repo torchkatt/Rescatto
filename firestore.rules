@@ -157,7 +157,7 @@ service cloud.firestore {
       return request.resource.data.keys().hasAll(['performedBy', 'action', 'timestamp']) &&
              request.resource.data.keys().hasOnly([
                'performedBy', 'action', 'timestamp', 'userRole', 'details', 'path', 
-               'userAgent', 'device', 'metadata'
+               'userAgent', 'device', 'metadata', 'targetId', 'targetCollection'
              ]) &&
              request.resource.data.performedBy is string &&
              request.resource.data.action is string;

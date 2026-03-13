@@ -400,7 +400,7 @@ const Login: React.FC = () => {
               try {
                 setError('');
                 await loginAsGuest();
-                // La redirección ocurrirá automáticamente por el useEffect
+                navigate('/');
               } catch (err: any) {
                 setError('Error al ingresar como invitado. Intenta de nuevo.');
                 auditService.logEvent({
