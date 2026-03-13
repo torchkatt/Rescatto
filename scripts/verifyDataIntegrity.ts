@@ -4,7 +4,9 @@
  * Usage: npx ts-node scripts/verifyDataIntegrity.ts
  */
 
+// @ts-ignore
 import { initializeApp, cert } from 'firebase-admin/app';
+// @ts-ignore
 import { getFirestore } from 'firebase-admin/firestore';
 import * as schemas from '../schemas';
 import { logger } from '../utils/logger';

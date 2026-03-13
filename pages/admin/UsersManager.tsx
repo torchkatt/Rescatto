@@ -20,6 +20,7 @@ const roleNames: Record<UserRole, string> = {
     [UserRole.KITCHEN_STAFF]: 'Personal de Cocina',
     [UserRole.DRIVER]: 'Domiciliario',
     [UserRole.CUSTOMER]: 'Cliente',
+    [UserRole.CITY_ADMIN]: 'Admin Regional',
 };
 
 const getRoleLabel = (role: UserRole) => roleNames[role] || role;
@@ -43,6 +44,7 @@ const roleLevels: Record<UserRole, number> = {
     [UserRole.KITCHEN_STAFF]: 50,
     [UserRole.DRIVER]: 40,
     [UserRole.CUSTOMER]: 10,
+    [UserRole.CITY_ADMIN]: 95,
 };
 
 const canManageUser = (currentUser: User | null, targetUser: User) => {

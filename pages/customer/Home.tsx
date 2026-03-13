@@ -359,6 +359,7 @@ const CustomerHome: React.FC = () => {
                         ))}
                     </div>
                 </section>
+                )}
 
                 {/* All Places Grid */}
                 {filteredVenues.length > 0 ? (

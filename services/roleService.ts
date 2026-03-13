@@ -58,6 +58,7 @@ export const roleService = {
             [UserRole.KITCHEN_STAFF]: 'Personal de Cocina',
             [UserRole.DRIVER]: 'Domiciliario',
             [UserRole.CUSTOMER]: 'Cliente',
+            [UserRole.CITY_ADMIN]: 'Admin Regional',
         };
 
         const batchPromises = Object.values(UserRole).map(async (role) => {
