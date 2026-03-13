@@ -47,9 +47,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
                 {/* Bubble */}
                 <div
-                    className={`px-4 py-2.5 rounded-2xl shadow-sm ${isMine
-                        ? 'bg-emerald-600 text-white rounded-tr-none shadow-emerald-100'
-                        : 'bg-white border border-gray-100 text-gray-800 rounded-tl-none shadow-gray-100'
+                    className={`px-4 py-2.5 rounded-2xl shadow-md ${isMine
+                        ? 'bg-emerald-600 text-white rounded-tr-none shadow-emerald-900/10'
+                        : 'bg-white border border-gray-200 text-gray-800 rounded-tl-none shadow-gray-200/50'
                         }`}
                 >
                     {message.type === 'location' && message.location ? (
