@@ -41,7 +41,7 @@ const createOrder = onCall(
             venueId, products, paymentMethod: normalizedPaymentMethod,
             deliveryMethod: normalizedDeliveryMethod, address, phone,
             transactionId, isDonation, donationCenterId, donationCenterName,
-            estimatedCo2, deliveryFee: clientDeliveryFee, redemptionId,
+            estimatedCo2, deliveryFee: clientDeliveryFee, redemptionId, city,
         } = orderParsed.data;
 
         const userEmail = request.auth.token.email || "";
@@ -179,7 +179,7 @@ const createOrder = onCall(
                 totalOriginalPrice, moneySaved: totalOriginalPrice - subtotal,
                 deliveryMethod: normalizedDeliveryMethod,
                 deliveryAddress: isDonation ? `DONACIÓN: ${donationCenterName}` : (normalizedDeliveryMethod === "delivery" ? address : "RECOGER EN TIENDA"),
-                phone: phone || "", isDonation: Boolean(isDonation), donationCenterId, donationCenterName,
+                city: city || "Bogotá", phone: phone || "", isDonation: Boolean(isDonation), donationCenterId, donationCenterName,
                 estimatedCo2: estimatedCo2 || 0, redemptionId: validatedRedemptionId, discountApplied: effectiveDiscount,
                 createdAt: new Date().toISOString(),
                 pickupDeadline: new Date(Date.now() + 30 * 60000).toISOString(),

@@ -97,16 +97,16 @@ export const useOrderFlow = () => {
     calculateOrderTotals: (venueId: string, venueItems: any[]) => any,
     transactionId?: string | null
   }) => {
-    const { 
-        paymentMethod, 
-        deliveryMethod, 
-        address, 
-        phoneDigits, 
-        selectedDonationCenter, 
-        estimatedCo2, 
-        selectedRedemption, 
-        calculateOrderTotals,
-        transactionId = null
+    const {
+      paymentMethod,
+      deliveryMethod,
+      address,
+      phoneDigits,
+      selectedDonationCenter,
+      estimatedCo2,
+      selectedRedemption,
+      calculateOrderTotals,
+      transactionId = null
     } = params;
 
     const venueGroups = getCartByVenue();
@@ -139,7 +139,7 @@ export const useOrderFlow = () => {
             estimatedCo2: estimatedCo2 / venueGroups.size,
             redemptionId: selectedRedemption?.id ?? null,
           };
-          
+
           let attempt = 0;
           const maxAttempts = 3;
           while (attempt < maxAttempts) {
@@ -190,12 +190,12 @@ export const useOrderFlow = () => {
 
     } catch (err: any) {
       logger.error("Error creating order:", err);
-      
+
       if (handleUnavailableProductsError(err)) return;
 
       // Complex Error Mapping
       let userMessage = 'Error al procesar el pedido. Intenta nuevamente.';
-      
+
       switch (err.code) {
         case 'resource-exhausted':
           userMessage = 'Has realizado demasiados intentos. Por favor, espera un minuto antes de intentar de nuevo.';

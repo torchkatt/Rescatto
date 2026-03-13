@@ -39,6 +39,7 @@ const CreateOrderSchema = z.object({
   paymentMethod: z.enum(["card", "cash"], { errorMap: () => ({ message: "Invalid payment method. Use 'card' or 'cash'." }) }),
   deliveryMethod: z.enum(["delivery", "pickup", "donation"], { errorMap: () => ({ message: "Invalid delivery method." }) }),
   address: z.string().trim().min(5, "Address too short.").max(500).optional().nullable(),
+  city: z.string().trim().max(100).optional().default("Bogotá"),
   phone: z.string().trim().max(30).optional().default(""),
   transactionId: z.string().trim().min(1).max(200).optional().nullable(),
   isDonation: z.boolean().optional().default(false),
