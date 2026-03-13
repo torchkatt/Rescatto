@@ -28,7 +28,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
 
       - name: Run Tests
         run: npx firebase emulators:exec --project rescatto-c8d2b "npm run test:run"
