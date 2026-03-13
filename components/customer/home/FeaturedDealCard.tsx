@@ -120,7 +120,7 @@ export const FeaturedDealCard: React.FC<FeaturedDealCardProps> = ({
                         </span>
                     </div>
                     <button className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-sm font-black shadow-lg shadow-emerald-500/20 active:scale-95 transition-all">
-                        Get Deal
+                        Ver Pack
                     </button>
                 </div>
 

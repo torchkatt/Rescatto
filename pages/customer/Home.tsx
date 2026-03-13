@@ -341,18 +341,29 @@ const CustomerHome: React.FC = () => {
                                         {venue.businessType || 'Pack Sorpresa'}
                                     </p>
                                     <div className="flex items-center justify-between">
-                                        <div className="flex items-baseline gap-2">
-                                            <span className="text-xl font-black text-emerald-600">
-                                                ${(venueStockMap.get(venue.id) ? '4.500' : '9.900')}
-                                            </span>
-                                            <span className="text-xs font-bold text-gray-300 line-through">$18.000</span>
+                                        <div>
+                                            <div className="flex items-baseline gap-1.5">
+                                                <span className="text-xl font-black text-emerald-600">
+                                                    ${(venueStockMap.get(venue.id) ? '4.500' : '9.900')}
+                                                </span>
+                                                <span className="text-xs font-bold text-gray-300 line-through">$18.000</span>
+                                            </div>
+                                            <div className="flex items-center gap-1 mt-0.5">
+                                                <Star size={10} className="text-amber-400 fill-current" />
+                                                <span className="text-xs font-black text-gray-500">
+                                                    {venue.rating?.toFixed(1) || '4.5'}
+                                                </span>
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-lg">
-                                            <Star size={12} className="text-amber-400 fill-current" />
-                                            <span className="text-xs font-black text-amber-700">
-                                                {venue.rating?.toFixed(1) || '4.5'}
-                                            </span>
-                                        </div>
+                                        <button 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                navigate(`/app/venue/${venue.id}`);
+                                            }}
+                                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-black shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
+                                        >
+                                            Ver Pack
+                                        </button>
                                     </div>
                                 </div>
                             </div>

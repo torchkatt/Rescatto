@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Venue, RatingStats } from '../../../types';
 import { Card } from '../common/Card';
-import { Star, Heart, Flame, TrendingUp, Zap } from 'lucide-react';
+import { Star, Heart, Flame, TrendingUp, Zap, ChevronRight } from 'lucide-react';
 import { Countdown } from '../common/Countdown';
 import { calculateDistance } from '../../../services/locationService';
 import { useFavorites } from '../../../hooks/useFavorites';
@@ -208,19 +208,31 @@ export const VenueCard: React.FC<VenueCardProps> = ({
                     </p>
                 </div>
 
-                <div className="mt-auto pt-3 border-t border-gray-50 flex items-center justify-between">
-                    <div className={`text-xs font-bold px-2 py-1 rounded-md flex items-center gap-1.5 ${openStatus
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : 'bg-red-50 text-red-700'
-                        }`}>
-                        <div className={`w-1.5 h-1.5 rounded-full ${openStatus ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
-                        {openStatus ? `Abierto • Cierra ${venue.closingTime}` : 'Cerrado'}
+                <div className="mt-auto pt-3 border-t border-gray-50 flex items-center justify-between gap-1">
+                    <div className="flex flex-col gap-1.5 min-w-0">
+                        <div className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1 w-fit truncate ${openStatus
+                                ? 'bg-emerald-50 text-emerald-700'
+                                : 'bg-red-50 text-red-700'
+                            }`}>
+                            <div className={`shrink-0 w-1.5 h-1.5 rounded-full ${openStatus ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
+                            <span className="truncate">{openStatus ? `Abierto • ${venue.closingTime}` : 'Cerrado'}</span>
+                        </div>
+                        {productCount !== undefined && productCount > 0 && (
+                            <span className="text-[10px] font-bold text-emerald-700 w-fit truncate bg-white">
+                                {productCount} {productCount === 1 ? 'pack disp.' : 'packs disp.'}
+                            </span>
+                        )}
                     </div>
-                    {productCount !== undefined && productCount > 0 && (
-                        <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-md">
-                            {productCount} {productCount === 1 ? 'producto' : 'productos'}
-                        </span>
-                    )}
+                    <button 
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if(onClick) onClick(venue);
+                            else navigate(`/app/venue/${venue.id}`);
+                        }}
+                        className="shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl text-xs font-black shadow-md shadow-emerald-500/20 active:scale-95 transition-all flex items-center gap-1"
+                    >
+                        Ver Packs <ChevronRight size={14} />
+                    </button>
                 </div>
             </div>
         </Card>
