@@ -24,8 +24,14 @@ jobs:
           npm ci
           npm --prefix functions ci
 
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
       - name: Run Tests
-        run: npm run test:run
+        run: npx firebase emulators:exec --project rescatto-c8d2b "npm run test:run"
 
       - name: Build
         run: npm run build
