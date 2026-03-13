@@ -24,6 +24,7 @@ import { logger } from '../../utils/logger';
 import { ChatWindow } from '../../components/chat/ChatWindow';
 import { SEO } from '../../components/common/SEO';
 import { SearchOverlay } from '../../components/customer/home/SearchOverlay';
+import { NotificationDisplay } from '../../components/common/NotificationDisplay';
 
 const CustomerHome: React.FC = () => {
     const { user, logout } = useAuth();
@@ -174,12 +175,7 @@ const CustomerHome: React.FC = () => {
                         </button>
                         
                         <div className="flex items-center gap-3">
-                            <button className="relative p-2.5 bg-gray-50 rounded-full text-gray-400 hover:text-emerald-500 transition-colors active:scale-90">
-                                <Bell size={22} />
-                                <span className="absolute top-2 right-2 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full text-[9px] font-black text-white flex items-center justify-center">
-                                    3
-                                </span>
-                            </button>
+                            <NotificationDisplay />
                         </div>
                     </div>
 
