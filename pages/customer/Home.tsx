@@ -153,7 +153,7 @@ const CustomerHome: React.FC = () => {
     if (loading) return <HomeSkeletonLoader />;
 
     return (
-        <div className="pb-32 bg-white min-h-screen">
+        <div className="pb-40 bg-white min-h-screen">
             <SEO 
                 title="Explorar Rescates" 
                 description="Encuentra los mejores packs sorpresa de comida en Bogotá y salva el planeta mientras ahorras."
@@ -192,42 +192,37 @@ const CustomerHome: React.FC = () => {
                         </p>
                     </div>
 
-                    {/* Gamification Banner */}
+                    {/* Compact Gamification Banner */}
                     {user && !user.isGuest && (
                         <div 
                             onClick={() => navigate('/app/impact')}
-                            className="mb-8 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-700 rounded-3xl p-5 text-white shadow-xl shadow-emerald-200/50 flex items-center justify-between cursor-pointer active:scale-[0.98] transition-all relative overflow-hidden group"
+                            className="mb-8 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-700 rounded-[1.5rem] p-4 text-white shadow-lg shadow-emerald-200/50 flex items-center justify-between cursor-pointer active:scale-[0.98] transition-all relative overflow-hidden group"
                         >
-                            {/* Decorative background circles */}
-                            <div className="absolute -right-4 -top-4 w-24 h-24 bg-white/10 rounded-full blur-xl group-hover:scale-125 transition-transform duration-700" />
-                            <div className="absolute -left-2 -bottom-2 w-16 h-16 bg-white/5 rounded-full blur-lg" />
+                            <div className="absolute -right-4 -top-4 w-20 h-20 bg-white/10 rounded-full blur-xl group-hover:scale-125 transition-transform duration-700" />
                             
-                            <div className="relative z-10 flex items-center gap-4">
-                                <div className="bg-white/20 p-3 rounded-2xl backdrop-blur-md shadow-inner">
+                            <div className="relative z-10 flex items-center gap-3">
+                                <div className="bg-white/20 p-2.5 rounded-xl backdrop-blur-md shadow-inner">
                                     <Flame 
-                                        size={28} 
-                                        className={`${(user.streak?.current || 0) >= 3 ? 'text-yellow-300 drop-shadow-[0_0_8px_rgba(253,224,71,0.8)]' : 'text-white/60'}`} 
+                                        size={24} 
+                                        className={`${(user.streak?.current || 0) >= 3 ? 'text-yellow-300 drop-shadow-[0_0_8px_rgba(253,224,71,0.8)]' : 'text-white/80'}`} 
                                     />
                                 </div>
                                 <div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-2xl font-black">{user.streak?.current || 0}</span>
-                                        <span className="text-xs font-bold text-white/80 uppercase tracking-widest leading-none">Días de racha</span>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-lg font-black">{user.streak?.current || 0}</span>
+                                        <span className="text-[10px] font-bold text-white/90 uppercase tracking-wider">Días</span>
                                     </div>
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <div className="bg-yellow-400 text-yellow-900 text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-0.5">
-                                            <Zap size={10} />
-                                            x{user.streak?.multiplier?.toFixed(1) || '1.0'} MULTIPLICADOR
-                                        </div>
+                                    <div className="bg-yellow-400/90 text-yellow-900 text-[9px] font-black px-1.5 py-0.5 rounded-md flex items-center gap-0.5 mt-0.5 w-max">
+                                        <Zap size={10} /> x{user.streak?.multiplier?.toFixed(1) || '1.0'}
                                     </div>
                                 </div>
                             </div>
 
                             <div className="relative z-10 text-right">
-                                <p className="text-[10px] font-black text-white/60 uppercase tracking-widest mb-0.5">Tus Puntos</p>
-                                <p className="text-2xl font-black leading-none flex items-center justify-end gap-1.5">
+                                <p className="text-[9px] font-black text-white/70 uppercase tracking-widest mb-0.5">Mis Puntos</p>
+                                <p className="text-xl font-black leading-none flex items-center justify-end gap-1">
                                     {(user.impact?.points || 0).toLocaleString('es-CO')}
-                                    <span className="text-yellow-300 text-lg">💎</span>
+                                    <span className="text-yellow-300 text-sm">💎</span>
                                 </p>
                             </div>
                         </div>
@@ -374,7 +369,7 @@ const CustomerHome: React.FC = () => {
 
                 {/* All Places Grid */}
                 {filteredVenues.length > 0 ? (
-                <section className="px-6 pb-20">
+                <section className="px-6 pb-28">
                     <h2 className="text-2xl font-black text-gray-900 tracking-tight mb-5">All Places</h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                         {filteredVenues.map(venue => (
@@ -388,7 +383,7 @@ const CustomerHome: React.FC = () => {
                     </div>
                 </section>
                 ) : (
-                    <div className="px-6 pb-20 text-center py-16">
+                    <div className="px-6 pb-32 text-center py-16">
                         <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
                             <Search size={24} className="text-gray-400" />
                         </div>
