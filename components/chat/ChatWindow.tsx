@@ -150,7 +150,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ onClose, className = '' 
                 <div className="flex items-center gap-3">
                     {/* Botón de volver para móvil */}
                     <button
-                        onClick={() => closeChat()}
+                        onClick={() => {
+                            closeChat();
+                            onClose?.();
+                        }}
                         className="md:hidden p-2 hover:bg-gray-100 rounded-xl transition-all active:scale-90"
                     >
                         <X size={20} className="text-gray-600" />
