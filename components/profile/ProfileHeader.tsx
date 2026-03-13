@@ -1,7 +1,8 @@
 import React, { useRef, useState } from 'react';
 import { User, UserRole } from '../../types';
-import { Shield, Award, Camera, Loader2 } from 'lucide-react';
+import { Shield, Award, Camera, Loader2, LogOut } from 'lucide-react';
 import { Tooltip } from '../common/Tooltip';
+import { useAuth } from '../../context/AuthContext';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { updateProfile } from 'firebase/auth';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -34,6 +35,7 @@ const getRoleConfig = (role: UserRole) => {
 };
 
 export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ user }) => {
+    const { logout } = useAuth();
     const roleConfig = getRoleConfig(user.role);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [uploading, setUploading] = useState(false);
@@ -103,6 +105,15 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ user }) => {
             <div className={`h-48 w-full rounded-3xl bg-gradient-to-r ${roleConfig.gradient} relative overflow-hidden shadow-sm`}>
                 <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
                 <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
+
+                {/* Logout Button */}
+                <button
+                    onClick={logout}
+                    className="absolute top-4 right-4 bg-white/20 hover:bg-white/30 backdrop-blur-md text-white px-4 py-2 rounded-xl flex items-center gap-2 font-bold text-sm transition-all active:scale-95 shadow-sm border border-white/20"
+                >
+                    <LogOut size={16} />
+                    Cerrar Sesión
+                </button>
             </div>
 
             {/* Avatar & Main Info Card - Floating Over Banner */}
