@@ -93,14 +93,12 @@ export const AdminOverview: React.FC<Props> = ({ city }) => {
             setWeeklyData(Object.entries(dayMap).map(([day, ventas]) => ({ day, ventas })));
 
             setStats({
-                totalUsers: users.length,
-                totalVenues: venues.length,
+                totalUsers: usersCount.data().count,
+                totalVenues: venuesCount.data().count,
                 totalProducts,
                 todaySales,
                 activeDeliveries: activeDeliveriesCount.data().count,
                 pendingOrders: pendingOrdersCount.data().count,
-                totalUsers: usersCount.data().count,
-                totalVenues: venuesCount.data().count,
             });
         } catch (error) {
             logger.error('Failed to load stats:', error);
