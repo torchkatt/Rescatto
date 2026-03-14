@@ -2,12 +2,15 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Bell, X, Info, CheckCircle, AlertTriangle, AlertCircle } from 'lucide-react';
 import { useNotifications, Notification } from '../../context/NotificationContext';
 import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { es, enUS } from 'date-fns/locale';
+import { useTranslation } from 'react-i18next';
 
 export const NotificationDisplay: React.FC = () => {
     const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+    const { t, i18n } = useTranslation();
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const currentLocale = i18n.language === 'en' ? enUS : es;
 
     // Close dropdown when clicking outside
     useEffect(() => {
@@ -29,12 +32,26 @@ export const NotificationDisplay: React.FC = () => {
         }
     };
 
+    /**
+     * Dynamically translates stored notification titles.
+     * Handles patterns like "Mensaje de Name" or "Message from Name".
+     */
+    const renderNotificationTitle = (title: string) => {
+        // Regex to match "Mensaje de {Name}" or "Message from {Name}"
+        const chatMatch = title.match(/^(Mensaje de|Message from)\s+(.+)$/i);
+        if (chatMatch) {
+            const name = chatMatch[2];
+            return t('chat_notif_title', { name });
+        }
+        return title;
+    };
+
     return (
         <div className="relative" ref={dropdownRef}>
             <button
                 onClick={() => setIsOpen(!isOpen)}
                 className="relative p-2 rounded-xl text-gray-500 hover:bg-gray-100 hover:text-emerald-600 transition-colors"
-                title="Notificaciones"
+                title={t('notif_title')}
             >
                 <Bell size={22} />
                 {unreadCount > 0 && (
@@ -47,13 +64,13 @@ export const NotificationDisplay: React.FC = () => {
             {isOpen && (
                 <div className="absolute right-0 top-full mt-3 w-80 sm:w-96 bg-white/95 backdrop-blur-xl rounded-[1.5rem] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] border border-gray-100 overflow-hidden z-[100] origin-top-right animate-in fade-in zoom-in-95 duration-200">
                     <div className="p-4 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
-                        <h3 className="font-bold text-gray-800">Notificaciones</h3>
+                        <h3 className="font-bold text-gray-800">{t('notif_title')}</h3>
                         {unreadCount > 0 && (
                             <button
                                 onClick={() => markAllAsRead()}
                                 className="text-xs text-emerald-600 font-medium hover:text-emerald-700 hover:underline"
                             >
-                                Marcar todo leído
+                                {t('notif_mark_all_read')}
                             </button>
                         )}
                     </div>
@@ -62,7 +79,7 @@ export const NotificationDisplay: React.FC = () => {
                         {notifications.length === 0 ? (
                             <div className="p-8 text-center text-gray-400">
                                 <Bell size={32} className="mx-auto mb-2 opacity-50" />
-                                <p className="text-sm">No tienes notificaciones</p>
+                                <p className="text-sm">{t('notif_empty')}</p>
                             </div>
                         ) : (
                             <div className="divide-y divide-gray-50">
@@ -78,7 +95,7 @@ export const NotificationDisplay: React.FC = () => {
                                         <div className="flex-1">
                                             <div className="flex justify-between items-start mb-1">
                                                 <h4 className={`text-sm font-semibold ${!notification.read ? 'text-gray-900' : 'text-gray-600'}`}>
-                                                    {notification.title}
+                                                    {renderNotificationTitle(notification.title)}
                                                 </h4>
                                                 {!notification.read && (
                                                     <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
@@ -88,7 +105,7 @@ export const NotificationDisplay: React.FC = () => {
                                                 {notification.message}
                                             </p>
                                             <p className="text-xs text-gray-400">
-                                                {format(new Date(notification.createdAt), "d MMM, h:mm a", { locale: es })}
+                                                {format(new Date(notification.createdAt), "d MMM, h:mm a", { locale: currentLocale })}
                                             </p>
                                         </div>
                                     </div>

@@ -9,34 +9,36 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { storage, auth, db } from '../../services/firebase';
 import { useToast } from '../../context/ToastContext';
 import { logger } from '../../utils/logger';
+import { useTranslation } from 'react-i18next';
 
 interface ProfileHeaderProps {
     user: User;
     onEditAvatar?: () => void; // kept for backward compat but no longer required
 }
 
-const getRoleConfig = (role: UserRole) => {
+const getRoleConfig = (role: UserRole, t: any) => {
     switch (role) {
         case UserRole.SUPER_ADMIN:
-            return { label: 'Super Admin', color: 'bg-purple-100 text-purple-700 border-purple-200', gradient: 'from-purple-500 to-indigo-600' };
+            return { label: t('login_role_super_admin') || 'Super Admin', color: 'bg-purple-100 text-purple-700 border-purple-200', gradient: 'from-purple-500 to-indigo-600' };
         case UserRole.ADMIN:
-            return { label: 'Administrador', color: 'bg-indigo-100 text-indigo-700 border-indigo-200', gradient: 'from-indigo-500 to-blue-600' };
+            return { label: t('login_role_admin') || 'Administrador', color: 'bg-indigo-100 text-indigo-700 border-indigo-200', gradient: 'from-indigo-500 to-blue-600' };
         case UserRole.VENUE_OWNER:
-            return { label: 'Dueño de Sede', color: 'bg-blue-100 text-blue-700 border-blue-200', gradient: 'from-blue-500 to-cyan-600' };
+            return { label: t('login_role_business') || 'Negocio', color: 'bg-blue-100 text-blue-700 border-blue-200', gradient: 'from-blue-500 to-cyan-600' };
         case UserRole.KITCHEN_STAFF:
-            return { label: 'Personal de Cocina', color: 'bg-orange-100 text-orange-700 border-orange-200', gradient: 'from-orange-500 to-amber-600' };
+            return { label: t('login_role_staff') || 'Personal de Cocina', color: 'bg-orange-100 text-orange-700 border-orange-200', gradient: 'from-orange-500 to-amber-600' };
         case UserRole.DRIVER:
-            return { label: 'Conductor', color: 'bg-amber-100 text-amber-700 border-amber-200', gradient: 'from-amber-500 to-yellow-600' };
+            return { label: t('login_role_driver') || 'Conductor', color: 'bg-amber-100 text-amber-700 border-amber-200', gradient: 'from-amber-500 to-yellow-600' };
         case UserRole.CUSTOMER:
-            return { label: 'Cliente Rescatto', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', gradient: 'from-emerald-500 to-teal-600' };
+            return { label: t('login_role_customer_short') || 'Cliente', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', gradient: 'from-emerald-500 to-teal-600' };
         default:
-            return { label: 'Usuario', color: 'bg-gray-100 text-gray-700 border-gray-200', gradient: 'from-gray-500 to-slate-600' };
+            return { label: t('login_role_user') || 'Usuario', color: 'bg-gray-100 text-gray-700 border-gray-200', gradient: 'from-gray-500 to-slate-600' };
     }
 };
 
 export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ user }) => {
     const { logout } = useAuth();
-    const roleConfig = getRoleConfig(user.role);
+    const { t, i18n } = useTranslation();
+    const roleConfig = getRoleConfig(user.role, t);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [uploading, setUploading] = useState(false);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -52,11 +54,11 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ user }) => {
 
         // Validaciones
         if (!file.type.startsWith('image/')) {
-            showToast('error', 'Solo se permiten imágenes (JPG, PNG, WebP).');
+            showToast('error', t('prof_avatar_error_type') || 'Solo se permiten imágenes (JPG, PNG, WebP).');
             return;
         }
         if (file.size > 5 * 1024 * 1024) {
-            showToast('error', 'La imagen no puede superar los 5 MB.');
+            showToast('error', t('prof_avatar_error_size') || 'La imagen no puede superar los 5 MB.');
             return;
         }
 
@@ -80,11 +82,11 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ user }) => {
             const userRef = doc(db, 'users', user.id);
             await updateDoc(userRef, { avatarUrl: downloadUrl });
 
-            showToast('success', '¡Foto de perfil actualizada! 📸');
+            showToast('success', t('prof_avatar_success') || '¡Foto de perfil actualizada! 📸');
         } catch (error) {
             logger.error('ProfileHeader: error uploading avatar', error);
             setPreviewUrl(null); // revertir preview
-            showToast('error', 'No se pudo guardar la foto. Intenta de nuevo.');
+            showToast('error', t('prof_avatar_error_save') || 'No se pudo guardar la foto. Intenta de nuevo.');
         } finally {
             setUploading(false);
             // Liberar object URL
@@ -96,8 +98,8 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ user }) => {
 
     const avatarSrc = previewUrl ?? user.avatarUrl;
     const memberSinceLabel = user.createdAt
-        ? new Date(user.createdAt).toLocaleDateString('es-CO')
-        : 'Reciente';
+        ? new Date(user.createdAt).toLocaleDateString(i18n.language === 'en' ? 'en-US' : 'es-CO')
+        : t('prof_recent') || 'Reciente';
 
     return (
         <div className="relative mb-20">
@@ -112,7 +114,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ user }) => {
                     className="absolute top-4 right-4 bg-white/20 hover:bg-white/30 backdrop-blur-md text-white px-4 py-2 rounded-xl flex items-center gap-2 font-bold text-sm transition-all active:scale-95 shadow-sm border border-white/20"
                 >
                     <LogOut size={16} />
-                    Cerrar Sesión
+                    {t('logout')}
                 </button>
             </div>
 
@@ -137,7 +139,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ user }) => {
                             onClick={handleAvatarClick}
                             disabled={uploading}
                             className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity disabled:cursor-wait"
-                            title="Cambiar foto de perfil"
+                            title={t('prof_change_avatar') || "Cambiar foto de perfil"}
                         >
                             {uploading ? (
                                 <Loader2 size={28} className="text-white animate-spin" />
@@ -158,7 +160,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ user }) => {
 
                     {/* Verification Badge */}
                     {user.isVerified && (
-                        <div className="absolute bottom-4 right-4 bg-blue-500 text-white p-1.5 rounded-full border-4 border-white shadow-sm" title="Cuenta Verificada">
+                        <div className="absolute bottom-4 right-4 bg-blue-500 text-white p-1.5 rounded-full border-4 border-white shadow-sm" title={t('prof_is_verified') || "Cuenta Verificada"}>
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path>
                             </svg>
@@ -178,16 +180,16 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ user }) => {
                         </span>
 
                         {user.impact?.level && (
-                            <Tooltip text={`Nivel de Impacto: ${user.impact.level}`}>
+                            <Tooltip text={`${t('impact_level_label')}: ${t(user.impact.level)}` || `Nivel de Impacto: ${user.impact.level}`}>
                                 <span className="px-3 py-1 rounded-full text-xs font-bold bg-gradient-to-r from-yellow-400 to-amber-500 text-white border border-yellow-300 shadow-sm flex items-center gap-1.5">
                                     <Award size={12} />
-                                    {user.impact.level}
+                                    {t(user.impact.level) || user.impact.level}
                                 </span>
                             </Tooltip>
                         )}
 
                         <span className="text-xs text-gray-500 font-medium px-2 py-1 bg-white/50 rounded-lg backdrop-blur-sm">
-                            Miembro desde {memberSinceLabel}
+                            {t('prof_member_since', { date: memberSinceLabel }) || `Miembro desde ${memberSinceLabel}`}
                         </span>
                     </div>
                 </div>

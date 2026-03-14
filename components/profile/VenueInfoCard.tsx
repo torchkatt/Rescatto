@@ -1,12 +1,14 @@
 import React from 'react';
 import { Venue } from '../../types';
 import { MapPin, Clock, Phone, Star, Building2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface VenueInfoCardProps {
     venue: Venue;
 }
 
 export const VenueInfoCard: React.FC<VenueInfoCardProps> = ({ venue }) => {
+    const { t } = useTranslation();
     // Determine status (mock logic for now, or based on closingTime)
     const isOpen = () => {
         if (!venue.closingTime) return false;
@@ -36,7 +38,7 @@ export const VenueInfoCard: React.FC<VenueInfoCardProps> = ({ venue }) => {
                 {/* Status Badge */}
                 <div className={`absolute top-3 right-3 px-2.5 py-1 rounded-full text-xs font-bold shadow-sm backdrop-blur-md ${open ? 'bg-emerald-500/90 text-white' : 'bg-red-500/90 text-white'
                     }`}>
-                    {open ? 'Abierto' : 'Cerrado'}
+                    {open ? t('venue_status_open') || 'Abierto' : t('venue_status_closed') || 'Cerrado'}
                 </div>
             </div>
 
@@ -46,7 +48,7 @@ export const VenueInfoCard: React.FC<VenueInfoCardProps> = ({ venue }) => {
                     <div>
                         <h3 className="font-bold text-gray-900 text-lg leading-tight mb-1">{venue.name}</h3>
                         <div className="flex items-center gap-1 text-xs text-gray-500 font-medium">
-                            {venue.businessType || 'Comercio'}
+                            {venue.businessType || t('venue_type_default') || 'Comercio'}
                             {venue.rating > 0 && (
                                 <>
                                     <span>•</span>
@@ -73,7 +75,7 @@ export const VenueInfoCard: React.FC<VenueInfoCardProps> = ({ venue }) => {
                     {venue.closingTime && (
                         <div className="flex items-center gap-2 text-sm text-gray-600">
                             <Clock size={16} className="text-gray-400 flex-shrink-0" />
-                            <span>Cierra a las {venue.closingTime}</span>
+                            <span>{t('venue_closes_at', { time: venue.closingTime }) || `Cierra a las ${venue.closingTime}`}</span>
                         </div>
                     )}
 

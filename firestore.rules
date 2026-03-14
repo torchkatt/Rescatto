@@ -257,7 +257,7 @@ service cloud.firestore {
       function isDriverAvailableOrder(data) {
         return data.deliveryMethod == 'delivery' &&
           data.driverId == null &&
-          data.status in ['PAID', 'IN_PREPARATION', 'READY_PICKUP'];
+          data.status in ['READY_PICKUP'];
       }
 
       function canDriverTakeOrder() {
@@ -282,6 +282,7 @@ service cloud.firestore {
           request.resource.data.status == 'IN_TRANSIT' &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'status',
+            'pickedUpAt',
             'updatedAt'
           ]);
       }
@@ -296,6 +297,19 @@ service cloud.firestore {
             'status',
             'deliveredAt',
             'deliveryNotes',
+            'updatedAt'
+          ]);
+      }
+
+      function canCustomerConfirmPickup() {
+        return isAuthenticated() &&
+          resource.data.customerId == request.auth.uid &&
+          resource.data.deliveryMethod != 'delivery' &&
+          resource.data.status == 'READY_PICKUP' &&
+          request.resource.data.status == 'COMPLETED' &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status',
+            'receivedAt',
             'updatedAt'
           ]);
       }
@@ -315,12 +329,28 @@ service cloud.firestore {
       allow create: if false;
 
       // Status updates by authorized roles
+      function isValidVenueStatusTransition(current, next, deliveryMethod) {
+        // Venue/Kitchen can only advance the order, never cancel or dispute.
+        // Delivery orders: venue stops at READY_PICKUP.
+        // Pickup orders: venue can complete.
+        return
+          ((current == 'PENDING' || current == 'PAID') && next == 'IN_PREPARATION') ||
+          (current == 'IN_PREPARATION' && next == 'READY_PICKUP') ||
+          (deliveryMethod != 'delivery' && current == 'READY_PICKUP' && next == 'COMPLETED');
+      }
+
+      function canVenueUpdateOrder() {
+        return (isVenueOwnerOf(resource.data.venueId) || isKitchenStaffOf(resource.data.venueId)) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']) &&
+          isValidVenueStatusTransition(resource.data.status, request.resource.data.status, resource.data.deliveryMethod);
+      }
+
       allow update: if isAdmin() ||
-        isVenueOwnerOf(resource.data.venueId) ||
-        isKitchenStaffOf(resource.data.venueId) ||
+        canVenueUpdateOrder() ||
         canDriverTakeOrder() ||
         canDriverStartTransit() ||
-        canDriverCompleteOrder();
+        canDriverCompleteOrder() ||
+        canCustomerConfirmPickup();
 
       allow delete: if isSuperAdmin();
     }
@@ -527,6 +557,32 @@ service cloud.firestore {
 
     match /carts/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ─── SUBSCRIPTION REQUESTS ───────────────────────────────────────────────
+    // Owner can read/create. Only Cloud Functions write status changes.
+    // Admins can read all.
+
+    match /subscription_requests/{requestId} {
+      allow read: if request.auth != null &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if request.auth != null &&
+        request.resource.data.userId == request.auth.uid;
+      allow update: if false; // Solo Cloud Functions
+    }
+
+    // ─── PAYMENT SETTINGS ────────────────────────────────────────────────────
+    // Cualquier usuario autenticado puede leer los datos bancarios.
+    // Solo Cloud Functions escriben (requieren OTP verificado).
+    match /settings/payment_info {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // ─── OTP VERIFICATIONS ───────────────────────────────────────────────────
+    // Solo Cloud Functions — nunca el cliente directamente.
+    match /otp_verifications/{adminId} {
+      allow read, write: if false;
     }
 
   }

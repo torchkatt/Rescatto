@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -9,9 +9,11 @@ import { CartProvider } from './context/CartContext';
 import { ChatProvider } from './context/ChatContext';
 import { LocationProvider } from './context/LocationContext';
 import { NotificationProvider } from './context/NotificationContext';
+import { NotificationDisplay } from './components/common/NotificationDisplay';
 import { featureFlagService } from './services/featureFlagService';
 import { analytics } from './services/firebase';
 import { logEvent } from 'firebase/analytics';
+import { logger } from './utils/logger';
 // Helper for lazy loading to avoid TS errors with named exports
 const lazyLoad = (importFunc: () => Promise<any>, exportName?: string) => {
     return React.lazy(() => importFunc().then(m => ({ default: exportName && m[exportName] ? m[exportName] : m.default || Object.values(m)[0] })));
@@ -27,6 +29,8 @@ const FinanceManager = lazyLoad(() => import('./pages/admin/FinanceManager'), 'F
 const AdminDeliveriesPage = lazyLoad(() => import('./pages/admin/sections/AdminDeliveries'), 'AdminDeliveries');
 const AdminSalesPage = lazyLoad(() => import('./pages/admin/sections/AdminSales'), 'AdminSales');
 const AdminSettingsPage = lazyLoad(() => import('./pages/admin/sections/AdminSettings'), 'AdminSettings');
+const AdminSubscriptionsPage = lazyLoad(() => import('./pages/admin/AdminSubscriptions'), 'AdminSubscriptions');
+const AdminPaymentSettingsPage = lazyLoad(() => import('./pages/admin/AdminPaymentSettings'), 'AdminPaymentSettings');
 const RegionalDashboard = lazyLoad(() => import('./pages/admin/RegionalDashboard'), 'RegionalDashboard');
 import { VerifyEmail } from './pages/VerifyEmail';
 
@@ -34,7 +38,7 @@ import { VerifyEmail } from './pages/VerifyEmail';
 import SuperAdminRoute from './components/admin/SuperAdminRoute';
 import BackofficeLayout from './components/admin/layout/BackofficeLayout';
 const DashboardOverview = lazyLoad(() => import('./pages/backoffice/DashboardOverview'), 'default');
-const BackofficeVenuesManager = lazyLoad(() => import('./pages/backoffice/VenuesManager'), 'default');
+const BackofficeVenuesManager = lazyLoad(() => import('./pages/admin/VenuesManager'), 'VenuesManager');
 
 // Components
 import ProtectedRoute from './components/ProtectedRoute';
@@ -73,11 +77,18 @@ const MyOrders = lazyLoad(() => import('./pages/customer/MyOrders'));
 const Favorites = lazyLoad(() => import('./pages/customer/Favorites'));
 const Impact = lazyLoad(() => import('./pages/customer/Impact'));
 const UnifiedProfile = lazyLoad(() => import('./pages/profile/UnifiedProfile'), 'UnifiedProfile');
+const Explore = lazyLoad(() => import('./pages/customer/Explore'));
 
 import { ReloadPrompt } from './components/ReloadPrompt';
 
 import { LoadingScreen, LoadingSpinner } from './components/customer/common/Loading';
 import { CustomerBottomNav } from './components/customer/layout/CustomerBottomNav';
+import { DesktopSidebar } from './components/customer/layout/DesktopSidebar';
+import { DesktopTopbar } from './components/customer/home/DesktopTopbar';
+import { LocationSelector } from './components/customer/home/LocationSelector';
+import { SearchOverlay } from './components/customer/home/SearchOverlay';
+import { useLocation } from './context/LocationContext';
+import { ImpactModal } from './components/customer/impact/ImpactModal';
 import { messagingService } from './services/messagingService';
 
 // Smart Redirect Component
@@ -96,8 +107,8 @@ const RootRedirect: React.FC = () => {
     const { hasRole } = useAuth();
     if (isLoading) return <LoadingScreen />;
 
-    // Sin sesión → ir al app como invitado (auto-login se activa en CustomerLayout)
-    if (!user) return <Navigate to="/app" replace />;
+    // Sin sesión → ir al login
+    if (!user) return <Navigate to="/login" replace />;
 
     // Force Account/Email verification (solo usuarios reales, no anónimos)
     if (!isAccountVerified) {
@@ -107,15 +118,7 @@ const RootRedirect: React.FC = () => {
     // V2-Aware Redirection
     const isSuperAdminOrAdmin = hasRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]);
     
-    console.log('RootRedirect: Checking roles...', {
-        userId: user?.id,
-        role: user?.role,
-        isSuperAdminOrAdmin,
-        currentPath: window.location.hash
-    });
-
     if (isSuperAdminOrAdmin) {
-        console.log('RootRedirect: Redirecting to backoffice dashboard');
         return <Navigate to="/backoffice/dashboard" replace />;
     } else if (user.role === UserRole.CITY_ADMIN) {
         return <Navigate to="/regional-dashboard" replace />;
@@ -127,31 +130,37 @@ const RootRedirect: React.FC = () => {
     }
 };
 
-import { FloatingCartButton } from './components/customer/common/FloatingCartButton';
-
 // Wrapper for Customer Layout
 const CustomerLayout: React.FC = () => {
     const navigate = useNavigate();
     const { isAuthenticated, isLoading: authLoading, loginAsGuest } = useAuth();
+    const { city } = useLocation();
     const guestLoginAttempted = React.useRef(false);
     // Track auth state en ref para poder leerlo dentro del setTimeout
     const authRef = React.useRef({ isAuthenticated, authLoading });
     authRef.current = { isAuthenticated, authLoading };
 
-    // Auto-login como invitado si el usuario llega sin sesión (máximo un intento).
-    // Delay de 600ms tras detectar !isAuthenticated para dar tiempo al auth state
-    // de estabilizarse (evita race condition anónimo→real al navegar desde /login).
+    const [isImpactModalOpen, setIsImpactModalOpen] = useState(false);
+    const [showLocationSelector, setShowLocationSelector] = useState(false);
+    const [isSearchOpen, setIsSearchOpen] = useState(false);
+
     useEffect(() => {
         const isManualLogout = sessionStorage.getItem('rescatto_manual_logout') === 'true';
         
+        // Solo intentar login automático si:
+        // 1. NO estamos cargando auth ya
+        // 2. NO estamos autenticados
+        // 3. NO hemos intentado ya en este ciclo de vida
+        // 4. NO es un logout manual
         if (!authLoading && !isAuthenticated && !guestLoginAttempted.current && !isManualLogout) {
+            logger.log('CustomerLayout: Detectada ausencia de sesión, iniciando auto-login invitado...');
             const timer = setTimeout(() => {
-                // Re-verificar con el estado actual: si ya se autenticó, no hacer nada
+                // Re-verificar con el estado actual del ref (fresco)
                 if (!authRef.current.isAuthenticated && !authRef.current.authLoading && !guestLoginAttempted.current) {
                     guestLoginAttempted.current = true;
-                    loginAsGuest().catch(() => {/* silencioso */});
+                    loginAsGuest().catch(err => logger.error('Error en auto-login invitado:', err));
                 }
-            }, 600);
+            }, 800);
             return () => clearTimeout(timer);
         }
     }, [authLoading, isAuthenticated, loginAsGuest]);
@@ -168,14 +177,52 @@ const CustomerLayout: React.FC = () => {
     }, [navigate]);
 
     return (
-        <div className="pt-safe-top min-h-screen bg-gray-50 pb-[calc(5rem+env(safe-area-inset-bottom))] overflow-x-hidden">
-            <Outlet />
-            {/* Navigación Global Inferior (Persistente) */}
+        /* Esqueleto raíz: flex horizontal, altura exacta del viewport, sin overflow */
+        <div className="flex h-screen overflow-hidden bg-brand-bg">
+
+            {/* ── SIDEBAR (desktop only) — flex item, no fixed ── */}
+            <DesktopSidebar onOpenImpact={() => setIsImpactModalOpen(true)} />
+
+            {/* ── COLUMNA DERECHA: topbar + área de scroll ── */}
+            <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+
+                {/* Desktop Topbar — parte del flujo flex, no fixed */}
+                <DesktopTopbar
+                    city={city}
+                    onOpenLocation={() => setShowLocationSelector(true)}
+                    onOpenSearch={() => setIsSearchOpen(true)}
+                />
+
+                {/* Único contenedor de scroll de la app */}
+                <main className="flex-1 overflow-y-auto overscroll-y-contain">
+                    <div className="pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-8">
+                        <Outlet context={{
+                            openImpact: () => setIsImpactModalOpen(true),
+                            onOpenLocation: () => setShowLocationSelector(true),
+                            onOpenSearch: () => setIsSearchOpen(true)
+                        }} />
+                    </div>
+                </main>
+            </div>
+
+            {/* ── OVERLAYS FIJOS AL VIEWPORT (fuera del flex, sin ancestros con overflow) ── */}
+            {/* Navegación inferior mobile */}
             <CustomerBottomNav />
-            {/* Global Floating Chat Button */}
+            {/* Botón flotante de chat */}
             <ChatButton />
-            {/* Global Persistent Cart Button */}
-            <FloatingCartButton />
+
+            {/* ── MODALES GLOBALES ── */}
+            {showLocationSelector && (
+                <LocationSelector onClose={() => setShowLocationSelector(false)} />
+            )}
+            <SearchOverlay
+                isOpen={isSearchOpen}
+                onClose={() => setIsSearchOpen(false)}
+            />
+            <ImpactModal
+                isOpen={isImpactModalOpen}
+                onClose={() => setIsImpactModalOpen(false)}
+            />
         </div>
     );
 };
@@ -231,14 +278,16 @@ const AppRoutes: React.FC = () => {
                 }>
                     <Route index element={<Navigate to="dashboard" replace />} />
                     <Route path="dashboard" element={<DashboardOverview />} />
-                    <Route path="users" element={<UsersManager />} /> {/* Reusing existing for now */}
+                    <Route path="users" element={<UsersManager />} />
                     <Route path="venues" element={<BackofficeVenuesManager />} />
-                    <Route path="audit" element={<AuditLogs />} /> {/* Reusing existing for now */}
-                    {/* Placeholder routes for layout links */}
-                    <Route path="drivers" element={<div className="p-8 text-white">Pronto: Conductores</div>} />
-                    <Route path="orders" element={<div className="p-8 text-white">Pronto: Pedidos Globales</div>} />
-                    <Route path="support" element={<div className="p-8 text-white">Pronto: Soporte</div>} />
-                    <Route path="settings" element={<div className="p-8 text-white">Pronto: Settings</div>} />
+                    <Route path="audit" element={<AuditLogs />} />
+                    <Route path="orders" element={<OrderManagement />} />
+                    <Route path="finance" element={<FinanceManager />} />
+                    <Route path="subscriptions" element={<AdminSubscriptionsPage />} />
+                    <Route path="payment-settings" element={<AdminPaymentSettingsPage />} />
+                    <Route path="settings" element={<AdminSettingsPage />} />
+                    <Route path="drivers" element={<div className="p-8 text-white opacity-60 text-center pt-24"><p className="text-2xl font-bold mb-2">Conductores</p><p className="text-sm">Módulo en desarrollo</p></div>} />
+                    <Route path="support" element={<div className="p-8 text-white opacity-60 text-center pt-24"><p className="text-2xl font-bold mb-2">Soporte</p><p className="text-sm">Módulo en desarrollo</p></div>} />
                 </Route>
 
                 {/* --- LEGACY ADMIN ROUTES (Will be deprecated) --- */}
@@ -348,6 +397,16 @@ const AppRoutes: React.FC = () => {
                         <Layout><AdminSettingsPage /></Layout>
                     </ProtectedRoute>
                 } />
+                <Route path="/admin/subscriptions" element={
+                    <ProtectedRoute allowedRoles={[UserRole.SUPER_ADMIN, UserRole.ADMIN]}>
+                        <Layout><AdminSubscriptionsPage /></Layout>
+                    </ProtectedRoute>
+                } />
+                <Route path="/admin/payment-settings" element={
+                    <ProtectedRoute allowedRoles={[UserRole.SUPER_ADMIN]}>
+                        <Layout><AdminPaymentSettingsPage /></Layout>
+                    </ProtectedRoute>
+                } />
                 <Route path="/admin/profile" element={
                     <ProtectedRoute allowedRoles={[UserRole.SUPER_ADMIN, UserRole.ADMIN]}>
                         <Layout><UnifiedProfile /></Layout>
@@ -383,6 +442,9 @@ const AppRoutes: React.FC = () => {
                     } />
                     <Route path="venue/:venueId" element={
                         <VenueDetail />
+                    } />
+                    <Route path="explore" element={
+                        <Explore />
                     } />
                     <Route path="product/:productId" element={
                         <ProductDetail />

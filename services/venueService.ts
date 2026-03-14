@@ -4,7 +4,12 @@ import {
     getDoc,
     getDocs,
     query,
-    where
+    where,
+    limit,
+    orderBy,
+    startAfter,
+    QueryDocumentSnapshot,
+    DocumentData,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { Venue, Product } from '../types';
@@ -40,28 +45,71 @@ export const venueService = {
 
         logger.log(`🔥 Leyendo venues (${city || 'global'}) de Firestore`);
         const venuesRef = collection(db, 'venues');
-
-        let q = query(venuesRef);
-        if (city) {
-            q = query(venuesRef, where('city', '==', city));
+        const venues: Venue[] = [];
+        let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
+        let hasMore = true;
+        while (hasMore) {
+            const constraints: any[] = [orderBy('name')];
+            if (city) constraints.unshift(where('city', '==', city));
+            if (lastDoc) constraints.push(startAfter(lastDoc));
+            constraints.push(limit(50));
+            const q = query(venuesRef, ...constraints);
+            const querySnapshot = await getDocs(q);
+            const batch = querySnapshot.docs.map(doc => {
+                const data = doc.data();
+                const result = safeParseVenue({ id: doc.id, ...data });
+                if (!result.success) {
+                    logger.error(`❌ Venue ${doc.id} parsing failed:`, result.error.format());
+                    return null;
+                }
+                return result.data;
+            }).filter(v => v !== null) as Venue[];
+            venues.push(...batch);
+            lastDoc = querySnapshot.docs[querySnapshot.docs.length - 1] || null;
+            hasMore = querySnapshot.docs.length === 50;
         }
-
-        const querySnapshot = await getDocs(q);
-
-        const venues = querySnapshot.docs.map(doc => {
-            const data = doc.data();
-            const result = safeParseVenue({ id: doc.id, ...data });
-            if (!result.success) {
-                logger.error(`❌ Venue ${doc.id} parsing failed:`, result.error.format());
-                return null;
-            }
-            return result.data;
-        }).filter(v => v !== null) as Venue[];
 
         // 2. Guardar en caché
         cacheService.set(cacheKey, venues, TTL.ALL_VENUES);
 
         return venues;
+    },
+
+    // Obtener venues con paginación
+    getAllVenuesPage: async (
+        city?: string,
+        lastDoc?: QueryDocumentSnapshot<DocumentData> | null,
+        pageSize: number = 20
+    ): Promise<{ venues: Venue[]; lastDoc: QueryDocumentSnapshot<DocumentData> | null; hasMore: boolean }> => {
+        try {
+            const venuesRef = collection(db, 'venues');
+            const constraints: any[] = [orderBy('name')];
+            if (city) constraints.unshift(where('city', '==', city));
+            if (lastDoc) constraints.push(startAfter(lastDoc));
+            constraints.push(limit(pageSize));
+
+            const q = query(venuesRef, ...constraints);
+            const snapshot = await getDocs(q);
+
+            const venues = snapshot.docs.map(doc => {
+                const data = doc.data();
+                const result = safeParseVenue({ id: doc.id, ...data });
+                if (!result.success) {
+                    logger.error(`❌ Venue ${doc.id} parsing failed:`, result.error.format());
+                    return null;
+                }
+                return result.data;
+            }).filter(v => v !== null) as Venue[];
+
+            return {
+                venues,
+                lastDoc: snapshot.docs[snapshot.docs.length - 1] || null,
+                hasMore: snapshot.docs.length === pageSize,
+            };
+        } catch (error) {
+            logger.error('getAllVenuesPage error:', error);
+            return { venues: [], lastDoc: null, hasMore: false };
+        }
     },
 
     // Obtener un venue por ID
@@ -95,7 +143,8 @@ export const venueService = {
         const productsRef = collection(db, 'products');
         const q = query(
             productsRef,
-            where('venueId', '==', venueId)
+            where('venueId', '==', venueId),
+            limit(20)
         );
         const querySnapshot = await getDocs(q);
 
@@ -114,6 +163,47 @@ export const venueService = {
 
         cacheService.set(cacheKey, products, TTL.VENUE_PRODUCTS);
         return products;
+    },
+
+    // Obtener productos por venue con paginación (sin caché)
+    getVenueProductsPage: async (
+        venueId: string,
+        lastDoc?: QueryDocumentSnapshot<DocumentData> | null,
+        pageSize: number = 20
+    ): Promise<{ products: Product[]; lastDoc: QueryDocumentSnapshot<DocumentData> | null; hasMore: boolean }> => {
+        try {
+            const productsRef = collection(db, 'products');
+            const constraints: any[] = [
+                where('venueId', '==', venueId),
+                orderBy('__name__'),
+            ];
+            if (lastDoc) constraints.push(startAfter(lastDoc));
+            constraints.push(limit(pageSize));
+            const q = query(productsRef, ...constraints);
+            const querySnapshot = await getDocs(q);
+
+            const now = Date.now();
+            const products = querySnapshot.docs
+                .map(doc => {
+                    const data = doc.data();
+                    const result = safeParseProduct({ id: doc.id, ...data });
+                    if (!result.success) {
+                        logger.error(`❌ Product ${doc.id} parsing failed:`, result.error.format());
+                        return null;
+                    }
+                    return result.data;
+                })
+                .filter(p => p !== null && (p.quantity ?? 0) > 0 && !isProductExpired(p.availableUntil, now)) as Product[];
+
+            return {
+                products,
+                lastDoc: querySnapshot.docs[querySnapshot.docs.length - 1] || null,
+                hasMore: querySnapshot.docs.length === pageSize,
+            };
+        } catch (error) {
+            logger.error('getVenueProductsPage error:', error);
+            return { products: [], lastDoc: null, hasMore: false };
+        }
     },
 
     // Obtener un producto por ID

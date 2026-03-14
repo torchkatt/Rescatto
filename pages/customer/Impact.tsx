@@ -29,7 +29,7 @@ interface Reward {
 
 const LEVEL_CONFIG = {
     NOVICE: {
-        label: 'Novato',
+        label: 'impact_level_novice',
         emoji: '🌱',
         color: 'from-green-400 to-emerald-500',
         textColor: 'text-emerald-700',
@@ -38,7 +38,7 @@ const LEVEL_CONFIG = {
         maxRescues: 5,
     },
     HERO: {
-        label: 'Héroe',
+        label: 'impact_level_hero',
         emoji: '⚡',
         color: 'from-blue-400 to-cyan-500',
         textColor: 'text-blue-700',
@@ -47,7 +47,7 @@ const LEVEL_CONFIG = {
         maxRescues: 20,
     },
     GUARDIAN: {
-        label: 'Guardián',
+        label: 'impact_level_guardian',
         emoji: '🏆',
         color: 'from-amber-400 to-orange-500',
         textColor: 'text-amber-700',
@@ -146,6 +146,7 @@ const StreakCard: React.FC<{
     longest: number;
     multiplier: number;
 }> = ({ current, longest, multiplier }) => {
+    const { t } = useTranslation();
     const nextMilestone = STREAK_MILESTONES.find(m => m.days > current);
     const daysToNext = nextMilestone ? nextMilestone.days - current : 0;
 
@@ -159,18 +160,18 @@ const StreakCard: React.FC<{
             } text-white`}>
             <div className="flex items-center justify-between mb-4">
                 <div>
-                    <p className="text-white/70 text-xs font-medium uppercase tracking-wide">Racha Activa</p>
+                    <p className="text-white/70 text-xs font-medium uppercase tracking-wide">{t('impact_streak_active')}</p>
                     <div className="flex items-center gap-2 mt-1">
                         <Flame
                             size={28}
                             className={`${isOnFire ? 'text-yellow-300 drop-shadow-[0_0_8px_rgba(253,224,71,0.8)]' : 'text-white/50'}`}
                         />
                         <span className="text-4xl font-black">{current}</span>
-                        <span className="text-lg font-medium text-white/80">días</span>
+                        <span className="text-lg font-medium text-white/80">{t('impact_streak_days_label')}</span>
                     </div>
                 </div>
                 <div className="bg-white/20 rounded-2xl px-4 py-3 text-center">
-                    <p className="text-white/70 text-xs">Mejor racha</p>
+                    <p className="text-white/70 text-xs">{t('impact_streak_best')}</p>
                     <p className="text-2xl font-extrabold">{longest}</p>
                 </div>
             </div>
@@ -195,7 +196,7 @@ const StreakCard: React.FC<{
             {multiplier > 1.0 && (
                 <div className="inline-flex items-center gap-1.5 bg-yellow-400 text-yellow-900 px-3 py-1 rounded-full text-xs font-black mb-3">
                     <Zap size={12} />
-                    x{multiplier} de puntos activo
+                    {t('impact_multiplier_active', { multiplier })}
                 </div>
             )}
 
@@ -203,8 +204,8 @@ const StreakCard: React.FC<{
             {nextMilestone ? (
                 <div>
                     <div className="flex justify-between text-xs text-white/70 mb-1.5">
-                        <span>Día {current}</span>
-                        <span>🎯 {nextMilestone.label} → {nextMilestone.bonus}</span>
+                        <span>{t('impact_streak_day_label', { current })}</span>
+                        <span>🎯 {nextMilestone.days} {t('impact_streak_days_label')} → {nextMilestone.bonus}</span>
                     </div>
                     <div className="w-full bg-white/20 rounded-full h-2 overflow-hidden">
                         <div
@@ -215,12 +216,12 @@ const StreakCard: React.FC<{
                         />
                     </div>
                     <p className="text-white/60 text-xs mt-1.5">
-                        {daysToNext} día{daysToNext !== 1 ? 's' : ''} más para desbloquear {nextMilestone.bonus}
+                        {t('impact_streak_next', { days: daysToNext, bonus: nextMilestone.bonus })}
                     </p>
                 </div>
             ) : (
                 <p className="text-white/80 text-sm font-medium">
-                    🏆 ¡Máximo multiplicador activo! x3.0 puntos en cada rescate.
+                    {t('impact_max_multiplier')}
                 </p>
             )}
         </div>
@@ -240,17 +241,18 @@ const ImpactShareCard: React.FC<{
     points: number;
     onClose: () => void;
 }> = ({ name, level, levelEmoji, totalRescues, co2Saved, moneySaved, streak, points, onClose }) => {
+    const { t, i18n } = useTranslation();
     const firstName = name.split(' ')[0];
     const formatCOP = (v: number) =>
         new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v);
 
     const shareText = [
-        `🌱 ¡Soy ${levelEmoji} ${level} en Rescatto!`,
+        `🌱 ${t('impact_level_label')}: ${levelEmoji} ${t(level === 'GUARDIAN' ? 'impact_level_guardian' : level === 'HERO' ? 'impact_level_hero' : 'impact_level_novice')}`,
         ``,
-        `🍽️ He salvado ${totalRescues} comidas de terminar en la basura`,
-        `💨 Evité ${co2Saved.toFixed(1)} kg de CO₂`,
-        `💰 Ahorré ${formatCOP(moneySaved)}`,
-        streak >= 3 ? `🔥 Llevo ${streak} días seguidos rescatando` : '',
+        `🍽️ ${t('impact_share_rescues')}: ${totalRescues}`,
+        `💨 ${t('impact_share_co2')}: ${co2Saved.toFixed(1)} kg`,
+        `💰 ${t('impact_share_money')}: ${formatCOP(moneySaved)}`,
+        streak >= 3 ? `🔥 ${t('impact_share_streak')}: ${streak}` : '',
         ``,
         `Únete a la comunidad en rescatto.com 🚀`,
     ].filter(Boolean).join('\n');
@@ -292,7 +294,7 @@ const ImpactShareCard: React.FC<{
                         <div className="flex items-center justify-between mb-4">
                             <div>
                                 <p className="text-white/70 text-xs font-medium">Rescatto</p>
-                                <p className="text-xl font-black">{firstName} rescató</p>
+                                <p className="text-xl font-black">{firstName} {t('impact_stat_rescues')}</p>
                             </div>
                             <div className="text-4xl">{levelEmoji}</div>
                         </div>
@@ -300,20 +302,20 @@ const ImpactShareCard: React.FC<{
                         <div className="grid grid-cols-2 gap-3 mb-4">
                             <div className="bg-white/20 rounded-xl p-3">
                                 <p className="text-3xl font-black">{totalRescues}</p>
-                                <p className="text-xs text-white/80">comidas salvadas</p>
+                                <p className="text-xs text-white/80">{t('impact_share_rescues')}</p>
                             </div>
                             <div className="bg-white/20 rounded-xl p-3">
                                 <p className="text-3xl font-black">{co2Saved.toFixed(1)}</p>
-                                <p className="text-xs text-white/80">kg CO₂ evitados</p>
+                                <p className="text-xs text-white/80">{t('impact_share_co2')}</p>
                             </div>
                             <div className="bg-white/20 rounded-xl p-3">
                                 <p className="text-lg font-black">{formatCOP(moneySaved)}</p>
-                                <p className="text-xs text-white/80">dinero ahorrado</p>
+                                <p className="text-xs text-white/80">{t('impact_share_money')}</p>
                             </div>
                             {streak >= 3 && (
                                 <div className="bg-orange-500/80 rounded-xl p-3">
                                     <p className="text-3xl font-black">🔥{streak}</p>
-                                    <p className="text-xs text-white/80">días de racha</p>
+                                    <p className="text-xs text-white/80">{t('impact_share_streak')}</p>
                                 </div>
                             )}
                         </div>
@@ -321,7 +323,7 @@ const ImpactShareCard: React.FC<{
                         <div className="bg-white/20 rounded-xl px-3 py-2 inline-flex items-center gap-2">
                             <span className="text-sm font-bold">{levelEmoji} {level}</span>
                             <span className="text-white/60 text-xs">•</span>
-                            <span className="text-xs text-white/80">{points.toLocaleString('es-CO')} pts</span>
+                            <span className="text-xs text-white/80">{points.toLocaleString(i18n.language === 'en' ? 'en-US' : 'es-CO')} pts</span>
                         </div>
                     </div>
                 </div>
@@ -333,7 +335,7 @@ const ImpactShareCard: React.FC<{
                         className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-bold text-base flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-emerald-200"
                     >
                         <Share2 size={20} />
-                        Compartir mi impacto
+                        {t('impact_share_btn')}
                     </button>
 
                     <a
@@ -343,14 +345,14 @@ const ImpactShareCard: React.FC<{
                         className="w-full border-2 border-green-500 text-green-700 py-3 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-all"
                     >
                         <span className="text-lg">💬</span>
-                        Compartir por WhatsApp
+                        {t('impact_share_wa')}
                     </a>
 
                     <button
                         onClick={onClose}
                         className="w-full text-gray-400 text-sm py-2 hover:text-gray-600 transition-colors"
                     >
-                        Cerrar
+                        {t('impact_close')}
                     </button>
                 </div>
             </div>
@@ -364,7 +366,7 @@ const Impact: React.FC = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
     const { success, error: toastError, info } = useToast();
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const [redeeming, setRedeeming] = useState<string | null>(null);
     const [showShareCard, setShowShareCard] = useState(false);
     const [requestingNotifs, setRequestingNotifs] = useState(false);
@@ -409,7 +411,7 @@ const Impact: React.FC = () => {
 
     const handleRedeem = async (reward: Reward) => {
         if (points < reward.cost) {
-            toastError(`Necesitas ${reward.cost - points} puntos más para canjear esto`);
+            toastError(t('impact_redeem_need', { count: reward.cost - points }));
             return;
         }
 
@@ -417,7 +419,7 @@ const Impact: React.FC = () => {
         try {
             const redeemPoints = httpsCallable(functions, 'redeemPoints');
             await redeemPoints({ rewardId: reward.id });
-            success(`¡"${reward.name}" canjeado con éxito! 🎉`);
+            success(t('impact_redeem_success', { name: reward.name }));
         } catch (err) {
             logger.error('Error redeeming reward:', err);
             toastError('No se pudo canjear. Intenta de nuevo.');
@@ -432,7 +434,7 @@ const Impact: React.FC = () => {
         try {
             const token = await messagingService.requestPermissionAndSaveToken(user.id);
             if (token) {
-                success('🔔 Notificaciones activadas. Te avisaremos de tus pedidos y ofertas.');
+                success(t('impact_notif_success') || '🔔 Notificaciones activadas. Te avisaremos de tus pedidos y ofertas.');
             } else {
                 info('Activa las notificaciones desde la configuración de tu navegador.');
             }
@@ -453,7 +455,7 @@ const Impact: React.FC = () => {
             {/* Banner de invitado */}
             {showGuestBanner && (
                 <GuestPromptBanner
-                    featureName="tu impacto y puntos de rescate"
+                    featureName={t('impact_guest_feature')}
                     icon="🌱"
                     onDismiss={() => setShowGuestBanner(false)}
                 />
@@ -478,8 +480,8 @@ const Impact: React.FC = () => {
                         className="flex items-center gap-1.5 bg-emerald-600 text-white px-3 py-1.5 rounded-xl text-sm font-bold active:scale-95 transition-all shadow-sm"
                     >
                         <Share2 size={14} />
-                        Compartir
-                    </button>
+                        {t('impact_btn_share')}
+                 </button>
                 </div>
             </header>
 
@@ -489,14 +491,14 @@ const Impact: React.FC = () => {
                 <div className={`bg-gradient-to-br ${levelConfig.color} rounded-2xl p-5 text-white shadow-lg`}>
                     <div className="flex items-center justify-between mb-3">
                         <div>
-                            <p className="text-white/70 text-xs font-medium uppercase tracking-wide">Nivel actual</p>
+                            <p className="text-white/70 text-xs font-medium uppercase tracking-wide">{t('impact_current_level')}</p>
                             <h2 className="text-2xl font-extrabold flex items-center gap-2 mt-1">
-                                {levelConfig.emoji} {levelConfig.label}
+                                {levelConfig.emoji} {t(levelConfig.label)}
                             </h2>
                         </div>
                         <div className="bg-white/20 rounded-2xl px-4 py-2 text-center">
-                            <p className="text-white/70 text-xs">Puntos</p>
-                            <p className="text-2xl font-extrabold">{points.toLocaleString('es-CO')}</p>
+                            <p className="text-white/70 text-xs">{t('impact_points_label')}</p>
+                            <p className="text-2xl font-extrabold">{points.toLocaleString(i18n.language === 'en' ? 'en-US' : 'es-CO')}</p>
                             {streakMultiplier > 1.0 && (
                                 <p className="text-yellow-200 text-[10px] font-bold">x{streakMultiplier} 🔥</p>
                             )}
@@ -506,8 +508,8 @@ const Impact: React.FC = () => {
                     {nextLevel && (
                         <div>
                             <div className="flex justify-between text-xs text-white/70 mb-1">
-                                <span>{totalRescues} rescates</span>
-                                <span>→ {nextLevel.label} en {Math.max(0, nextLevel.minRescues - totalRescues)} más</span>
+                                <span>{totalRescues} {t('impact_stat_rescues')}</span>
+                                <span>{t('impact_stat_remaining', { level: t(nextLevel.label), count: Math.max(0, nextLevel.minRescues - totalRescues) })}</span>
                             </div>
                             <ProgressBar
                                 current={totalRescues}
@@ -519,7 +521,7 @@ const Impact: React.FC = () => {
                     )}
                     {!nextLevel && (
                         <p className="text-white/80 text-sm font-medium">
-                            🏆 ¡Has alcanzado el nivel máximo! Eres un Guardián del Planeta.
+                            {t('impact_max_level')}
                         </p>
                     )}
                 </div>
@@ -533,30 +535,30 @@ const Impact: React.FC = () => {
 
                 {/* Stats Grid */}
                 <div>
-                    <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-3">Tu Impacto Ambiental</h3>
+                    <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-3">{t('impact_env_title')}</h3>
                     <div className="grid grid-cols-2 gap-3">
                         <StatCard
                             icon={<ShoppingBag size={14} />}
-                            label="Rescates"
+                            label={t('impact_stat_rescues')}
                             value={totalRescues}
                             color="bg-gradient-to-br from-emerald-500 to-teal-600"
                         />
                         <StatCard
                             icon={<Leaf size={14} />}
-                            label="CO₂ evitado"
+                            label={t('impact_stat_co2')}
                             value={co2Saved.toFixed(1)}
                             unit="kg"
                             color="bg-gradient-to-br from-green-500 to-emerald-600"
                         />
                          <StatCard
                             icon={<TreePine size={14} />}
-                            label="Equiv. árboles"
+                            label={t('impact_stat_trees')}
                             value={treesEquivalent}
                             color="bg-gradient-to-br from-teal-500 to-cyan-600"
                         />
                         <StatCard
                             icon={<TrendingUp size={14} />}
-                            label="Dinero ahorrado"
+                            label={t('impact_stat_money')}
                             value={formatCurrency(moneySaved)}
                             color="bg-gradient-to-br from-blue-500 to-indigo-600"
                         />
@@ -573,8 +575,8 @@ const Impact: React.FC = () => {
                             <Share2 size={20} />
                         </div>
                         <div className="text-left">
-                            <p className="font-bold text-sm">Comparte tu impacto</p>
-                            <p className="text-xs text-white/70">Invita amigos y gana +50 pts por cada uno</p>
+                            <p className="font-bold text-sm">{t('impact_share_btn')}</p>
+                            <p className="text-xs text-white/70">{t('impact_invite_bonus')}</p>
                         </div>
                     </div>
                     <ChevronRight size={20} className="text-white/60" />
@@ -592,8 +594,8 @@ const Impact: React.FC = () => {
                                 <Bell size={20} className="text-amber-600" />
                             </div>
                             <div className="text-left">
-                                <p className="font-bold text-sm text-gray-900">Activa las notificaciones</p>
-                                <p className="text-xs text-gray-500">Entérate de nuevas ofertas y tu racha</p>
+                                <p className="font-bold text-sm text-gray-900">{t('impact_notif_title')}</p>
+                                <p className="text-xs text-gray-500">{t('impact_notif_desc')}</p>
                             </div>
                         </div>
                         <ChevronRight size={20} className="text-gray-400" />
@@ -606,7 +608,7 @@ const Impact: React.FC = () => {
                         <div className="flex items-center gap-2">
                             <Medal size={18} className="text-amber-500" />
                             <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wide">
-                                Top Rescatadores
+                                {t('impact_top_rescuers')}
                                 {user?.city ? ` · ${user.city}` : ''}
                             </h3>
                         </div>
@@ -627,7 +629,7 @@ const Impact: React.FC = () => {
                                         : 'text-gray-500'
                                 }`}
                             >
-                                {p === 'all-time' ? 'Histórico' : p === 'monthly' ? 'Mensual' : 'Semanal'}
+                                {p === 'all-time' ? t('impact_hist') : p === 'monthly' ? t('impact_monthly') : t('impact_weekly')}
                             </button>
                         ))}
                     </div>
@@ -639,23 +641,23 @@ const Impact: React.FC = () => {
                                     <Trophy size={20} className="text-yellow-300" />
                                 </div>
                                 <div>
-                                    <p className="text-white/70 text-[10px] font-black uppercase tracking-widest">Tu posición</p>
+                                    <p className="text-white/70 text-[10px] font-black uppercase tracking-widest">{t('impact_your_rank')}</p>
                                     <p className="text-xl font-black"># {userRank.rank}</p>
                                 </div>
                             </div>
                             <div className="text-right">
-                                <p className="text-white/70 text-[10px] font-black uppercase tracking-widest">Nivel</p>
-                                <p className="text-sm font-bold">{LEVEL_CONFIG[level].emoji} {LEVEL_CONFIG[level].label}</p>
+                                <p className="text-white/70 text-[10px] font-black uppercase tracking-widest">{t('impact_level_label')}</p>
+                                <p className="text-sm font-bold">{LEVEL_CONFIG[level].emoji} {t(LEVEL_CONFIG[level].label)}</p>
                             </div>
                         </div>
                     )}
 
                     <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
                         {leaderboardLoading ? (
-                            <div className="p-6 text-center text-gray-400 text-sm">Cargando ranking...</div>
+                            <div className="p-6 text-center text-gray-400 text-sm">{t('impact_loading_rank')}</div>
                         ) : leaderboard.length === 0 ? (
                             <div className="p-6 text-center text-gray-400 text-sm">
-                                Sé el primero en aparecer aquí 🌱
+                                {t('impact_be_first')}
                             </div>
                         ) : (
                             <div className="divide-y divide-gray-50">
@@ -694,7 +696,7 @@ const Impact: React.FC = () => {
                                                     <span className="text-xs">{lvl.emoji}</span>
                                                 </div>
                                                 <p className="text-xs text-gray-400">
-                                                    {leaderboardPeriod === 'all-time' ? entry.totalRescues : (leaderboardPeriod === 'monthly' ? entry.monthlyRescues : entry.weeklyRescues) || 0} rescates · {entry.co2Saved.toFixed(1)}kg CO₂
+                                                    {leaderboardPeriod === 'all-time' ? t('impact_hist') : (leaderboardPeriod === 'monthly' ? t('impact_monthly') : t('impact_weekly'))} · {entry.totalRescues} {t('impact_stat_rescues')} · {entry.co2Saved.toFixed(1)}kg CO₂
                                                 </p>
                                             </div>
 
@@ -713,15 +715,15 @@ const Impact: React.FC = () => {
 
                     {!leaderboardLoading && leaderboard.length > 0 && !leaderboard.find(e => e.userId === user?.id) && (
                         <p className="text-center text-xs text-gray-400 mt-2">
-                            Sigue rescatando para aparecer en el top 10 de {user?.city || 'tu ciudad'} 🚀
+                            {t('impact_keep_rescuing', { city: user?.city || '' })}
                         </p>
                     )}
                 </div>
 
                 {/* Rewards / Canjear */}
                 <div>
-                    <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-1">Canjear Puntos</h3>
-                    <p className="text-xs text-gray-400 mb-3">Tienes {points} pts disponibles</p>
+                    <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-1">{t('impact_redeem_title')}</h3>
+                    <p className="text-xs text-gray-400 mb-3">{t('impact_pts_available', { points })}</p>
                     <div className="space-y-3">
                         {AVAILABLE_REWARDS.map(reward => {
                             const canAfford = points >= reward.cost;
@@ -754,28 +756,28 @@ const Impact: React.FC = () => {
                 <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl p-4 border border-emerald-100">
                     <h3 className="font-bold text-emerald-800 mb-3 flex items-center gap-2">
                         <Zap size={16} className="text-emerald-600" />
-                        ¿Cómo ganar puntos?
+                        {t('impact_how_earn')}
                     </h3>
                     <ul className="space-y-2 text-sm text-emerald-700">
                         <li className="flex items-start gap-2">
                             <Star size={14} className="flex-shrink-0 mt-0.5 text-emerald-500" />
-                            <span>+1 punto por cada 1.000 COP ahorrado frente al precio original</span>
+                            <span>{t('impact_earn_savings')}</span>
                         </li>
                         <li className="flex items-start gap-2">
                             <Leaf size={14} className="flex-shrink-0 mt-0.5 text-emerald-500" />
-                            <span>+10 puntos por cada kg de CO₂ que evitas</span>
+                            <span>{t('impact_earn_co2')}</span>
                         </li>
                         <li className="flex items-start gap-2">
                             <Flame size={14} className="flex-shrink-0 mt-0.5 text-orange-500" />
-                            <span>🔥 Mantén tu racha para multiplicar puntos hasta x3.0</span>
+                            <span>{t('impact_earn_streak')}</span>
                         </li>
                         <li className="flex items-start gap-2">
                             <Award size={14} className="flex-shrink-0 mt-0.5 text-emerald-500" />
-                            <span>Los puntos se acreditan automáticamente al completar un pedido</span>
+                            <span>{t('impact_earn_auto')}</span>
                         </li>
                         <li className="flex items-start gap-2">
                             <Gift size={14} className="flex-shrink-0 mt-0.5 text-purple-500" />
-                            <span>+50 pts cuando un amigo completa su primer pedido con tu código</span>
+                            <span>{t('impact_earn_referral')}</span>
                         </li>
                     </ul>
                 </div>
@@ -785,8 +787,8 @@ const Impact: React.FC = () => {
             {/* Share Card Modal */}
             {showShareCard && (
                 <ImpactShareCard
-                    name={user?.fullName || 'Usuario'}
-                    level={levelConfig.label}
+                    name={user?.fullName || t('login_role_customer')}
+                    level={t(levelConfig.label)}
                     levelEmoji={levelConfig.emoji}
                     totalRescues={totalRescues}
                     co2Saved={co2Saved}

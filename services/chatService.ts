@@ -10,6 +10,7 @@ import {
     orderBy,
     onSnapshot,
     Unsubscribe,
+    limit,
     writeBatch,
 } from 'firebase/firestore';
 import { db } from './firebase';
@@ -252,7 +253,8 @@ export const getUserChats = async (userId: string): Promise<Chat[]> => {
         const q = query(
             chatsRef,
             where('participants', 'array-contains', userId),
-            orderBy('updatedAt', 'desc')
+            orderBy('updatedAt', 'desc'),
+            limit(20)
         );
 
         const snapshot = await getDocs(q);
@@ -272,7 +274,7 @@ export const getUserChats = async (userId: string): Promise<Chat[]> => {
 export const getChatMessages = async (chatId: string): Promise<Message[]> => {
     try {
         const messagesRef = collection(db, `chats/${chatId}/messages`);
-        const q = query(messagesRef, orderBy('timestamp', 'asc'));
+        const q = query(messagesRef, orderBy('timestamp', 'asc'), limit(20));
 
         const snapshot = await getDocs(q);
         return snapshot.docs.map(doc => ({
@@ -293,7 +295,7 @@ export const subscribeToChatMessages = (
     callback: (messages: Message[]) => void
 ): Unsubscribe => {
     const messagesRef = collection(db, `chats/${chatId}/messages`);
-    const q = query(messagesRef, orderBy('timestamp', 'asc'));
+    const q = query(messagesRef, orderBy('timestamp', 'asc'), limit(20));
 
     return onSnapshot(q, snapshot => {
         const messages = snapshot.docs.map(doc => ({
@@ -317,7 +319,8 @@ export const subscribeToUserChats = (
     const q = query(
         chatsRef,
         where('participants', 'array-contains', userId),
-        orderBy('updatedAt', 'desc')
+        orderBy('updatedAt', 'desc'),
+        limit(20)
     );
 
     return onSnapshot(q, snapshot => {

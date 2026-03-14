@@ -1,4 +1,4 @@
-import { doc, updateDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, updateDoc, getDoc, collection, query, where, getDocs, limit, startAfter, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { db } from './firebase';
 import { OrderStatus, UserRole } from '../types';
 import { getOrCreateChat, sendSystemMessage } from './chatService';
@@ -21,7 +21,7 @@ export const acceptDelivery = async (orderId: string, driverId: string): Promise
         // Update order status
         await updateDoc(orderRef, {
             driverId,
-            status: OrderStatus.IN_TRANSIT,
+            status: OrderStatus.DRIVER_ACCEPTED,
             acceptedAt: new Date().toISOString(),
         });
 
@@ -111,17 +111,26 @@ export const completeDelivery = async (
 export const getDriverDeliveries = async (driverId: string) => {
     try {
         const ordersRef = collection(db, 'orders');
-        const q = query(
-            ordersRef,
-            where('driverId', '==', driverId),
-            where('status', '==', OrderStatus.IN_TRANSIT)
-        );
-
-        const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        }));
+        const deliveries: any[] = [];
+        let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
+        let hasMore = true;
+        while (hasMore) {
+            const constraints: any[] = [
+                where('driverId', '==', driverId),
+                where('status', '==', OrderStatus.IN_TRANSIT),
+            ];
+            if (lastDoc) constraints.push(startAfter(lastDoc));
+            constraints.push(limit(50));
+            const q = query(ordersRef, ...constraints);
+            const snapshot = await getDocs(q);
+            deliveries.push(...snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            })));
+            lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
+            hasMore = snapshot.docs.length === 50;
+        }
+        return deliveries;
     } catch (error) {
         logger.error('Error getting driver deliveries:', error);
         throw error;

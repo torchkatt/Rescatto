@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
@@ -28,7 +28,11 @@ export const OrderManagement: React.FC = () => {
     const { sendNotification } = useNotifications();
     const queryClient = useQueryClient();
     const [filter, setFilter] = useState<'all' | OrderStatus>('all');
+    const [searchInput, setSearchInput] = useState(initialSearch);
     const [searchTerm, setSearchTerm] = useState(initialSearch);
+    const isSuperAdmin = user?.role === UserRole.SUPER_ADMIN;
+    const searchTimeoutRef = useRef<number | null>(null);
+    const searchInputRef = useRef<HTMLInputElement | null>(null);
 
     // Driver assignment
     const [assigningOrder, setAssigningOrder] = useState<Order | null>(null);
@@ -57,6 +61,53 @@ export const OrderManagement: React.FC = () => {
     const flatOrders = useMemo(() => {
         return paginatedData?.pages.flatMap(page => page.data) || [];
     }, [paginatedData]);
+
+    useEffect(() => {
+        if (searchTimeoutRef.current) {
+            window.clearTimeout(searchTimeoutRef.current);
+        }
+        searchTimeoutRef.current = window.setTimeout(() => {
+            setSearchTerm(searchInput.trim());
+        }, 350);
+
+        return () => {
+            if (searchTimeoutRef.current) {
+                window.clearTimeout(searchTimeoutRef.current);
+            }
+        };
+    }, [searchInput]);
+
+
+    const normalizeText = (value: string) =>
+        value
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .trim();
+
+    const matchesSearch = (order: Order, queryText: string) => {
+        if (!queryText) return true;
+        const haystack = normalizeText([
+            order.id,
+            order.customerName,
+            order.metadata?.venueName,
+            order.venueId,
+            order.city,
+            order.paymentMethod,
+            order.deliveryMethod,
+            getStatusLabel(order.status),
+            order.totalAmount?.toString(),
+            order.platformFee?.toString(),
+            order.venueEarnings?.toString(),
+            order.deliveryFee?.toString(),
+            order.donationCenterName,
+            order.phone,
+            order.deliveryAddress,
+            ...(order.products?.map(p => p.name) || [])
+        ].filter(Boolean).join(' '));
+
+        return haystack.includes(normalizeText(queryText));
+    };
 
     const updateOrderStatus = async (orderId: string, newStatus: OrderStatus) => {
         try {
@@ -155,7 +206,7 @@ export const OrderManagement: React.FC = () => {
         setAssigningOrder(order);
         setLoadingDrivers(true);
         try {
-            const snap = await getDocs(query(collection(db, 'users'), where('role', '==', 'DRIVER')));
+            const snap = await getDocs(query(collection(db, 'users'), where('role', '==', 'DRIVER'), limit(20)));
             setDrivers(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
         } catch (err) {
             logger.error('Error loading drivers:', err);
@@ -227,6 +278,16 @@ export const OrderManagement: React.FC = () => {
 
     // Ya no filtramos localmente, la data del hook `usePaginatedOrders` ya viene filtrada
     const filteredOrders = flatOrders;
+    const tableOrders = useMemo(() => {
+        if (!isSuperAdmin) return filteredOrders;
+        return filteredOrders.filter(order => matchesSearch(order, searchTerm));
+    }, [filteredOrders, isSuperAdmin, searchTerm]);
+
+    useEffect(() => {
+        if (searchInputRef.current && document.activeElement === searchInputRef.current) {
+            searchInputRef.current.focus({ preventScroll: true });
+        }
+    }, [tableOrders.length]);
 
     const activeOrders = flatOrders.filter(o =>
         o.status === OrderStatus.PENDING ||
@@ -244,18 +305,19 @@ export const OrderManagement: React.FC = () => {
             {/* Fila 1: título + contador + botón refresh */}
             <div className="flex justify-between items-start">
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                    <h2 className="text-2xl font-bold text-white flex items-center gap-2">
                         <ChefHat className="text-emerald-600" />
-                        Gestión de Pedidos
+                        {isSuperAdmin ? 'Pedidos Corporativos' : 'Gestión de Pedidos'}
                     </h2>
                     <p className="text-sm text-gray-500 mt-1">
                         {activeOrders.length} pedido{activeOrders.length !== 1 ? 's' : ''} activo{activeOrders.length !== 1 ? 's' : ''}
+                        {isSuperAdmin && ' · Vista de lectura'}
                     </p>
                 </div>
 
                 <button
                     onClick={() => {
-                        if (user?.venueId) {
+                        if (user?.venueId || user?.role === UserRole.SUPER_ADMIN) {
                             refetch();
                         }
                     }}
@@ -319,11 +381,17 @@ export const OrderManagement: React.FC = () => {
             <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center gap-3">
                 <Search className="text-gray-400" size={20} />
                 <input
+                    ref={searchInputRef}
                     type="text"
-                    placeholder="Buscar pedido por nombre, ID o producto..."
+                    placeholder="Buscar por pedido, negocio, ciudad, cliente, estado, pago, entrega..."
                     className="flex-1 outline-none text-gray-700 bg-transparent"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+                    value={searchInput}
+                    onChange={(e) => {
+                        setSearchInput(e.target.value);
+                        requestAnimationFrame(() => {
+                            searchInputRef.current?.focus({ preventScroll: true });
+                        });
+                    }}
                 />
             </div>
 
@@ -338,6 +406,69 @@ export const OrderManagement: React.FC = () => {
                                 : `No hay pedidos con estado "${getStatusLabel(filter as OrderStatus)}"`
                             }
                         </p>
+                    </div>
+                ) : isSuperAdmin ? (
+                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500">
+                                    <tr>
+                                        <th className="px-4 py-3">Pedido</th>
+                                        <th className="px-4 py-3">Fecha</th>
+                                        <th className="px-4 py-3">Negocio</th>
+                                        <th className="px-4 py-3">Ciudad</th>
+                                        <th className="px-4 py-3">Estado</th>
+                                        <th className="px-4 py-3">Total</th>
+                                        <th className="px-4 py-3">Pago</th>
+                                        <th className="px-4 py-3">Entrega</th>
+                                        <th className="px-4 py-3">Comisión</th>
+                                        <th className="px-4 py-3">Ganancia Sede</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="text-sm">
+                                    {tableOrders.map(order => (
+                                        <tr key={order.id} className="border-t border-gray-100 hover:bg-gray-50/60">
+                                            <td className="px-4 py-3 text-gray-700">
+                                                <div className="font-semibold">#{order.id.slice(0, 8)}</div>
+                                                <div className="text-xs text-gray-500">{order.customerName}</div>
+                                            </td>
+                                            <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
+                                                {new Date(order.createdAt).toLocaleString('es-ES', {
+                                                    month: 'short',
+                                                    day: 'numeric',
+                                                    hour: '2-digit',
+                                                    minute: '2-digit'
+                                                })}
+                                            </td>
+                                            <td className="px-4 py-3 text-gray-600">
+                                                {order.metadata?.venueName || order.venueId}
+                                            </td>
+                                            <td className="px-4 py-3 text-gray-600">
+                                                {order.city || 'N/D'}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {getStatusBadge(order.status)}
+                                            </td>
+                                            <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">
+                                                {formatCOP(order.totalAmount)}
+                                            </td>
+                                            <td className="px-4 py-3 text-gray-600">
+                                                {order.paymentMethod || 'N/D'}
+                                            </td>
+                                            <td className="px-4 py-3 text-gray-600">
+                                                {order.deliveryMethod || 'N/D'}
+                                            </td>
+                                            <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
+                                                {order.platformFee != null ? formatCOP(order.platformFee) : 'N/D'}
+                                            </td>
+                                            <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
+                                                {order.venueEarnings != null ? formatCOP(order.venueEarnings) : 'N/D'}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -428,22 +559,13 @@ export const OrderManagement: React.FC = () => {
                                 <PermissionGate requires={Permission.MANAGE_ORDERS}>
                                     <div className="flex flex-col gap-3">
                                         <div className="flex flex-col sm:flex-row gap-2">
-                                            {order.status === OrderStatus.PENDING && order.paymentMethod === 'cash' && (
-                                                <button
-                                                    onClick={() => updateOrderStatus(order.id, OrderStatus.PAID)}
-                                                    className="w-full px-4 py-3 bg-blue-600 text-white rounded-xl shadow-sm hover:bg-blue-700 active:scale-95 transition-all duration-200 text-sm font-bold"
-                                                >
-                                                    Confirmar Pago
-                                                </button>
-                                            )}
-
                                             {order.status === OrderStatus.PENDING && order.paymentMethod === 'card' && (
                                                 <div className="w-full text-center text-sm text-indigo-600 font-bold py-3 bg-indigo-50 rounded-xl border border-indigo-200 shadow-sm animate-pulse">
                                                     Esperando confirmación del pago online
                                                 </div>
                                             )}
 
-                                            {order.status === OrderStatus.PAID && (
+                                            {(order.status === OrderStatus.PAID || (order.status === OrderStatus.PENDING && order.paymentMethod === 'cash')) && (
                                                 <button
                                                     onClick={() => updateOrderStatus(order.id, OrderStatus.IN_PREPARATION)}
                                                     className="w-full px-4 py-3 bg-amber-500 text-white rounded-xl shadow-sm hover:bg-amber-600 active:scale-95 transition-all duration-200 text-sm font-bold flex items-center justify-center gap-2"

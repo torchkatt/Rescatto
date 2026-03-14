@@ -125,7 +125,7 @@ export const CartItemSchema = z.object({
   id: z.string(),
   venueId: z.string(),
   name: z.string(),
-  price: z.number(),
+  discountedPrice: z.number(),
   originalPrice: z.number(),
   quantity: z.number().int().positive(),
   imageUrl: z.string().default(''),
@@ -134,20 +134,23 @@ export const CartItemSchema = z.object({
 
 // ─── Checkout Form ────────────────────────────────────────────────────────
 export const CheckoutFormSchema = z.object({
-  address: z.string().min(5, "La dirección debe tener al menos 5 caracteres").optional().nullable(),
+  address: z.string().optional().nullable(),
   phone: z.string()
     .min(7, "Mínimo 7 dígitos")
-    .max(15, "Máximo 15 dígitos")
-    .regex(/^\d+$/, { message: "Solo números" }),
+    .max(17, "Máximo 17 caracteres") // + dialCode + number
+    .regex(/^\+?\d+$/, { message: "Formato inválido" }),
   deliveryMethod: z.enum(['delivery', 'pickup', 'donation']),
   selectedDonationCenterId: z.string().optional().nullable(),
 }).refine((data) => {
-  if (data.deliveryMethod === 'delivery' && !data.address) return false;
+  if (data.deliveryMethod === 'delivery') {
+    return !!data.address && data.address.trim().length >= 5;
+  }
   return true;
 }, {
-  message: "La dirección es obligatoria para domicilios",
+  message: "La dirección es obligatoria y debe tener al menos 5 caracteres",
   path: ["address"],
-}).refine((data) => {
+})
+.refine((data) => {
   if (data.deliveryMethod === 'donation' && !data.selectedDonationCenterId) return false;
   return true;
 }, {

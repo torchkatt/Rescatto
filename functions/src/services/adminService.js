@@ -62,8 +62,14 @@ const getFinanceStats = onCall(withErrorHandling("getFinanceStats", async (reque
     const { startDate, endDate } = finParsed.data;
 
     let ordersQuery = db.collection("orders").where("status", "in", ["COMPLETED", "PAID"]);
-    if (startDate) ordersQuery = ordersQuery.where("createdAt", ">=", startDate);
-    if (endDate) ordersQuery = ordersQuery.where("createdAt", "<=", endDate);
+    if (startDate) {
+        ordersQuery = ordersQuery.where("createdAt", ">=", admin.firestore.Timestamp.fromDate(new Date(startDate)));
+    }
+    if (endDate) {
+        const endOfDay = new Date(endDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        ordersQuery = ordersQuery.where("createdAt", "<=", admin.firestore.Timestamp.fromDate(endOfDay));
+    }
 
     const snapshot = await ordersQuery.get();
     let totalRevenue = 0, totalPlatformFee = 0, totalVenueEarnings = 0, totalOrders = 0;

@@ -6,13 +6,15 @@ interface CountdownProps {
     onExpire?: () => void;
     variant?: 'normal' | 'warning' | 'critical';
     showIcon?: boolean;
+    compact?: boolean;
 }
 
 export const Countdown: React.FC<CountdownProps> = ({
     targetTime,
     onExpire,
     variant = 'normal',
-    showIcon = true
+    showIcon = true,
+    compact = false
 }) => {
     const [timeLeft, setTimeLeft] = useState<string>('');
     const [autoVariant, setAutoVariant] = useState<'normal' | 'warning' | 'critical'>(variant);
@@ -69,10 +71,23 @@ export const Countdown: React.FC<CountdownProps> = ({
     const currentVariant = variant === 'normal' ? autoVariant : variant;
 
     if (timeLeft === 'Expirado') {
+        if (compact) return null;
         return (
             <div className="flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-medium border border-gray-300">
                 <AlertCircle size={12} />
                 <span>No disponible</span>
+            </div>
+        );
+    }
+
+    if (compact) {
+        return (
+            <div className={`flex items-center gap-1 text-[10px] font-black ${
+                currentVariant === 'critical' ? 'text-white' : 
+                currentVariant === 'warning' ? 'text-orange-200' : 'text-emerald-100'
+            }`}>
+                {showIcon && <Clock size={10} />}
+                <span>{timeLeft}</span>
             </div>
         );
     }

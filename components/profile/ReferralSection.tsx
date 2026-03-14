@@ -7,6 +7,7 @@ import { collection, query, where, getCountFromServer } from 'firebase/firestore
 import { db, functions } from '../../services/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { logger } from '../../utils/logger';
+import { useTranslation } from 'react-i18next';
 
 interface Props {
     user: User;
@@ -15,6 +16,7 @@ interface Props {
 const REFERRAL_BONUS = 50; // puntos por cada amigo que completa su primer pedido
 
 export const ReferralSection: React.FC<Props> = ({ user }) => {
+    const { t } = useTranslation();
     const { success, error } = useToast();
     const [copied, setCopied] = useState(false);
     const [showQR, setShowQR] = useState(false);
@@ -25,7 +27,7 @@ export const ReferralSection: React.FC<Props> = ({ user }) => {
 
     const hasValidReferralCode = referralCode.length >= 6;
     const referralLink = `https://rescatto.com/registro?ref=${referralCode}`;
-    const shareText = `¡Únete a Rescatto con mi código y salvemos el planeta comiendo delicioso! 🌱\n\nUsa el código: *${referralCode}*\nO regístrate directo: ${referralLink}`;
+    const shareText = t('prof_share_text', { code: referralCode, link: referralLink }) || `¡Únete a Rescatto con mi código y salvemos el planeta comiendo delicioso! 🌱\n\nUsa el código: *${referralCode}*\nO regístrate directo: ${referralLink}`;
 
     useEffect(() => {
         if (hasValidReferralCode) return;
@@ -43,7 +45,7 @@ export const ReferralSection: React.FC<Props> = ({ user }) => {
                 logger.error('Error ensuring referral code:', err);
                 const code = (err as any)?.code || '';
                 if (!String(code).includes('not-found')) {
-                    error('No fue posible generar tu código de referido en este momento.');
+                    error(t('prof_error_generate') || 'No fue posible generar tu código de referido en este momento.');
                 }
             } finally {
                 setIsGeneratingCode(false);
@@ -75,16 +77,16 @@ export const ReferralSection: React.FC<Props> = ({ user }) => {
 
     const copyToClipboard = async (text: string, label = 'Código') => {
         if (!hasValidReferralCode) {
-            error('Tu código aún no está disponible. Intenta de nuevo en unos segundos.');
+            error(t('prof_error_not_ready') || 'Tu código aún no está disponible. Intenta de nuevo en unos segundos.');
             return;
         }
         try {
             await navigator.clipboard.writeText(text);
             setCopied(true);
-            success(`${label} copiado al portapapeles ✓`);
+            success(t('prof_copied', { label: label === 'Código' ? t('prof_code') : t('prof_link') }) || `${label} copiado al portapapeles ✓`);
             setTimeout(() => setCopied(false), 2500);
         } catch {
-            error('Error al copiar');
+            error(t('prof_error_copy') || 'Error al copiar');
         }
     };
 
@@ -95,13 +97,13 @@ export const ReferralSection: React.FC<Props> = ({ user }) => {
 
     const handleNativeShare = async () => {
         if (!hasValidReferralCode) {
-            error('Tu código aún no está disponible para compartir.');
+            error(t('prof_error_not_ready_share') || 'Tu código aún no está disponible para compartir.');
             return;
         }
         if (navigator.share) {
             try {
                 await navigator.share({
-                    title: 'Únete a Rescatto 🌱',
+                    title: t('prof_share_title') || 'Únete a Rescatto 🌱',
                     text: shareText,
                     url: referralLink,
                 });
@@ -124,9 +126,9 @@ export const ReferralSection: React.FC<Props> = ({ user }) => {
                         <Gift size={32} strokeWidth={1.5} />
                     </div>
                     <div>
-                        <h2 className="text-3xl font-black text-slate-900 tracking-tight leading-none mb-2">Invita y Gana</h2>
+                        <h2 className="text-3xl font-black text-slate-900 tracking-tight leading-none mb-2">{t('prof_invita_gana') || 'Invita y Gana'}</h2>
                         <p className="text-slate-500 text-sm font-medium">
-                            +{REFERRAL_BONUS} puntos para ti y tu amigo en su primer rescate
+                            {t('prof_invita_bonus_desc', { count: REFERRAL_BONUS }) || `+${REFERRAL_BONUS} puntos para ti y tu amigo en su primer rescate`}
                         </p>
                     </div>
                 </div>
@@ -136,22 +138,22 @@ export const ReferralSection: React.FC<Props> = ({ user }) => {
             {isGeneratingCode && (
                 <div className="mb-6 rounded-2xl border border-amber-100 bg-amber-50/50 backdrop-blur-sm px-4 py-3 text-sm text-amber-700 font-bold flex items-center gap-2 animate-pulse">
                     <Zap size={16} />
-                    Generando tu código de referido...
+                    {t('prof_generating_code') || 'Generando tu código de referido...'}
                 </div>
             )}
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-10">
                 <div className="bg-emerald-50/50 backdrop-blur-sm rounded-3xl p-5 text-center border border-emerald-100 shadow-sm hover:shadow-md transition-all group">
                     <p className="text-3xl font-black text-emerald-600 leading-none group-hover:scale-110 transition-transform">{isCounting ? '...' : friendCount}</p>
-                    <p className="text-[11px] text-emerald-700 font-black mt-3 uppercase tracking-widest leading-tight">Amigos<br/>Invitados</p>
+                    <p className="text-[11px] text-emerald-700 font-black mt-3 uppercase tracking-widest leading-tight whitespace-pre-line">{t('prof_friends_invited') || 'Amigos Invitados'}</p>
                 </div>
                 <div className="bg-amber-50/50 backdrop-blur-sm rounded-3xl p-5 text-center border border-amber-100 shadow-sm hover:shadow-md transition-all group">
                     <p className="text-3xl font-black text-amber-600 leading-none group-hover:scale-110 transition-transform">{pointsEarned}</p>
-                    <p className="text-[11px] text-amber-700 font-black mt-3 uppercase tracking-widest leading-tight">Puntos<br/>Totales</p>
+                    <p className="text-[11px] text-amber-700 font-black mt-3 uppercase tracking-widest leading-tight whitespace-pre-line">{t('prof_total_points') || 'Puntos Totales'}</p>
                 </div>
                 <div className="bg-blue-50/50 backdrop-blur-sm rounded-3xl p-5 text-center border border-blue-100 shadow-sm hover:shadow-md transition-all group">
                     <p className="text-3xl font-black text-blue-600 leading-none group-hover:scale-110 transition-transform">+{REFERRAL_BONUS}</p>
-                    <p className="text-[11px] text-blue-700 font-black mt-3 uppercase tracking-widest leading-tight">Bono por<br/>Amigo</p>
+                    <p className="text-[11px] text-blue-700 font-black mt-3 uppercase tracking-widest leading-tight whitespace-pre-line">{t('prof_friend_bonus') || 'Bono por Amigo'}</p>
                 </div>
                 <div className="bg-purple-50/50 backdrop-blur-sm rounded-3xl p-5 text-center border border-purple-100 shadow-sm hover:shadow-md transition-all group relative overflow-hidden">
                     <div className="absolute -top-1 -right-1 p-2 opacity-5 group-hover:opacity-20 transition-opacity">
@@ -160,7 +162,7 @@ export const ReferralSection: React.FC<Props> = ({ user }) => {
                     <p className="text-2xl font-black text-purple-600 leading-none tracking-tighter group-hover:scale-105 transition-transform">
                         {friendCount >= 15 ? 'GOLD' : friendCount >= 5 ? 'SILVER' : 'BRONZE'}
                     </p>
-                    <p className="text-[11px] text-purple-700 font-black mt-3 uppercase tracking-widest leading-tight">Nivel<br/>Referidor</p>
+                    <p className="text-[11px] text-purple-700 font-black mt-3 uppercase tracking-widest leading-tight whitespace-pre-line">{t('prof_referral_level') || 'Nivel Referidor'}</p>
                 </div>
             </div>
 
@@ -168,14 +170,14 @@ export const ReferralSection: React.FC<Props> = ({ user }) => {
             <div className="mb-12 bg-slate-50/80 backdrop-blur-sm rounded-[2rem] p-8 border border-slate-100/50 shadow-inner">
                 <div className="flex flex-col sm:flex-row justify-between items-center sm:items-end gap-3 mb-6">
                     <div className="text-center sm:text-left">
-                        <h4 className="font-black text-slate-800 text-lg tracking-tight mb-1">Tu Camino a Premium</h4>
+                        <h4 className="font-black text-slate-800 text-lg tracking-tight mb-1">{t('prof_path_premium') || 'Tu Camino a Premium'}</h4>
                         <p className="text-sm text-slate-500 font-medium">
-                            {friendCount >= 15 ? '✨ ¡Nivel Máximo Alcanzado!' : `Próximo hito: ${friendCount < 5 ? 5 : 15} amigos`}
+                            {friendCount >= 15 ? t('prof_max_level_reached') || '✨ ¡Nivel Máximo Alcanzado!' : t('prof_next_milestone', { count: friendCount < 5 ? 5 : 15 })}
                         </p>
                     </div>
                     <div className="flex items-center gap-2">
                         <span className="text-xs font-black text-emerald-700 bg-emerald-100/80 backdrop-blur-sm px-4 py-2 rounded-xl shadow-sm border border-emerald-200/50">
-                            {friendCount < 5 ? '🥉 BRONZE' : friendCount < 15 ? '🥈 SILVER' : '🥇 GOLD'}
+                            {friendCount < 5 ? `🥉 ${t('prof_bronze_label') || 'BRONZE'}` : friendCount < 15 ? `🥈 ${t('prof_silver_label') || 'SILVER'}` : `🥇 ${t('prof_gold_label') || 'GOLD'}`}
                         </span>
                     </div>
                 </div>
@@ -206,19 +208,19 @@ export const ReferralSection: React.FC<Props> = ({ user }) => {
 
                 <div className="flex justify-between mt-4 px-1">
                     <div className="text-center">
-                        <span className="text-[10px] font-black text-slate-400 block uppercase">Inicio</span>
+                        <span className="text-[10px] font-black text-slate-400 block uppercase">{t('prof_start') || 'Inicio'}</span>
                         <span className="text-xs font-black text-slate-800">0</span>
                     </div>
                     <div className="text-center">
-                        <span className="text-[10px] font-black text-slate-400 block uppercase">Silver</span>
+                        <span className="text-[10px] font-black text-slate-400 block uppercase">{t('prof_silver') || 'Silver'}</span>
                         <span className="text-xs font-black text-slate-800">5</span>
                     </div>
                     <div className="text-center">
-                        <span className="text-[10px] font-black text-slate-400 block uppercase">Gold</span>
+                        <span className="text-[10px] font-black text-slate-400 block uppercase">{t('prof_gold') || 'Gold'}</span>
                         <span className="text-xs font-black text-slate-800">15</span>
                     </div>
                     <div className="text-center">
-                        <span className="text-[10px] font-black text-slate-400 block uppercase">Elite</span>
+                        <span className="text-[10px] font-black text-slate-400 block uppercase">{t('prof_elite') || 'Elite'}</span>
                         <span className="text-xs font-black text-slate-800">25+</span>
                     </div>
                 </div>
@@ -230,7 +232,7 @@ export const ReferralSection: React.FC<Props> = ({ user }) => {
                     <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-[80px] -mr-32 -mt-32 transition-transform group-hover:scale-110 duration-1000" />
                     <div className="absolute bottom-0 left-0 w-64 h-64 bg-black/10 rounded-full blur-[80px] -ml-32 -mb-32 transition-transform group-hover:scale-110 duration-1000" />
 
-                    <p className="text-emerald-50 mb-4 font-black text-xs uppercase tracking-[0.2em] relative z-10 opacity-80">Tu código exclusivo</p>
+                    <p className="text-emerald-50 mb-4 font-black text-xs uppercase tracking-[0.2em] relative z-10 opacity-80">{t('prof_exclusive_code') || 'Tu código exclusivo'}</p>
 
                     {/* Toggle: Code / QR */}
                     <div className="bg-black/20 backdrop-blur-lg p-1.5 rounded-2xl mb-8 relative z-10 flex gap-1 border border-white/10 shadow-lg w-full max-w-[180px]">
@@ -239,7 +241,7 @@ export const ReferralSection: React.FC<Props> = ({ user }) => {
                             className={`flex-1 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 ${!showQR ? 'bg-white text-emerald-700 shadow-lg scale-[1.02]' : 'hover:bg-white/10 text-white'}`}
                             disabled={!hasValidReferralCode}
                         >
-                            Código
+                            {t('prof_code') || 'Código'}
                         </button>
                         <button
                             onClick={() => setShowQR(true)}
@@ -272,7 +274,7 @@ export const ReferralSection: React.FC<Props> = ({ user }) => {
                                 </div>
                                 <div className="mt-4 flex items-center justify-center gap-2 opacity-60 group-hover/code:opacity-100 transition-opacity">
                                     <Copy size={12} />
-                                    <span className="text-[10px] font-bold uppercase tracking-widest">Toca para copiar</span>
+                                    <span className="text-[10px] font-bold uppercase tracking-widest">{t('prof_toca_copiar') || 'Toca para copiar'}</span>
                                 </div>
                             </div>
                         )}
@@ -286,7 +288,7 @@ export const ReferralSection: React.FC<Props> = ({ user }) => {
                             disabled={!hasValidReferralCode}
                         >
                             {copied ? <Check size={18} strokeWidth={3} /> : <Copy size={18} strokeWidth={2.5} />}
-                            {copied ? '¡COPIADO!' : 'COPIAR CÓDIGO'}
+                            {copied ? '¡COPIADO!' : (t('prof_copy_code') || 'COPIAR CÓDIGO')}
                         </button>
                         <button
                             onClick={handleNativeShare}
@@ -294,7 +296,7 @@ export const ReferralSection: React.FC<Props> = ({ user }) => {
                             disabled={!hasValidReferralCode}
                         >
                             <Share2 size={18} strokeWidth={2.5} />
-                            COMPARTIR
+                            {t('prof_share') || 'COMPARTIR'}
                         </button>
                     </div>
 
@@ -307,7 +309,7 @@ export const ReferralSection: React.FC<Props> = ({ user }) => {
                         <div className="w-6 h-6 bg-white/20 rounded-lg flex items-center justify-center">
                             <span className="text-xs">💬</span>
                         </div>
-                        ENVIAR POR WHATSAPP
+                        {t('prof_send_wa') || 'ENVIAR POR WHATSAPP'}
                     </button>
 
                     {/* Copy link */}
@@ -316,7 +318,7 @@ export const ReferralSection: React.FC<Props> = ({ user }) => {
                         className="mt-6 text-white/50 text-[11px] hover:text-white transition-colors relative z-10 font-bold uppercase tracking-widest flex items-center gap-1.5"
                     >
                         <div className="w-1 h-1 rounded-full bg-white/30" />
-                        Copiar enlace directo
+                        {t('prof_copy_link') || 'Copiar enlace directo'}
                     </button>
                 </div>
 
@@ -329,9 +331,9 @@ export const ReferralSection: React.FC<Props> = ({ user }) => {
                                     1
                                 </div>
                                 <div className="pt-1">
-                                    <h3 className="font-black text-slate-800 tracking-tight text-lg">Invita a tus amigos</h3>
+                                    <h3 className="font-black text-slate-800 tracking-tight text-lg">{t('prof_step_1_title') || 'Invita a tus amigos'}</h3>
                                     <p className="text-slate-500 text-sm mt-1 leading-relaxed font-medium">
-                                        Comparte tu código o QR exclusivo. Tus amigos se registran y ambos ganan desde el inicio.
+                                        {t('prof_step_1_desc') || 'Comparte tu código o QR exclusivo. Tus amigos se registran y ambos ganan desde el inicio.'}
                                     </p>
                                 </div>
                             </div>
@@ -341,9 +343,9 @@ export const ReferralSection: React.FC<Props> = ({ user }) => {
                                     2
                                 </div>
                                 <div className="pt-1">
-                                    <h3 className="font-black text-slate-800 tracking-tight text-lg">Su primer rescate</h3>
+                                    <h3 className="font-black text-slate-800 tracking-tight text-lg">{t('prof_step_2_title') || 'Su primer rescate'}</h3>
                                     <p className="text-slate-500 text-sm mt-1 leading-relaxed font-medium">
-                                        El bono de <span className="text-amber-600 font-bold">50 puntos</span> se acredita en cuanto tu amigo complete su primer pedido.
+                                        {t('prof_step_2_desc', { count: REFERRAL_BONUS }) || `El bono de ${REFERRAL_BONUS} puntos se acredita en cuanto tu amigo complete su primer pedido.`}
                                     </p>
                                 </div>
                             </div>
@@ -353,9 +355,9 @@ export const ReferralSection: React.FC<Props> = ({ user }) => {
                                     3
                                 </div>
                                 <div className="pt-1">
-                                    <h3 className="font-black text-slate-800 tracking-tight text-lg">¡Escala niveles!</h3>
+                                    <h3 className="font-black text-slate-800 tracking-tight text-lg">{t('prof_step_3_title') || '¡Escala niveles!'}</h3>
                                     <p className="text-slate-500 text-sm mt-1 leading-relaxed font-medium">
-                                        Entre más amigos invites, mejores beneficios desbloqueas. ¡Sin límites! 🚀
+                                        {t('prof_step_3_desc') || 'Entre más amigos invites, mejores beneficios desbloqueas. ¡Sin límites! 🚀'}
                                     </p>
                                 </div>
                             </div>
@@ -363,7 +365,7 @@ export const ReferralSection: React.FC<Props> = ({ user }) => {
 
                         {/* Tier Benefits */}
                         <div className="mt-10 space-y-4 pt-10 border-t border-slate-200/50">
-                            <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Recompensas desbloqueables</h4>
+                            <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">{t('prof_unlockable_rewards') || 'Recompensas desbloqueables'}</h4>
                             
                             <div className={`p-5 rounded-3xl border transition-all duration-500 flex items-center gap-4 ${friendCount >= 5 ? 'bg-emerald-500 text-white border-emerald-400 shadow-xl shadow-emerald-500/20' : 'bg-white border-slate-100 opacity-60 grayscale-[0.5]'}`}>
                                 <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 ${friendCount >= 5 ? 'bg-white/20' : 'bg-slate-100 text-slate-400'}`}>
@@ -371,10 +373,10 @@ export const ReferralSection: React.FC<Props> = ({ user }) => {
                                 </div>
                                 <div className="flex-1">
                                     <div className="flex justify-between items-center">
-                                        <p className="font-black text-sm tracking-tight uppercase">Embajador Silver</p>
-                                        <p className={`text-[10px] font-black px-2 py-0.5 rounded-lg ${friendCount >= 5 ? 'bg-white/20' : 'bg-slate-200 text-slate-500'}`}>5 AMIGOS</p>
+                                        <p className="font-black text-sm tracking-tight uppercase">{t('prof_silver') || 'Silver'}</p>
+                                        <p className={`text-[10px] font-black px-2 py-0.5 rounded-lg ${friendCount >= 5 ? 'bg-white/20' : 'bg-slate-200 text-slate-500'}`}>{friendCount} / 5</p>
                                     </div>
-                                    <p className={`text-[11px] mt-1 font-bold ${friendCount >= 5 ? 'text-emerald-50' : 'text-slate-500'}`}>✨ Insignia especial y +10% puntos extra.</p>
+                                    <p className={`text-[11px] mt-1 font-bold ${friendCount >= 5 ? 'text-emerald-50' : 'text-slate-500'}`}>{t('prof_silver_badge') || '✨ Insignia especial y +10% puntos extra.'}</p>
                                 </div>
                                 {friendCount >= 5 && <Check className="text-white" size={24} strokeWidth={3} />}
                             </div>
@@ -385,10 +387,10 @@ export const ReferralSection: React.FC<Props> = ({ user }) => {
                                 </div>
                                 <div className="flex-1">
                                     <div className="flex justify-between items-center">
-                                        <p className="font-black text-sm tracking-tight uppercase">Gurú Gold</p>
-                                        <p className={`text-[10px] font-black px-2 py-0.5 rounded-lg ${friendCount >= 15 ? 'bg-white/20' : 'bg-slate-200 text-slate-500'}`}>15 AMIGOS</p>
+                                        <p className="font-black text-sm tracking-tight uppercase">{t('prof_gold') || 'Gold'}</p>
+                                        <p className={`text-[10px] font-black px-2 py-0.5 rounded-lg ${friendCount >= 15 ? 'bg-white/20' : 'bg-slate-200 text-slate-500'}`}>{friendCount} / 15</p>
                                     </div>
-                                    <p className={`text-[11px] mt-1 font-bold ${friendCount >= 15 ? 'text-amber-50' : 'text-slate-500'}`}>🚀 1 mes de Rescatto Pass Gratis.</p>
+                                    <p className={`text-[11px] mt-1 font-bold ${friendCount >= 15 ? 'text-amber-50' : 'text-slate-500'}`}>{t('prof_gold_badge') || '🚀 1 mes de Rescatto Pass Gratis.'}</p>
                                 </div>
                                 {friendCount >= 15 && <Check className="text-white" size={24} strokeWidth={3} />}
                             </div>

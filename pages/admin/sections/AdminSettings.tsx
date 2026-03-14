@@ -76,7 +76,7 @@ export const AdminSettings: React.FC = () => {
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                <h2 className="text-2xl font-bold text-white flex items-center gap-2">
                     <SettingsIcon className="text-emerald-600" />
                     Configuración de Plataforma
                 </h2>
@@ -102,7 +102,7 @@ export const AdminSettings: React.FC = () => {
                             step={0.5}
                             value={form.commissionPct}
                             onChange={e => set('commissionPct', parseFloat(e.target.value) || 0)}
-                            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
+                            className="w-full px-4 py-2.5 bg-white text-gray-900 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
                         />
                         <p className="text-xs text-gray-400 mt-1">Porcentaje que Rescatto retiene de cada venta</p>
                     </div>
@@ -117,7 +117,7 @@ export const AdminSettings: React.FC = () => {
                             step={0.5}
                             value={form.deliveryCommissionPct}
                             onChange={e => set('deliveryCommissionPct', parseFloat(e.target.value) || 0)}
-                            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
+                            className="w-full px-4 py-2.5 bg-white text-gray-900 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
                         />
                         <p className="text-xs text-gray-400 mt-1">Porcentaje adicional sobre el costo de domicilio</p>
                     </div>
@@ -139,7 +139,7 @@ export const AdminSettings: React.FC = () => {
                             step={0.5}
                             value={form.searchRadiusKm}
                             onChange={e => set('searchRadiusKm', parseFloat(e.target.value) || 5)}
-                            className="w-24 px-3 py-2 border border-gray-200 rounded-xl text-center focus:ring-2 focus:ring-emerald-500 outline-none"
+                            className="w-24 px-3 py-2 bg-white text-gray-900 border border-gray-200 rounded-xl text-center focus:ring-2 focus:ring-emerald-500 outline-none"
                         />
                     </div>
                     <div className="flex items-center justify-between gap-4">
@@ -154,7 +154,7 @@ export const AdminSettings: React.FC = () => {
                             step={5}
                             value={form.maxPickupMinutes}
                             onChange={e => set('maxPickupMinutes', parseInt(e.target.value) || 30)}
-                            className="w-24 px-3 py-2 border border-gray-200 rounded-xl text-center focus:ring-2 focus:ring-emerald-500 outline-none"
+                            className="w-24 px-3 py-2 bg-white text-gray-900 border border-gray-200 rounded-xl text-center focus:ring-2 focus:ring-emerald-500 outline-none"
                         />
                     </div>
                 </div>

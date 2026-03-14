@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { adminService } from '../../services/adminService';
-import { VenueCategory, Product, Venue } from '../../types';
+import { VenueCategory } from '../../types';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
 import { Plus, Edit2, Trash2, Tag, X, Save, Search, Archive, Store, Package, RotateCw } from 'lucide-react';
-import { Pagination } from '../../components/common/Pagination';
 import { PermissionGate } from '../../components/PermissionGate';
 import { Permission } from '../../types';
 import { useToast } from '../../context/ToastContext';
@@ -12,42 +11,67 @@ import { useConfirm } from '../../context/ConfirmContext';
 import { Tooltip } from '../../components/common/Tooltip';
 import { logger } from '../../utils/logger';
 import { useAuth } from '../../context/AuthContext';
+import { collection, getCountFromServer, query, where, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
+import { db } from '../../services/firebase';
 
 export const CategoriesManager: React.FC = () => {
     const toast = useToast();
     const confirm = useConfirm();
     const { user: currentUser } = useAuth();
     const [categories, setCategories] = useState<VenueCategory[]>([]);
-    const [venues, setVenues] = useState<Venue[]>([]);
-    const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [hasMore, setHasMore] = useState(true);
+    const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+    const [usageMap, setUsageMap] = useState<Record<string, { venues: number; products: number; total: number }>>({});
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [formData, setFormData] = useState<Partial<VenueCategory>>({ isActive: true });
     const [searchTerm, setSearchTerm] = useState('');
 
-    // Pagination
-    const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 10;
+    const PAGE_SIZE = 20;
 
     useEffect(() => {
-        loadCategories();
+        loadCategories(true);
     }, []);
 
-    const loadCategories = async () => {
-        setLoading(true);
+    const loadCategories = async (initial = false) => {
+        if (initial) {
+            setLoading(true);
+            setCategories([]);
+            setLastDoc(null);
+            setHasMore(true);
+        } else {
+            setLoadingMore(true);
+        }
         try {
-            const [cats, allVenues, allProducts] = await Promise.all([
-                adminService.getAllCategories(),
-                adminService.getAllVenues(),
-                adminService.getAllProducts()
-            ]);
-            setCategories(cats);
-            setVenues(allVenues);
-            setProducts(allProducts);
+            const page = await adminService.getCategoriesPaginated(PAGE_SIZE, initial ? null : lastDoc);
+            const next = initial ? page.data : [...categories, ...page.data];
+            setCategories(next as VenueCategory[]);
+            setLastDoc(page.lastDoc);
+            setHasMore(page.hasMore);
+
+            if (page.data.length > 0) {
+                const usageUpdates: Record<string, { venues: number; products: number; total: number }> = {};
+                await Promise.all(
+                    page.data.map(async (cat: VenueCategory) => {
+                        const [venuesCount, productsCount] = await Promise.all([
+                            getCountFromServer(query(collection(db, 'venues'), where('categories', 'array-contains', cat.name))),
+                            getCountFromServer(query(collection(db, 'products'), where('tags', 'array-contains', cat.name))),
+                        ]);
+                        usageUpdates[cat.id] = {
+                            venues: venuesCount.data().count || 0,
+                            products: productsCount.data().count || 0,
+                            total: (venuesCount.data().count || 0) + (productsCount.data().count || 0),
+                        };
+                    })
+                );
+                setUsageMap(prev => ({ ...prev, ...usageUpdates }));
+            }
         } catch (error) {
             logger.error('Failed to load categories', error);
         } finally {
-            setLoading(false);
+            if (initial) setLoading(false);
+            setLoadingMore(false);
         }
     };
 
@@ -65,7 +89,7 @@ export const CategoriesManager: React.FC = () => {
             toast.success(formData.id ? 'Etiqueta actualizada' : 'Etiqueta creada');
             setIsModalOpen(false);
             setFormData({ isActive: true });
-            loadCategories();
+            loadCategories(true);
         } catch (error) {
             logger.error('Error saving category', error);
             toast.error('Error al guardar la etiqueta');
@@ -84,7 +108,7 @@ export const CategoriesManager: React.FC = () => {
             try {
                 await adminService.deleteCategory(id, currentUser?.id || 'system');
                 toast.success('Etiqueta eliminada correctamente');
-                loadCategories();
+                loadCategories(true);
             } catch (error) {
                 logger.error('Error deleting category', error);
                 toast.error('Error al eliminar la etiqueta');
@@ -100,7 +124,7 @@ export const CategoriesManager: React.FC = () => {
             await adminService.updateCategory(category.id, { isActive: newStatus }, currentUser?.id || 'system');
         } catch (error) {
             logger.error('Error updating status', error);
-            loadCategories(); // Revert
+            loadCategories(true); // Revert
         }
     };
 
@@ -127,7 +151,7 @@ export const CategoriesManager: React.FC = () => {
             try {
                 await adminService.seedDefaultCategories(currentUser?.id || 'system');
                 toast.success('Etiquetas cargadas correctamente');
-                loadCategories();
+                loadCategories(true);
             } catch (error) {
                 logger.error('Error seeding categories', error);
                 toast.error('Error al cargar etiquetas');
@@ -172,7 +196,7 @@ export const CategoriesManager: React.FC = () => {
                     }
                 }
                 toast.success('Deduplicación completada con éxito.');
-                loadCategories();
+                loadCategories(true);
             } catch (error) {
                 logger.error('Error during deduplication', error);
                 toast.error('Hubo un error durante la deduplicación.');
@@ -182,21 +206,11 @@ export const CategoriesManager: React.FC = () => {
         }
     };
 
-    // Filter and Pagination Logic
+    // Filter Logic
     const filteredCategories = categories.filter(cat =>
         (cat.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
         (cat.slug?.toLowerCase() || '').includes(searchTerm.toLowerCase())
     );
-
-    const totalPages = Math.ceil(filteredCategories.length / itemsPerPage);
-    const paginatedCategories = filteredCategories.slice(
-        (currentPage - 1) * itemsPerPage,
-        currentPage * itemsPerPage
-    );
-
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [searchTerm]);
 
 
     if (loading && !isModalOpen) return <LoadingSpinner fullPage />;
@@ -205,7 +219,7 @@ export const CategoriesManager: React.FC = () => {
         <div className="space-y-6 overflow-x-hidden">
             <div className="flex justify-between items-center">
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                    <h2 className="text-2xl font-bold text-white flex items-center gap-2">
                         <Tag className="text-emerald-600" />
                         Gestión de Etiquetas
                     </h2>
@@ -213,7 +227,7 @@ export const CategoriesManager: React.FC = () => {
                 </div>
                 <div className="flex gap-2">
                     <button
-                        onClick={() => loadCategories()}
+                        onClick={() => loadCategories(true)}
                         className="bg-white border border-gray-200 text-gray-600 p-3 rounded-xl hover:bg-gray-50 transition shadow-sm flex items-center justify-center active:scale-95"
                         title="Refrescar etiquetas"
                     >
@@ -278,17 +292,15 @@ export const CategoriesManager: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                            {paginatedCategories.length === 0 ? (
+                            {filteredCategories.length === 0 ? (
                                 <tr>
                                     <td colSpan={6} className="p-8 text-center text-gray-400">
                                         No se encontraron categorías
                                     </td>
                                 </tr>
                             ) : (
-                                paginatedCategories.map(cat => {
-                                    const usedInVenues = venues.filter(v => v.categories?.includes(cat.name));
-                                    const usedInProducts = products.filter(p => p.tags?.includes(cat.name));
-                                    const totalUsage = usedInVenues.length + usedInProducts.length;
+                                filteredCategories.map(cat => {
+                                    const usage = usageMap[cat.id] || { venues: 0, products: 0, total: 0 };
 
                                     return (
                                         <tr key={cat.id} className="hover:bg-gray-50 transition-colors">
@@ -303,27 +315,27 @@ export const CategoriesManager: React.FC = () => {
                                             </td>
                                             <td className="p-4">
                                                 <div className="flex flex-col gap-1">
-                                                    {usedInVenues.length > 0 && (
+                                                    {usage.venues > 0 && (
                                                         <Link
                                                             to={`/admin/venues?search=${encodeURIComponent(cat.name)}`}
                                                             className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 hover:underline"
                                                             title="Ver negocios que usan esta etiqueta"
                                                         >
                                                             <Store size={12} />
-                                                            {usedInVenues.length} {usedInVenues.length === 1 ? 'negocio' : 'negocios'}
+                                                            {usage.venues} {usage.venues === 1 ? 'negocio' : 'negocios'}
                                                         </Link>
                                                     )}
-                                                    {usedInProducts.length > 0 && (
+                                                    {usage.products > 0 && (
                                                         <Link
                                                             to={`/products?search=${encodeURIComponent(cat.name)}`}
                                                             className="flex items-center gap-1.5 text-xs text-emerald-600 hover:text-emerald-800 hover:underline"
                                                             title="Ver productos que usan esta etiqueta"
                                                         >
                                                             <Package size={12} />
-                                                            {usedInProducts.length} {usedInProducts.length === 1 ? 'producto' : 'productos'}
+                                                            {usage.products} {usage.products === 1 ? 'producto' : 'productos'}
                                                         </Link>
                                                     )}
-                                                    {totalUsage === 0 && (
+                                                    {usage.total === 0 && (
                                                         <span className="text-xs text-gray-400 italic">Sin uso</span>
                                                     )}
                                                 </div>
@@ -369,11 +381,17 @@ export const CategoriesManager: React.FC = () => {
                 </div>
             </div>
 
-            <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={setCurrentPage}
-            />
+            {hasMore && searchTerm.length === 0 && (
+                <div className="flex justify-center">
+                    <button
+                        onClick={() => loadCategories(false)}
+                        disabled={loadingMore}
+                        className="px-4 py-2 rounded-full text-sm font-bold bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-60"
+                    >
+                        {loadingMore ? 'Cargando...' : 'Cargar más'}
+                    </button>
+                </div>
+            )}
 
             {/* Create/Edit Modal */}
             {isModalOpen && (

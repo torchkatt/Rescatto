@@ -10,8 +10,10 @@ import { useLocation } from '../../context/LocationContext';
 import { useAuth } from '../../context/AuthContext';
 import { GuestPromptBanner } from '../../components/customer/common/GuestPromptBanner';
 import { getRatingStats } from '../../services/ratingService';
+import { useTranslation } from 'react-i18next';
 
 const Favorites: React.FC = () => {
+    const { t } = useTranslation();
     const navigate = useNavigate();
     const { user } = useAuth();
     const { favorites, loading: favsLoading } = useFavorites();
@@ -81,7 +83,7 @@ const Favorites: React.FC = () => {
                     </button>
                     <div className="flex items-center gap-2">
                         <Heart size={20} className="text-red-500 fill-current" />
-                        <h1 className="text-lg font-bold text-gray-900">Mis Favoritos</h1>
+                        <h1 className="text-lg font-bold text-gray-900">{t('fav_title')}</h1>
                     </div>
                     {favorites.length > 0 && (
                         <span className="ml-auto bg-emerald-100 text-emerald-700 text-xs font-bold px-2 py-1 rounded-full">
@@ -103,17 +105,17 @@ const Favorites: React.FC = () => {
                             <Heart size={40} className="text-red-300" />
                         </div>
                         <h2 className="text-xl font-bold text-gray-800 mb-2">
-                            Sin favoritos todavía
+                            {t('fav_empty')}
                         </h2>
                         <p className="text-gray-500 text-sm mb-6 max-w-xs">
-                            Toca el corazón en cualquier restaurante para guardarlo aquí y acceder rápido.
+                            {t('fav_empty_desc')}
                         </p>
                         <button
                             onClick={() => navigate('/app')}
                             className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-md hover:bg-emerald-700 transition-colors active:scale-95 flex items-center gap-2"
                         >
                             <Leaf size={16} />
-                            Explorar restaurantes
+                            {t('fav_explore')}
                         </button>
                     </div>
                 ) : (

@@ -10,22 +10,35 @@ export default {
     ],
     theme: {
         extend: {
+            screens: {
+                '3xl': '1920px',
+            },
             fontFamily: {
                 sans: ['Outfit', 'Inter', 'sans-serif'],
             },
             colors: {
+                // Brand green (remap emerald → Rescatto forest green)
+                // Primary anchor: #1A6B4A (emerald-600)
                 emerald: {
-                    50: '#ecfdf5',
-                    100: '#d1fae5',
-                    200: '#a7f3d0',
-                    300: '#6ee7b7',
-                    400: '#34d399',
-                    500: '#10b981',
-                    600: '#059669',
-                    700: '#047857',
-                    800: '#065f46',
-                    900: '#064e3b',
-                    950: '#022c22',
+                    50:  '#edfaf3',
+                    100: '#d0f4e5',
+                    200: '#a6e8ce',
+                    300: '#70d4ae',
+                    400: '#3eba89',
+                    500: '#23a070',
+                    600: '#1A6B4A',
+                    700: '#155540',
+                    800: '#103f2f',
+                    900: '#0b2b20',
+                    950: '#061712',
+                },
+                // Brand semantic tokens
+                brand: {
+                    primary:  '#1A6B4A',
+                    dark:     '#0D1F18',
+                    accent:   '#FF6B35',
+                    'accent-light': '#FFF0EA',
+                    bg:       '#FAFAF7',
                 },
             },
             animation: {

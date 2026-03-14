@@ -566,7 +566,7 @@ export const UsersManager: React.FC = () => {
     return (
         <div className="space-y-6 overflow-x-hidden">
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-                <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                <h2 className="text-2xl font-bold text-white flex items-center gap-2">
                     <UserIcon className="text-emerald-600" />
                     Gestión de Usuarios
                 </h2>

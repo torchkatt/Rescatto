@@ -5,10 +5,12 @@ import { ShoppingCart, Trash2, Plus, Minus, ArrowLeft, Clock, AlertTriangle } fr
 import { Button } from '../../components/customer/common/Button';
 import { Countdown } from '../../components/customer/common/Countdown';
 import { useToast } from '../../context/ToastContext';
+import { useTranslation } from 'react-i18next';
 import { isProductExpired } from '../../utils/productAvailability';
 import { formatCOP } from '../../utils/formatters';
 
 export const Cart: React.FC = () => {
+    const { t } = useTranslation();
     const navigate = useNavigate();
     const { items, removeFromCart, updateQuantity, getTotalPrice, getTotalItems, getCartByVenue } = useCart();
     const { error } = useToast();
@@ -48,7 +50,7 @@ export const Cart: React.FC = () => {
                         className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-emerald-600 transition-colors group"
                     >
                         <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
-                        Seguir explorando
+                        {t('cart_keep_exploring')}
                     </button>
                 </div>
 
@@ -63,25 +65,25 @@ export const Cart: React.FC = () => {
                         </div>
                     </div>
 
-                    <h2 className="text-2xl font-black text-gray-900 mb-2">Tu carrito está vacío</h2>
+                    <h2 className="text-2xl font-black text-gray-900 mb-2">{t('cart_empty')}</h2>
                     <p className="text-gray-500 text-sm max-w-xs mb-2">
-                        Hay comida deliciosa esperándote — y a precios increíbles antes de que expire.
+                        {t('cart_empty_desc')}
                     </p>
                     <p className="text-emerald-600 text-xs font-semibold mb-8">
-                        ⚡ Los deals se acaban rápido
+                        {t('cart_deals_fast')}
                     </p>
 
                     <button
                         onClick={() => navigate('/app')}
                         className="w-full max-w-xs bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold py-4 rounded-2xl transition-colors shadow-lg shadow-emerald-600/30"
                     >
-                        Ver ofertas de hoy
+                        {t('cart_view_deals')}
                     </button>
                     <button
                         onClick={() => navigate('/app/impact')}
                         className="mt-3 text-sm text-gray-400 hover:text-gray-600 transition-colors"
                     >
-                        Ver mi impacto ambiental
+                        {t('cart_my_impact')}
                     </button>
                 </div>
             </div>
@@ -106,12 +108,12 @@ export const Cart: React.FC = () => {
                     className="inline-flex items-center gap-2 px-5 py-3 bg-white border-2 border-gray-200 rounded-xl text-gray-700 hover:text-gray-900 hover:border-emerald-500 hover:bg-emerald-50 mb-6 transition-all duration-200 group shadow-sm font-bold active:scale-95"
                 >
                     <ArrowLeft size={20} strokeWidth={2.5} className="group-hover:-translate-x-1 transition-transform" />
-                    <span>Volver</span>
+                    <span>{t('btn_back')}</span>
                 </button>
 
                 <h1 className="text-3xl font-bold text-gray-900 mb-8 flex items-center gap-3">
                     <ShoppingCart className="text-emerald-600" size={32} />
-                    Mi Carrito <span className="text-gray-400 text-2xl">({getTotalItems().toLocaleString('es-CO')} {getTotalItems() === 1 ? 'producto' : 'productos'})</span>
+                    {t('cart_title')} <span className="text-gray-400 text-2xl">({getTotalItems().toLocaleString('es-CO')} {getTotalItems() === 1 ? t('cart_product') : t('cart_products')})</span>
                 </h1>
 
                 {/* Urgency banner — shown when any item expires within 2 hours */}
@@ -119,8 +121,10 @@ export const Cart: React.FC = () => {
                     <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3 animate-fadeIn">
                         <AlertTriangle className="text-amber-500 flex-shrink-0 mt-0.5" size={20} />
                         <div>
-                            <p className="font-bold text-amber-800 text-sm">¡Atención! {urgentItems.length === 1 ? 'Un producto expira' : `${urgentItems.length} productos expiran`} pronto</p>
-                            <p className="text-amber-700 text-xs mt-0.5">Completa tu compra antes de que se agoten.</p>
+                            <p className="font-bold text-amber-800 text-sm">
+                                {urgentItems.length === 1 ? t('cart_urgent_title_one') : t('cart_urgent_title_many', { count: urgentItems.length })}
+                            </p>
+                            <p className="text-amber-700 text-xs mt-0.5">{t('cart_urgent_desc')}</p>
                         </div>
                     </div>
                 )}
@@ -129,9 +133,9 @@ export const Cart: React.FC = () => {
                         <AlertTriangle className="text-red-500 flex-shrink-0 mt-0.5" size={20} />
                         <div>
                             <p className="font-bold text-red-700 text-sm">
-                                {expiredItems.length === 1 ? 'Tienes un producto expirado' : `Tienes ${expiredItems.length} productos expirados`}
+                                {expiredItems.length === 1 ? t('cart_expired_title_one') : t('cart_expired_title_many', { count: expiredItems.length })}
                             </p>
-                            <p className="text-red-600 text-xs mt-0.5">Elimínalos para continuar al pago.</p>
+                            <p className="text-red-600 text-xs mt-0.5">{t('cart_remove_to_continue')}</p>
                         </div>
                     </div>
                 )}
@@ -143,7 +147,7 @@ export const Cart: React.FC = () => {
                             <div key={venueId} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                                 <div className="bg-emerald-50 px-6 py-4 border-b border-emerald-100">
                                     <h3 className="font-bold text-lg text-gray-900">
-                                        📍 Negocio: {venueItems[0].venueName || venueItems[0].venueId}
+                                        {t('venue_prefix')} {venueItems[0].venueName || venueItems[0].venueId}
                                     </h3>
                                 </div>
 
@@ -181,17 +185,17 @@ export const Cart: React.FC = () => {
                                                     )}
                                                     {isExpired && (
                                                         <p className="text-xs font-bold text-red-600 flex items-center gap-1 mt-1">
-                                                            <AlertTriangle size={12} /> Producto expirado
+                                                            <AlertTriangle size={12} /> {t('expired_product')}
                                                         </p>
                                                     )}
                                                     {stockQuantity !== null && stockQuantity <= 3 && stockQuantity > 0 && !isExpired && (
                                                         <p className="text-xs font-bold text-orange-500 flex items-center gap-1 mt-1">
-                                                            <Clock size={12} /> {stockQuantity === 1 ? '¡Solo 1 disponible!' : `¡Solo ${stockQuantity} disponibles!`}
+                                                            <Clock size={12} /> {stockQuantity === 1 ? t('stock_alert_one') : t('stock_alert_many', { count: stockQuantity })}
                                                         </p>
                                                     )}
                                                     {isAtStockLimit && !isExpired && (
                                                         <p className="text-xs font-bold text-amber-600 flex items-center gap-1 mt-1">
-                                                            <AlertTriangle size={12} /> Ya tienes el máximo disponible
+                                                            <AlertTriangle size={12} /> {t('stock_limit_reached')}
                                                         </p>
                                                     )}
                                                 </div>
@@ -238,23 +242,23 @@ export const Cart: React.FC = () => {
 
                     {/* Order Summary - Sticky Sidebar */}
                     <div className="lg:col-span-1">
-                        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden sticky top-6">
+                        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden sticky top-6">
                             <div className="bg-gradient-to-r from-emerald-600 to-emerald-500 px-6 py-4">
-                                <h3 className="font-bold text-lg text-white">Resumen del Pedido</h3>
+                                <h3 className="font-bold text-lg text-white">{t('cart_summary')}</h3>
                             </div>
 
                             <div className="p-6 space-y-4">
                                 <div className="space-y-3">
                                     <div className="flex justify-between text-gray-700">
-                                        <span className="font-medium">Subtotal</span>
+                                        <span className="font-medium">{t('cart_subtotal')}</span>
                                         <span className="font-semibold">{formatCOP(getTotalPrice())}</span>
                                     </div>
                                     <div className="flex justify-between text-gray-700">
-                                        <span className="font-medium">Domicilio</span>
-                                        <span className="text-gray-400 text-sm italic">Calculado al pagar</span>
+                                        <span className="font-medium">{t('cart_delivery')}</span>
+                                        <span className="text-gray-400 text-sm italic">{t('cart_calc_checkout')}</span>
                                     </div>
                                     <div className="border-t-2 border-gray-200 pt-3 flex justify-between items-baseline">
-                                        <span className="font-bold text-gray-900 text-lg">Total</span>
+                                        <span className="font-bold text-gray-900 text-lg">{t('cart_total')}</span>
                                         <span className="text-emerald-600 font-bold text-2xl">{formatCOP(getTotalPrice())}</span>
                                     </div>
                                 </div>
@@ -263,11 +267,11 @@ export const Cart: React.FC = () => {
                                     onClick={handleCheckout}
                                     className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 text-lg shadow-lg hover:shadow-xl transition-all active:scale-[0.98]"
                                 >
-                                    Proceder al Pago
+                                    {t('cart_checkout')}
                                 </Button>
 
                                 <p className="text-xs text-gray-500 text-center leading-relaxed">
-                                    Al continuar aceptas nuestros términos y condiciones
+                                    {t('cart_terms')}
                                 </p>
                             </div>
                         </div>

@@ -18,19 +18,7 @@ export const ChatButton: React.FC = () => {
     const dragStarted = React.useRef(false);
     const startPos = React.useRef({ x: 0, y: 0 });
 
-    const path = location.pathname;
-    const hiddenOnPaths = [
-        '/app/cart',
-        '/app/checkout',
-        '/app/orders',
-        '/app/profile',
-        '/app/impact',
-        '/app/favorites',
-    ];
-    const shouldHide =
-        hiddenOnPaths.includes(path) ||
-        path.startsWith('/app/venue/') ||
-        path.startsWith('/app/product/');
+    const shouldHide = false; // Always show as per user request
 
     if (shouldHide) return null;
 
@@ -104,7 +92,7 @@ export const ChatButton: React.FC = () => {
                     transform: `translate(${position.x}px, ${position.y}px)`,
                     transition: isDragging ? 'none' : 'transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
                 }}
-                className={`fixed bottom-24 right-6 w-14 h-14 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full shadow-2xl flex items-center justify-center z-50 select-none touch-none ${isDragging ? 'scale-110 shadow-emerald-500/50 opacity-90' : 'hover:scale-105 active:scale-95'}`}
+                className={`fixed bottom-24 lg:bottom-40 right-6 w-14 h-14 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full shadow-2xl flex items-center justify-center z-50 select-none touch-none ${isDragging ? 'scale-110 shadow-emerald-500/50 opacity-90' : 'hover:scale-105 active:scale-95'}`}
             >
                 {isOpen ? (
                     <X size={24} />

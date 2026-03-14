@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { collection, query, where, onSnapshot, orderBy, doc, getDoc, getDocs, limit } from 'firebase/firestore';
+import { collection, query, where, orderBy, doc, getDoc, getDocs, limit, updateDoc, startAfter, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
@@ -16,8 +16,10 @@ import { ChatWindow } from '../../components/chat/ChatWindow';
 import { logger } from '../../utils/logger';
 import { GuestConversionBanner } from '../../components/customer/common/GuestConversionBanner';
 import { formatCOP } from '../../utils/formatters';
+import { useTranslation } from 'react-i18next';
 
 export const MyOrders: React.FC = () => {
+    const { t } = useTranslation();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const orderIdParam = searchParams.get('orderId');
@@ -29,9 +31,13 @@ export const MyOrders: React.FC = () => {
     const { success, error: showError } = useToast();
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+    const [hasMore, setHasMore] = useState(true);
     const [ratingOrder, setRatingOrder] = useState<Order | null>(null);
     const [showChatWindow, setShowChatWindow] = useState(false);
     const [chatLoadingOrderId, setChatLoadingOrderId] = useState<string | null>(null);
+    const [confirmingOrderId, setConfirmingOrderId] = useState<string | null>(null);
     const highlightRef = useRef<HTMLDivElement | null>(null);
 
     // Scroll a la orden destacada cuando se navega desde una notificación FCM
@@ -42,41 +48,51 @@ export const MyOrders: React.FC = () => {
         }
     }, [highlightParam, loading, orders.length]);
 
-    // Suscripción en tiempo real — los pedidos se actualizan automáticamente
+    // Carga inicial con paginación
     useEffect(() => {
         if (!user) return;
-
-        setLoading(true);
-        const q = query(
-            collection(db, 'orders'),
-            where('customerId', '==', user.id),
-            orderBy('createdAt', 'desc'),
-            limit(20)
-        );
-
-        const unsubscribe = onSnapshot(q,
-            (snapshot) => {
-                const ordersData = snapshot.docs.map(d => ({
-                    id: d.id,
-                    ...d.data()
-                })) as Order[];
-                setOrders(ordersData);
-                setLoading(false);
-            },
-            (error) => {
-                logger.error('Error en suscripción de pedidos:', error);
-                setLoading(false);
-            }
-        );
-
-        return () => unsubscribe();
+        loadOrders(true);
     }, [user?.id]);
+
+    const loadOrders = async (initial = false) => {
+        if (!user) return;
+        if (initial) {
+            setLoading(true);
+            setOrders([]);
+            setLastDoc(null);
+            setHasMore(true);
+        } else {
+            setLoadingMore(true);
+        }
+
+        try {
+            const constraints: any[] = [
+                where('customerId', '==', user.id),
+                orderBy('createdAt', 'desc'),
+            ];
+            if (!initial && lastDoc) constraints.push(startAfter(lastDoc));
+            const q = query(collection(db, 'orders'), ...constraints, limit(20));
+            const snapshot = await getDocs(q);
+            const ordersData = snapshot.docs.map(d => ({
+                id: d.id,
+                ...d.data()
+            })) as Order[];
+            setOrders(prev => initial ? ordersData : [...prev, ...ordersData]);
+            setLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
+            setHasMore(snapshot.docs.length === 20);
+        } catch (error) {
+            logger.error('Error loading orders:', error);
+        } finally {
+            setLoading(false);
+            setLoadingMore(false);
+        }
+    };
 
     const findExistingOrderChatId = async (orderId: string, type: string): Promise<string | null> => {
         const chatsSnapshot = await getDocs(query(
             collection(db, 'chats'),
             where('participants', 'array-contains', user?.id || ''),
-            limit(100)
+            limit(20)
         ));
         const existingChat = chatsSnapshot.docs.find(d => {
             const data = d.data();
@@ -228,17 +244,36 @@ export const MyOrders: React.FC = () => {
         navigate('/app/cart');
     };
 
+    const handleConfirmReceived = async (order: Order) => {
+        if (!order?.id) return;
+        try {
+            setConfirmingOrderId(order.id);
+            const orderRef = doc(db, 'orders', order.id);
+            await updateDoc(orderRef, {
+                status: OrderStatus.COMPLETED,
+                receivedAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+            });
+            success(t('orders_received_success'));
+        } catch (error) {
+            logger.error('Error confirming received order:', error);
+            showError(t('orders_received_error'));
+        } finally {
+            setConfirmingOrderId(null);
+        }
+    };
+
     const getStatusBadge = (status: OrderStatus) => {
         const badges: Record<string, { color: string; icon: React.ElementType; label: string }> = {
-            [OrderStatus.PENDING]: { color: 'bg-yellow-100 text-yellow-800', icon: Clock, label: 'Pendiente' },
-            [OrderStatus.PAID]: { color: 'bg-blue-100 text-blue-800', icon: CheckCircle, label: 'Pagado' },
-            [OrderStatus.IN_PREPARATION]: { color: 'bg-amber-100 text-amber-800', icon: Clock, label: 'En Preparación' },
-            [OrderStatus.READY_PICKUP]: { color: 'bg-purple-100 text-purple-800', icon: Package, label: 'Listo para Recoger' },
-            [OrderStatus.DRIVER_ACCEPTED]: { color: 'bg-indigo-100 text-indigo-800', icon: Truck, label: 'Conductor Asignado' },
-            [OrderStatus.IN_TRANSIT]: { color: 'bg-indigo-100 text-indigo-800', icon: Truck, label: 'En Camino' },
-            [OrderStatus.COMPLETED]: { color: 'bg-green-100 text-green-800', icon: CheckCircle, label: 'Completado' },
-            [OrderStatus.MISSED]: { color: 'bg-red-100 text-red-800', icon: XCircle, label: 'Perdido' },
-            [OrderStatus.DISPUTED]: { color: 'bg-purple-100 text-purple-800', icon: XCircle, label: 'Disputado' },
+            [OrderStatus.PENDING]: { color: 'bg-yellow-100 text-yellow-800', icon: Clock, label: t('status_pending') },
+            [OrderStatus.PAID]: { color: 'bg-blue-100 text-blue-800', icon: CheckCircle, label: t('status_paid') },
+            [OrderStatus.IN_PREPARATION]: { color: 'bg-amber-100 text-amber-800', icon: Clock, label: t('status_prep') },
+            [OrderStatus.READY_PICKUP]: { color: 'bg-purple-100 text-purple-800', icon: Package, label: t('status_ready') },
+            [OrderStatus.DRIVER_ACCEPTED]: { color: 'bg-indigo-100 text-indigo-800', icon: Truck, label: t('status_driver') },
+            [OrderStatus.IN_TRANSIT]: { color: 'bg-indigo-100 text-indigo-800', icon: Truck, label: t('status_transit') },
+            [OrderStatus.COMPLETED]: { color: 'bg-green-100 text-green-800', icon: CheckCircle, label: t('status_completed') },
+            [OrderStatus.MISSED]: { color: 'bg-red-100 text-red-800', icon: XCircle, label: t('status_missed') },
+            [OrderStatus.DISPUTED]: { color: 'bg-purple-100 text-purple-800', icon: XCircle, label: t('status_disputed') },
         };
 
         const badge = badges[status] ?? { color: 'bg-gray-100 text-gray-700', icon: Clock, label: status };
@@ -267,17 +302,17 @@ export const MyOrders: React.FC = () => {
                     className="flex items-center gap-2 text-gray-600 hover:text-emerald-600 mb-4 transition-colors group"
                 >
                     <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
-                    <span className="font-medium">Volver a Explorar</span>
+                    <span className="font-medium">{t('orders_back')}</span>
                 </button>
 
                 <div className="flex justify-between items-center mb-6">
                     <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-3">
                         <Package className="text-emerald-600" />
-                        Mis Pedidos
+                        {t('orders_title')}
                     </h1>
                     <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-full">
                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
-                        En vivo
+                        {t('orders_live')}
                     </div>
                 </div>
 
@@ -288,8 +323,8 @@ export const MyOrders: React.FC = () => {
                             <div className="flex items-center gap-3 text-emerald-800">
                                 <div className="bg-emerald-200 p-2 rounded-full"><Package size={20} /></div>
                                 <div>
-                                    <p className="font-bold">¡Pedido reservado con éxito!</p>
-                                    <p className="text-sm opacity-80">Pedido ID: {orderIdParam}</p>
+                                    <p className="font-bold">{t('orders_booked')}</p>
+                                    <p className="text-sm opacity-80">{t('order_id')} {orderIdParam}</p>
                                 </div>
                             </div>
                             <button
@@ -300,7 +335,7 @@ export const MyOrders: React.FC = () => {
                                 }}
                                 className="text-sm font-medium text-emerald-600 hover:text-emerald-700 underline"
                             >
-                                Ver todos mis pedidos
+                                {t('orders_view_all')}
                             </button>
                         </div>
 
@@ -324,7 +359,7 @@ export const MyOrders: React.FC = () => {
                             className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white p-4 rounded-xl font-bold flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all active:scale-95"
                         >
                             <Share2 size={20} />
-                            ¡Comparte tu rescate y ayúdanos a llevar el mensaje! 🌍
+                            {t('orders_share')}
                         </button>
                     </div>
                 )}
@@ -338,10 +373,10 @@ export const MyOrders: React.FC = () => {
                         <div className="relative z-10 text-white">
                             <h3 className="text-xl font-black mb-1 flex items-center gap-2">
                                 <Star size={24} className="fill-current text-white" />
-                                ¡Tienes reseñas pendientes!
+                                {t('orders_rating_title')}
                             </h3>
                             <p className="font-medium text-amber-900 text-sm">
-                                Cuéntanos sobre tu rescate y gana puntos extra en {unratedOrders.length} pedido(s).
+                                {t('orders_rating_desc', { count: unratedOrders.length })}
                             </p>
                         </div>
                         <button
@@ -351,7 +386,7 @@ export const MyOrders: React.FC = () => {
                             }}
                             className="w-full sm:w-auto relative z-10 bg-white text-amber-600 hover:bg-amber-50 px-6 py-3 rounded-xl font-bold shadow-md transition-all active:scale-95 whitespace-nowrap ring-4 ring-white/20"
                         >
-                            Calificar Ahora
+                            {t('orders_rate_now')}
                         </button>
                     </div>
                 )}
@@ -366,24 +401,24 @@ export const MyOrders: React.FC = () => {
                                 <Sparkles size={16} className="text-white" />
                             </div>
                         </div>
-                        <h2 className="text-2xl font-black text-gray-900 mb-2">¡Tu primera misión te espera!</h2>
+                        <h2 className="text-2xl font-black text-gray-900 mb-2">{t('orders_first_mission')}</h2>
                         <p className="text-gray-500 text-sm max-w-xs mb-1">
-                            Cada pedido rescata comida del desperdicio y te gana puntos de impacto.
+                            {t('orders_first_mission_desc')}
                         </p>
                         <p className="text-emerald-600 text-xs font-semibold mb-8">
-                            🌱 Tu racha de rescates empieza hoy
+                            {t('orders_streak_starts')}
                         </p>
                         <button
                             onClick={() => navigate('/app')}
                             className="w-full max-w-xs bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold py-4 rounded-2xl transition-colors shadow-lg shadow-emerald-600/30"
                         >
-                            Ver ofertas de hoy
+                            {t('cart_view_deals')}
                         </button>
                         <button
                             onClick={() => navigate('/app/impact')}
                             className="mt-3 text-sm text-gray-400 hover:text-gray-600 transition-colors"
                         >
-                            ¿Qué es el impacto?
+                            {t('orders_what_is_impact')}
                         </button>
                     </div>
                 ) : (
@@ -425,7 +460,7 @@ export const MyOrders: React.FC = () => {
                                     </div>
 
                                     <div className="border-t border-gray-100 pt-4 mb-4">
-                                        <p className="text-sm font-semibold text-gray-600 mb-2">Productos:</p>
+                                        <p className="text-sm font-semibold text-gray-600 mb-2">{t('orders_products')}</p>
                                         <div className="space-y-1">
                                             {order.products.map((product, idx) => (
                                                 <div key={idx} className="flex justify-between text-sm">
@@ -442,20 +477,20 @@ export const MyOrders: React.FC = () => {
 
                                     <div className="border-t border-gray-100 pt-4 pb-4 space-y-2">
                                         <div className="flex justify-between items-center text-sm text-gray-600">
-                                            <span>Subtotal</span>
+                                            <span>{t('cart_subtotal')}</span>
                                             <span>{formatCOP(order.subtotal || 0)}</span>
                                         </div>
                                         <div className="flex justify-between items-center text-sm text-gray-600">
-                                            <span>Domicilio</span>
+                                            <span>{t('cart_delivery')}</span>
                                             <span>{formatCOP(order.deliveryFee || 0)}</span>
                                         </div>
                                         <div className="flex justify-between items-center pt-2 border-t border-gray-50">
                                             <div className="text-sm text-gray-600">
-                                                <p><strong>Dirección:</strong> {order.deliveryAddress}</p>
-                                                <p><strong>Teléfono:</strong> {order.phone}</p>
+                                                <p><strong>{t('orders_address')}</strong> {order.deliveryAddress}</p>
+                                                <p><strong>{t('orders_phone')}</strong> {order.phone}</p>
                                             </div>
                                             <div className="text-right">
-                                                <p className="text-sm text-gray-500">Total</p>
+                                                <p className="text-sm text-gray-500">{t('cart_total')}</p>
                                                 <p className="text-2xl font-bold text-emerald-600">
                                                     {formatCOP(order.totalAmount)}
                                                 </p>
@@ -473,7 +508,7 @@ export const MyOrders: React.FC = () => {
                                                 ? <span className="animate-spin text-base">⏳</span>
                                                 : <MessageSquare size={18} />
                                             }
-                                            Chat Restaurante
+                                            {t('orders_btn_venue_chat')}
                                         </button>
 
                                         {order.driverId && (
@@ -486,9 +521,22 @@ export const MyOrders: React.FC = () => {
                                                     ? <span className="animate-spin text-base">⏳</span>
                                                     : <MessageSquare size={18} />
                                                 }
-                                                Chat Conductor
-                                            </button>
-                                        )}
+                                            {t('orders_btn_driver_chat')}
+                                        </button>
+                                    )}
+                                    {order.status === OrderStatus.READY_PICKUP && order.deliveryMethod !== 'delivery' && (
+                                        <button
+                                            onClick={() => handleConfirmReceived(order)}
+                                            disabled={confirmingOrderId === order.id}
+                                            className="flex-1 px-4 py-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 shadow-sm active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
+                                        >
+                                            {confirmingOrderId === order.id
+                                                ? <span className="animate-spin text-base">⏳</span>
+                                                : <CheckCircle size={18} />
+                                            }
+                                            {t('orders_received_confirm')}
+                                        </button>
+                                    )}
                                     </div>
 
                                     {/* Botón de Calificación para Pedidos Completados */}
@@ -499,7 +547,7 @@ export const MyOrders: React.FC = () => {
                                                 className="w-full px-4 py-3.5 bg-yellow-400 text-yellow-900 rounded-xl hover:bg-yellow-500 shadow-md active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 font-bold text-sm"
                                             >
                                                 <Star size={18} className="fill-current" />
-                                                ¡Califica tu Experiencia!
+                                                {t('orders_rate_exp')}
                                             </button>
                                         </div>
                                     )}
@@ -508,7 +556,7 @@ export const MyOrders: React.FC = () => {
                                         <div className="pt-3">
                                             <div className="w-full px-4 py-3 bg-green-50 text-green-700 border border-green-100 rounded-xl flex items-center justify-center gap-2 text-sm font-semibold shadow-sm">
                                                 <CheckCircle size={18} />
-                                                Ya calificaste este pedido
+                                                {t('orders_already_rated')}
                                             </div>
                                         </div>
                                     )}
@@ -521,7 +569,7 @@ export const MyOrders: React.FC = () => {
                                                 className="w-full px-4 py-3 bg-gray-50 text-gray-700 border border-gray-200 rounded-xl hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700 shadow-sm active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 text-sm font-semibold"
                                             >
                                                 <ShoppingCart size={18} />
-                                                Pedir de Nuevo
+                                                {t('orders_reorder')}
                                             </button>
                                         </div>
                                     )}
@@ -543,7 +591,7 @@ export const MyOrders: React.FC = () => {
                                 </div>
                                 <div className="flex items-center gap-2.5 mt-4 pt-4 border-t text-emerald-600">
                                     <div className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin flex-shrink-0" />
-                                    <p className="text-sm font-semibold">Confirmando tu pedido #{orderIdParam.slice(0, 8)}…</p>
+                                    <p className="text-sm font-semibold">{t('orders_confirming')}</p>
                                 </div>
                             </div>
                         )}

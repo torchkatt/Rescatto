@@ -315,7 +315,7 @@ export const VenuesManager: React.FC = () => {
         <div className="space-y-6 overflow-x-hidden">
             {/* Header */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                <h2 className="text-2xl font-bold text-white flex items-center gap-2">
                     <Store className="text-emerald-600" />
                     Gestión de Negocios
                 </h2>

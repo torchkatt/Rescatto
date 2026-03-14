@@ -9,7 +9,11 @@
       "Bash(firebase deploy --only hosting)",
       "Bash(grep -rn '\\\\${\\\\|toLocaleString.*COP\\\\|\\\\$\\\\${' /Users/alexandersandoval/Documents/PERSONAL/DESARROLLO/rescatto-business-dashboard/pages/)",
       "Bash(gcloud auth application-default login --account=sandovaldiazalexander@gmail.com)",
-      "Bash(firebase --project rescatto-c8d2b apps:list)"
+      "Bash(firebase --project rescatto-c8d2b apps:list)",
+      "Bash(firebase deploy --only functions:getBankPaymentInfo,functions:updateBankPaymentInfo)",
+      "Bash(firebase deploy --only functions:requestBankInfoChange,functions:createSubscriptionRequest,functions:submitPaymentProof)",
+      "Bash(firebase deploy --only functions:createSubscriptionRequest)",
+      "Bash(firebase deploy --only functions:getFinanceStats)"
     ]
   }
 }

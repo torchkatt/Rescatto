@@ -16,6 +16,7 @@ import { calculateDeliveryFee, DeliveryCalculationResult } from '../../utils/del
 import { logger } from '../../utils/logger';
 import { GuestConversionBanner } from '../../components/customer/common/GuestConversionBanner';
 import { NotificationPermissionModal, hasAskedForNotifications } from '../../components/customer/common/NotificationPermissionModal';
+import { PhoneInput } from '../../components/customer/common/PhoneInput';
 import { isProductExpired } from '../../utils/productAvailability';
 import { formatCOP, formatKgCO2 } from '../../utils/formatters';
 import { useOrderFlow } from '../../hooks/useOrderFlow';
@@ -47,6 +48,7 @@ export const Checkout: React.FC = () => {
 
     const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>('delivery');
     const [paymentMethod, setPaymentMethod] = useState<'card' | 'cash'>('cash');
+    const isCardPaymentDisabled = true;
     const [address, setAddress] = useState(user?.address || '');
     const [phone, setPhone] = useState(user?.phone || '');
     const [selectedDonationCenter, setSelectedDonationCenter] = useState<DonationCenter | null>(null);
@@ -54,8 +56,7 @@ export const Checkout: React.FC = () => {
     const orderJustPlacedRef = React.useRef(false);
     const [selectedRedemption, setSelectedRedemption] = useState<ActiveRedemption | null>(null);
 
-    const phoneDigits = phone.replace(/\D/g, '');
-    const isPhoneValid = phoneDigits.length >= 7 && phoneDigits.length <= 15;
+    const isPhoneValid = phone.length >= 7 && phone.length <= 17 && /^\+?\d+$/.test(phone);
 
     // Auto-login guiado para Guest Checkout (máximo un intento para evitar loops)
     const guestLoginAttempted = useRef(false);
@@ -64,7 +65,7 @@ export const Checkout: React.FC = () => {
             guestLoginAttempted.current = true;
             loginAsGuest().catch(err => {
                 logger.error("Failed to login as guest", err);
-                error("Error al preparar tu sesión. Intenta de nuevo.");
+                error(t('checkout_session_error'));
             });
         }
     }, [authLoading, isAuthenticated, loginAsGuest, error]);
@@ -118,6 +119,9 @@ export const Checkout: React.FC = () => {
                 subtotal
             );
             newCosts[venueId] = result;
+            if (!result.possible) {
+                logger.warn(`Delivery fee fallback para venue ${venueId}: ${result.reason || JSON.stringify(result)}`);
+            }
         });
         setDeliveryCosts(newCosts);
 
@@ -138,7 +142,7 @@ export const Checkout: React.FC = () => {
             for (const [venueId] of venueGroups.entries()) {
                 const venue = venuesData[venueId];
                 if (venue && venue.city && city && !cityMatch(venue.city, city)) {
-                    setCityError(`El restaurante "${venue.name}" está en ${venue.city}, pero tu ubicación es ${city}.`);
+                    setCityError(t('checkout_city_error', { name: venue.name, city: venue.city, userCity: city }));
                     return;
                 }
             }
@@ -166,7 +170,6 @@ export const Checkout: React.FC = () => {
                     deliveryFee = calc.fee;
                 } else {
                     deliveryFee = DEFAULT_DELIVERY_FEE;
-                    logger.warn(`Delivery fee fallback para venue ${venueId}: calc=${JSON.stringify(calc)}, usando DEFAULT_DELIVERY_FEE=${DEFAULT_DELIVERY_FEE}`);
                 }
             }
         }
@@ -242,71 +245,76 @@ export const Checkout: React.FC = () => {
         const uniqueNames = Array.from(new Set(productNames));
         const preview = uniqueNames.slice(0, 2).join(', ');
         const hasMore = uniqueNames.length > 2;
-        error(`Actualizamos tu carrito: ${preview || 'algunos productos'} ya no están disponibles${hasMore ? '...' : ''}.`);
+        error(`${t('checkout_expired_removed')} ${preview || ''}${hasMore ? '...' : ''}`);
         navigate('/app/cart');
         return true;
     };
 
 
     const handlePlaceOrder = async () => {
-        if (!user || user.isGuest) {
-            error('Debes iniciar sesión para realizar pedidos.');
-            sessionStorage.setItem('rescatto_post_login_redirect', '/app/checkout');
-            navigate('/login');
-            return;
-        }
+        try {
+            if (!user || user.isGuest) {
+                error(t('checkout_login_required'));
+                sessionStorage.setItem('rescatto_post_login_redirect', '/app/checkout');
+                navigate('/login');
+                return;
+            }
 
-        const expiredItems = items.filter(item => isProductExpired(item.availableUntil));
-        if (expiredItems.length > 0) {
-            expiredItems.forEach(item => removeFromCart(item.id));
-            error('Se eliminaron productos expirados de tu carrito. Revísalo antes de continuar.');
-            navigate('/app/cart');
-            return;
-        }
+            const expiredItems = items.filter(item => isProductExpired(item.availableUntil));
+            if (expiredItems.length > 0) {
+                expiredItems.forEach(item => removeFromCart(item.id));
+                error(t('checkout_expired_removed'));
+                navigate('/app/cart');
+                return;
+            }
 
-        const validation = safeParseCheckoutForm({
-            address,
-            phone: phoneDigits,
-            deliveryMethod,
-            selectedDonationCenterId: selectedDonationCenter?.id
-        });
+            const validation = safeParseCheckoutForm({
+                address: address || undefined,
+                phone: phone,
+                deliveryMethod,
+                selectedDonationCenterId: selectedDonationCenter?.id
+            });
 
-        if (!validation.success) {
-            error(validation.error.issues[0]?.message || 'Datos inválidos.');
-            return;
-        }
+            if (!validation.success) {
+                error(validation.error.issues[0]?.message || t('checkout_invalid_data'));
+                return;
+            }
 
-        if (cityError) {
-            error(cityError);
-            return;
-        }
+            if (cityError) {
+                error(cityError);
+                return;
+            }
 
-        if (deliveryMethod === 'delivery') {
-            for (const [venueId] of venueGroups.entries()) {
-                const calc = deliveryCosts[venueId];
-                if (calc && !calc.possible) {
-                    error(`No es posible entregar desde este negocio. ${calc.reason || ''}`);
-                    return;
+            if (deliveryMethod === 'delivery') {
+                for (const [venueId] of venueGroups.entries()) {
+                    const calc = deliveryCosts[venueId];
+                    if (calc && !calc.possible) {
+                        error(t('checkout_delivery_impossible', { reason: calc.reason || '' }));
+                        return;
+                    }
                 }
             }
-        }
 
-        orderJustPlacedRef.current = true;
-        await processOrder({
-            paymentMethod: 'cash',
-            deliveryMethod,
-            address,
-            phoneDigits,
-            selectedDonationCenter,
-            estimatedCo2,
-            selectedRedemption,
-            calculateOrderTotals
-        });
+            orderJustPlacedRef.current = true;
+            await processOrder({
+                paymentMethod: 'cash',
+                deliveryMethod,
+                address,
+                phoneDigits: phone,
+                selectedDonationCenter,
+                estimatedCo2,
+                selectedRedemption,
+                calculateOrderTotals
+            });
+        } catch (err: any) {
+            logger.error("Error in handlePlaceOrder:", err);
+            error(t('checkout_order_error') || "Error al procesar el pedido");
+        }
     };
 
     const handleCardPaymentSuccess = async (transactionId: string) => {
         if (!user || user.isGuest) {
-            error('Debes iniciar sesión para realizar pedidos.');
+            error(t('checkout_login_required'));
             sessionStorage.setItem('rescatto_post_login_redirect', '/app/checkout');
             navigate('/login');
             return;
@@ -315,7 +323,7 @@ export const Checkout: React.FC = () => {
         const expiredItems = items.filter(item => isProductExpired(item.availableUntil));
         if (expiredItems.length > 0) {
             expiredItems.forEach(item => removeFromCart(item.id));
-            error('No se pudo continuar: había productos expirados y fueron retirados del carrito.');
+            error(t('checkout_expired_removed_card'));
             navigate('/app/cart');
             return;
         }
@@ -325,7 +333,7 @@ export const Checkout: React.FC = () => {
             paymentMethod: 'card',
             deliveryMethod,
             address,
-            phoneDigits,
+            phoneDigits: phone,
             selectedDonationCenter,
             estimatedCo2,
             selectedRedemption,
@@ -344,7 +352,7 @@ export const Checkout: React.FC = () => {
         return (
             <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 text-center">
                 <div className="animate-spin text-4xl mb-4">⏳</div>
-                <p className="text-gray-500 font-medium">Preparando tu carrito...</p>
+                <p className="text-gray-500 font-medium">{t('checkout_preparing')}</p>
             </div>
         );
     }
@@ -373,7 +381,7 @@ export const Checkout: React.FC = () => {
                         className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6 transition-all font-bold active:scale-95 px-2 py-1"
                     >
                         <ArrowLeft size={20} />
-                        Volver al Carrito
+                        {t('checkout_back_cart')}
                     </button>
 
                     <GuestConversionBanner context="checkout" />
@@ -387,10 +395,10 @@ export const Checkout: React.FC = () => {
                             className="w-full h-48 object-cover"
                         />
                         <div className="absolute inset-0 z-20 flex flex-col justify-center items-center text-white p-6">
-                            <h1 className="text-4xl font-bold mb-2 drop-shadow-lg">¡Casi listo!</h1>
+                            <h1 className="text-4xl font-bold mb-2 drop-shadow-lg">{t('checkout_almost_ready')}</h1>
                             <p className="text-lg opacity-90 flex items-center gap-2">
                                 <Leaf size={20} className="text-emerald-300" />
-                                Con este rescate ahorrarás aprox. <strong>{formatKgCO2(estimatedCo2)}</strong>
+                                {t('checkout_co2_savings', { amount: formatKgCO2(estimatedCo2) })}
                             </p>
                         </div>
                     </div>
@@ -412,7 +420,7 @@ export const Checkout: React.FC = () => {
                                         }`}
                                 >
                                     <MapPin size={18} />
-                                    <span className="text-xs sm:text-sm">Domicilio</span>
+                                    <span className="text-xs sm:text-sm">{t('checkout_method_delivery')}</span>
                                 </button>
                                 <button
                                     onClick={() => setDeliveryMethod('pickup')}
@@ -422,7 +430,7 @@ export const Checkout: React.FC = () => {
                                         }`}
                                 >
                                     <Store size={18} />
-                                    <span className="text-xs sm:text-sm">Recoger</span>
+                                    <span className="text-xs sm:text-sm">{t('checkout_method_pickup')}</span>
                                 </button>
                                 <button
                                     onClick={() => setDeliveryMethod('donation')}
@@ -432,21 +440,21 @@ export const Checkout: React.FC = () => {
                                         }`}
                                 >
                                     <Heart size={18} className={deliveryMethod === 'donation' ? 'fill-white' : ''} />
-                                    <span className="text-xs sm:text-sm">Donar</span>
+                                    <span className="text-xs sm:text-sm">{t('checkout_method_donation')}</span>
                                 </button>
                             </div>
 
                             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
                                 <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
                                     {deliveryMethod === 'delivery' ? <MapPin className="text-emerald-600" size={20} /> : deliveryMethod === 'pickup' ? <Store className="text-emerald-600" size={20} /> : <Heart className="text-emerald-600" size={20} />}
-                                    {deliveryMethod === 'delivery' ? 'Información de Entrega' : deliveryMethod === 'pickup' ? 'Datos de Recogida' : 'Donar a una Causa'}
+                                    {deliveryMethod === 'delivery' ? t('checkout_info_delivery') : deliveryMethod === 'pickup' ? t('checkout_info_pickup') : t('checkout_info_donation')}
                                 </h3>
 
                                 <div className="space-y-4">
                                     {deliveryMethod === 'delivery' && (
                                         <div className="animate-fadeIn">
                                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                                                Dirección de Entrega *
+                                                {t('checkout_address_label')}
                                             </label>
                                             <input
                                                 type="text"
@@ -463,7 +471,7 @@ export const Checkout: React.FC = () => {
                                         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 animate-fadeIn">
                                             <p className="text-blue-800 text-sm flex items-center gap-2">
                                                 <Store size={16} />
-                                                <strong>Recuerda:</strong> Debes ir al negocio a recoger tu pedido antes de la hora indicada.
+                                                {t('checkout_pickup_reminder')}
                                             </p>
                                         </div>
                                     )}
@@ -473,12 +481,12 @@ export const Checkout: React.FC = () => {
                                             <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 mb-4">
                                                 <p className="text-emerald-800 text-sm">
                                                     <Heart className="inline mr-2 text-emerald-500" size={18} />
-                                                    <strong>¡Gracias por tu generosidad!</strong> Al elegir donar, el restaurante llevará tus productos directamente al centro de acopio seleccionado.
+                                                    {t('checkout_donation_thanks')}
                                                 </p>
                                             </div>
 
                                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                                                Selecciona a quién quieres ayudar:
+                                                {t('checkout_donation_destiny')}
                                             </label>
                                             <DonationCenterSelector
                                                 onSelect={setSelectedDonationCenter}
@@ -487,37 +495,19 @@ export const Checkout: React.FC = () => {
                                         </div>
                                     )}
 
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            <Phone size={16} className="inline mr-1" />
-                                            Teléfono de Contacto *
-                                        </label>
-                                        <input
-                                            type="tel"
-                                            value={phone}
-                                            onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 15))}
-                                            inputMode="numeric"
-                                            pattern="[0-9]*"
-                                            autoComplete="tel"
-                                            placeholder="Ej: 3001234567"
-                                            className={`w-full bg-white px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-base transition-all ${phone.length > 0 && !isPhoneValid ? 'border-red-300' : 'border-gray-200'}`}
-                                            required
-                                        />
-                                        {phone.length > 0 && !isPhoneValid ? (
-                                            <p className="text-xs text-red-500 mt-1">Ingresa entre 7 y 15 dígitos.</p>
-                                        ) : (
-                                            <p className="text-xs text-gray-500 mt-1">
-                                                Te contactaremos si hay novedades con tu {deliveryMethod === 'delivery' ? 'entrega' : 'pedido'}.
-                                            </p>
-                                        )}
-                                    </div>
+                                    <PhoneInput
+                                        label={t('checkout_phone_label')}
+                                        value={phone}
+                                        onChange={setPhone}
+                                        error={phone.length > 0 && !isPhoneValid ? t('checkout_phone_error') : undefined}
+                                    />
                                 </div>
                             </div>
 
                             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
                                 <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
                                     <CreditCard className="text-emerald-600" size={20} />
-                                    Método de Pago
+                                    {t('checkout_payment_method')}
                                 </h3>
 
                                 <div className="space-y-3">
@@ -533,15 +523,15 @@ export const Checkout: React.FC = () => {
                                         <Wallet className={paymentMethod === 'cash' ? 'text-emerald-600' : 'text-gray-400'} size={24} />
                                         <div>
                                             <p className="font-bold text-gray-900">
-                                                {deliveryMethod === 'delivery' ? 'Pago Contra Entrega' : 'Pagar en el Negocio'}
+                                                {deliveryMethod === 'delivery' ? t('checkout_payment_cash_delivery') : t('checkout_payment_cash_pickup')}
                                             </p>
                                             <p className="text-sm text-gray-500">
-                                                {deliveryMethod === 'delivery' ? 'Paga en efectivo al recibir' : 'Paga en efectivo al recoger'}
+                                                {deliveryMethod === 'delivery' ? t('checkout_payment_cash_desc_delivery') : t('checkout_payment_cash_desc_pickup')}
                                             </p>
                                         </div>
                                     </label>
 
-                                    <label className={`flex items-center gap-3 p-4 border-2 rounded-xl cursor-pointer transition-all active:scale-[0.98] ${paymentMethod === 'card' ? 'border-emerald-600 bg-emerald-50/50 shadow-sm' : 'border-gray-100 hover:border-emerald-200'
+                                    <label className={`flex items-center gap-3 p-4 border-2 rounded-xl transition-all ${isCardPaymentDisabled ? 'opacity-60 cursor-not-allowed border-gray-100 bg-gray-50' : 'cursor-pointer active:scale-[0.98]'} ${paymentMethod === 'card' ? 'border-emerald-600 bg-emerald-50/50 shadow-sm' : 'border-gray-100 hover:border-emerald-200'
                                         }`}>
                                         <input
                                             type="radio"
@@ -549,23 +539,24 @@ export const Checkout: React.FC = () => {
                                             value="card"
                                             checked={paymentMethod === 'card'}
                                             onChange={(e) => setPaymentMethod(e.target.value as 'card')}
+                                            disabled={isCardPaymentDisabled}
                                             className="text-emerald-600 focus:ring-emerald-500 w-5 h-5"
                                         />
                                         <CreditCard className={paymentMethod === 'card' ? 'text-emerald-600' : 'text-gray-400'} size={24} />
                                         <div>
-                                            <p className="font-bold text-gray-900">Tarjeta de Crédito/Débito</p>
-                                            <p className="text-sm text-gray-500">Paga ahora de forma segura</p>
+                                            <p className="font-bold text-gray-900">{t('checkout_payment_card')}</p>
+                                            <p className="text-sm text-gray-500">{isCardPaymentDisabled ? t('checkout_payment_card_disabled') : t('checkout_payment_card_desc')}</p>
                                         </div>
                                     </label>
                                 </div>
                             </div>
 
-                            {paymentMethod === 'card' && (
+                            {paymentMethod === 'card' && !isCardPaymentDisabled && (
                                 <div className="bg-white rounded-xl p-6 shadow-sm border border-emerald-100 ring-1 ring-emerald-50">
-                                    <h3 className="font-bold text-lg mb-4 text-emerald-800">Detalles del Pago</h3>
+                                    <h3 className="font-bold text-lg mb-4 text-emerald-800">{t('checkout_payment_details')}</h3>
                                     {((deliveryMethod === 'delivery' && !address) || !isPhoneValid || !!cityError) ? (
                                         <div className="text-yellow-600 bg-yellow-50 p-4 rounded-lg text-sm mb-4">
-                                            ⚠️ {cityError ? 'No es posible procesar el pago debido al error de ciudad.' : `Por favor completa ${deliveryMethod === 'delivery' ? 'la dirección y' : ''} un teléfono válido antes de ingresar tu tarjeta.`}
+                                            ⚠️ {cityError ? t('checkout_payment_details_error') : t('checkout_payment_details_error')}
                                         </div>
                                     ) : (
                                         <PaymentForm
@@ -578,11 +569,11 @@ export const Checkout: React.FC = () => {
                             )}
 
                             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-                                <h3 className="font-bold text-lg mb-4">Resumen de Productos</h3>
+                                <h3 className="font-bold text-lg mb-4">{t('checkout_product_summary')}</h3>
 
                                 {Array.from(venueGroups.entries()).map(([venueId, venueItems]) => (
                                     <div key={venueId} className="mb-4 pb-4 border-b last:border-0">
-                                        <p className="text-sm font-semibold text-gray-600 mb-2">Negocio: {venuesData[venueId]?.name || venueId}</p>
+                                        <p className="text-sm font-semibold text-gray-600 mb-2">{t('checkout_venue_name', { name: venuesData[venueId]?.name || venueId })}</p>
                                         <div className="space-y-2">
                                             {venueItems.map(item => (
                                                 <div key={item.id} className="flex justify-between text-sm">
@@ -597,8 +588,11 @@ export const Checkout: React.FC = () => {
                                         </div>
                                         {/* Subtotal per venue */}
                                         <div className="mt-2 text-right text-xs text-gray-500">
-                                            Subtotal: {formatCOP(calculateOrderTotals(venueId, venueItems).subtotal)} |
-                                            Envío: {formatCOP(calculateOrderTotals(venueId, venueItems).deliveryFee)} ({(deliveryCosts[venueId]?.distance || 0).toFixed(1)} km)
+                                            {t('checkout_venue_subtotal', { 
+                                                subtotal: formatCOP(calculateOrderTotals(venueId, venueItems).subtotal),
+                                                fee: formatCOP(calculateOrderTotals(venueId, venueItems).deliveryFee),
+                                                dist: (deliveryCosts[venueId]?.distance || 0).toFixed(1)
+                                            })}
                                         </div>
                                     </div>
                                 ))}
@@ -611,11 +605,11 @@ export const Checkout: React.FC = () => {
 
                                 <div className="space-y-2 mb-4">
                                     <div className="flex justify-between text-gray-600">
-                                        <span>Subtotal</span>
+                                        <span>{t('cart_subtotal')}</span>
                                         <span>{formatCOP(Array.from(venueGroups.entries()).reduce((sum, [vid, vitems]) => sum + calculateOrderTotals(vid, vitems).subtotal, 0))}</span>
                                     </div>
                                     <div className="flex justify-between text-gray-600">
-                                        <span>Domicilio ({venueGroups.size} {venueGroups.size === 1 ? 'negocio' : 'negocios'})</span>
+                                        <span>{t('cart_delivery')} ({venueGroups.size} {venueGroups.size === 1 ? t('checkout_venue_one') : t('checkout_venue_many')})</span>
                                         {deliveryMethod === 'delivery' ? (
                                             <div className="text-right">
                                                 {user?.rescattoPass?.isActive && user?.rescattoPass?.benefits?.freeDelivery ? (
@@ -625,7 +619,7 @@ export const Checkout: React.FC = () => {
                                                         </span>
                                                         <span className="text-emerald-600 font-black flex items-center gap-1">
                                                             <Zap size={12} className="fill-emerald-600" />
-                                                            Pass: $0
+                                                            {t('checkout_pass_free')}
                                                         </span>
                                                     </div>
                                                 ) : (
@@ -633,7 +627,7 @@ export const Checkout: React.FC = () => {
                                                 )}
                                             </div>
                                         ) : (
-                                            <span className="text-emerald-600 font-semibold">GRATIS ({deliveryMethod === 'pickup' ? 'Recogida' : 'Donación'})</span>
+                                            <span className="text-emerald-600 font-semibold">{deliveryMethod === 'pickup' ? t('checkout_free_pickup') : t('checkout_free_donation')}</span>
                                         )}
                                     </div>
 
@@ -643,10 +637,10 @@ export const Checkout: React.FC = () => {
                                             <div className="flex items-center justify-between">
                                                 <p className="text-xs font-black text-emerald-800 flex items-center gap-1.5 uppercase tracking-wider">
                                                     <Gift size={14} className="text-emerald-500" /> 
-                                                    Tus Recompensas
+                                                    {t('checkout_rewards')}
                                                 </p>
                                                 <span className="bg-emerald-200 text-emerald-800 text-[10px] font-black px-2 py-0.5 rounded-full">
-                                                    {availableRedemptions.length} DISPONIBLES
+                                                    {availableRedemptions.length} {t('checkout_available')}
                                                 </span>
                                             </div>
                                             <div className="space-y-2">
@@ -673,7 +667,7 @@ export const Checkout: React.FC = () => {
                                             </div>
                                             {selectedRedemption && (
                                                 <p className="text-[10px] text-emerald-600 font-bold text-center animate-pulse">
-                                                    ✨ Descuento aplicado automáticamente
+                                                    ✨ {t('checkout_auto_discount')}
                                                 </p>
                                             )}
                                         </div>
@@ -683,18 +677,18 @@ export const Checkout: React.FC = () => {
                                     {activeDiscount > 0 && (
                                         <div className="flex justify-between text-emerald-700 font-semibold">
                                             <span className="flex items-center gap-1">
-                                                <Tag size={13} /> Descuento canje
+                                                <Tag size={13} /> {t('checkout_redemption_discount')}
                                             </span>
                                             <span>-{formatCOP(activeDiscount)}</span>
                                         </div>
                                     )}
                                     <div className="border-t pt-2 mt-2 flex justify-between font-bold text-lg">
-                                        <span>Total</span>
+                                        <span>{t('cart_total')}</span>
                                         <span className="text-emerald-600">{formatCOP(getGrandTotal())}</span>
                                     </div>
                                     <div className="flex justify-end mt-1">
                                         <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full flex items-center gap-1">
-                                            <Leaf size={10} /> Impacto: -{formatKgCO2(estimatedCo2)}
+                                            <Leaf size={10} /> {t('checkout_impact_leaf', { amount: formatKgCO2(estimatedCo2) })}
                                         </span>
                                     </div>
                                 </div>
@@ -708,15 +702,15 @@ export const Checkout: React.FC = () => {
                                         {loading ? (
                                             <>
                                                 <span className="animate-spin text-xl">⏳</span>
-                                                <span>Procesando...</span>
+                                                <span>{t('checkout_processing')}</span>
                                             </>
                                         ) : user?.isGuest ? (
-                                            <span>Inicia sesión para continuar →</span>
+                                            <span>{t('checkout_login_continue')}</span>
                                         ) : (
                                             <>
                                                 <Wallet size={24} />
                                                 <span>
-                                                    {deliveryMethod === 'delivery' ? 'Confirmar Pedido 💚' : deliveryMethod === 'pickup' ? 'Reservar Pedido 🛍️' : 'Realizar Donación ❤️'}
+                                                    {deliveryMethod === 'delivery' ? t('checkout_btn_confirm') : deliveryMethod === 'pickup' ? t('checkout_btn_reserve') : t('checkout_btn_donate')}
                                                 </span>
                                             </>
                                         )}
@@ -728,8 +722,8 @@ export const Checkout: React.FC = () => {
                                 )}
 
                                 <p className="text-xs text-gray-500 mt-4 text-center">
-                                    Al confirmar aceptas nuestros términos y condiciones.
-                                    {deliveryMethod === 'pickup' && ' Debes presentar tu ID de pedido al recoger.'}
+                                    {t('checkout_terms_checkout')}
+                                    {deliveryMethod === 'pickup' && ` ${t('checkout_pickup_id_reminder')}`}
                                 </p>
                             </div>
                         </div>

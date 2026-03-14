@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, Timestamp, limit, orderBy, startAfter, QueryDocumentSnapshot, DocumentData, getCountFromServer } from 'firebase/firestore';
 import { db } from '../../../services/firebase';
 import { Truck, MapPin, Package, CheckCircle, Clock, RefreshCw, AlertCircle } from 'lucide-react';
 import { User, Order, OrderStatus } from '../../../types';
@@ -7,31 +7,55 @@ import { LoadingSpinner } from '../../../components/customer/common/Loading';
 import { logger } from '../../../utils/logger';
 import { formatCOP } from '../../../utils/formatters';
 
+const PAGE_SIZE = 20;
+
 export const AdminDeliveries: React.FC = () => {
     const [drivers, setDrivers] = useState<User[]>([]);
     const [activeDeliveries, setActiveDeliveries] = useState<Order[]>([]);
     const [completedToday, setCompletedToday] = useState(0);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [loadingMoreDrivers, setLoadingMoreDrivers] = useState(false);
+    const [loadingMoreActive, setLoadingMoreActive] = useState(false);
+    const [driversLastDoc, setDriversLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+    const [activeLastDoc, setActiveLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+    const [hasMoreDrivers, setHasMoreDrivers] = useState(true);
+    const [hasMoreActive, setHasMoreActive] = useState(true);
 
     useEffect(() => {
         loadData(true);
     }, []);
 
     const loadData = async (initial = false) => {
-        if (initial) setLoading(true);
-        else setRefreshing(true);
+        if (initial) {
+            setLoading(true);
+            setDrivers([]);
+            setActiveDeliveries([]);
+            setDriversLastDoc(null);
+            setActiveLastDoc(null);
+            setHasMoreDrivers(true);
+            setHasMoreActive(true);
+        } else {
+            setRefreshing(true);
+        }
         try {
             const todayStart = new Date();
             todayStart.setHours(0, 0, 0, 0);
 
             const [driversSnap, activeSnap, completedSnap] = await Promise.all([
-                getDocs(query(collection(db, 'users'), where('role', '==', 'DRIVER'))),
                 getDocs(query(
-                    collection(db, 'orders'),
-                    where('status', 'in', [OrderStatus.IN_TRANSIT, OrderStatus.DRIVER_ACCEPTED])
+                    collection(db, 'users'),
+                    where('role', '==', 'DRIVER'),
+                    orderBy('__name__'),
+                    limit(PAGE_SIZE)
                 )),
                 getDocs(query(
+                    collection(db, 'orders'),
+                    where('status', 'in', [OrderStatus.IN_TRANSIT, OrderStatus.DRIVER_ACCEPTED]),
+                    orderBy('__name__'),
+                    limit(PAGE_SIZE)
+                )),
+                getCountFromServer(query(
                     collection(db, 'orders'),
                     where('status', '==', OrderStatus.COMPLETED),
                     where('createdAt', '>=', Timestamp.fromDate(todayStart))
@@ -40,12 +64,58 @@ export const AdminDeliveries: React.FC = () => {
 
             setDrivers(driversSnap.docs.map(d => ({ id: d.id, ...d.data() } as User)));
             setActiveDeliveries(activeSnap.docs.map(d => ({ id: d.id, ...d.data() } as Order)));
-            setCompletedToday(completedSnap.size);
+            setDriversLastDoc(driversSnap.docs[driversSnap.docs.length - 1] || null);
+            setActiveLastDoc(activeSnap.docs[activeSnap.docs.length - 1] || null);
+            setHasMoreDrivers(driversSnap.docs.length === PAGE_SIZE);
+            setHasMoreActive(activeSnap.docs.length === PAGE_SIZE);
+            setCompletedToday(completedSnap.data().count || 0);
         } catch (error) {
             logger.error('Error loading deliveries data:', error);
         } finally {
             setLoading(false);
             setRefreshing(false);
+        }
+    };
+
+    const loadMoreDrivers = async () => {
+        if (!hasMoreDrivers || loadingMoreDrivers) return;
+        setLoadingMoreDrivers(true);
+        try {
+            const constraints: any[] = [
+                where('role', '==', 'DRIVER'),
+                orderBy('__name__'),
+            ];
+            if (driversLastDoc) constraints.push(startAfter(driversLastDoc));
+            const snap = await getDocs(query(collection(db, 'users'), ...constraints, limit(PAGE_SIZE)));
+            const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as User));
+            setDrivers(prev => [...prev, ...data]);
+            setDriversLastDoc(snap.docs[snap.docs.length - 1] || null);
+            setHasMoreDrivers(snap.docs.length === PAGE_SIZE);
+        } catch (error) {
+            logger.error('Error loading more drivers:', error);
+        } finally {
+            setLoadingMoreDrivers(false);
+        }
+    };
+
+    const loadMoreActive = async () => {
+        if (!hasMoreActive || loadingMoreActive) return;
+        setLoadingMoreActive(true);
+        try {
+            const constraints: any[] = [
+                where('status', 'in', [OrderStatus.IN_TRANSIT, OrderStatus.DRIVER_ACCEPTED]),
+                orderBy('__name__'),
+            ];
+            if (activeLastDoc) constraints.push(startAfter(activeLastDoc));
+            const snap = await getDocs(query(collection(db, 'orders'), ...constraints, limit(PAGE_SIZE)));
+            const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as Order));
+            setActiveDeliveries(prev => [...prev, ...data]);
+            setActiveLastDoc(snap.docs[snap.docs.length - 1] || null);
+            setHasMoreActive(snap.docs.length === PAGE_SIZE);
+        } catch (error) {
+            logger.error('Error loading more active deliveries:', error);
+        } finally {
+            setLoadingMoreActive(false);
         }
     };
 
@@ -57,7 +127,7 @@ export const AdminDeliveries: React.FC = () => {
         <div className="space-y-6">
             {/* Header */}
             <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                <h2 className="text-2xl font-bold text-white flex items-center gap-2">
                     <Truck className="text-emerald-600" />
                     Gestión de Domicilios
                 </h2>
@@ -78,7 +148,7 @@ export const AdminDeliveries: React.FC = () => {
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-sm text-gray-500 mb-1 font-medium uppercase tracking-wide">Drivers Registrados</p>
-                            <p className="text-3xl font-bold text-gray-800">{drivers.length}</p>
+                            <p className="text-3xl font-bold text-white">{drivers.length}</p>
                             <p className="text-xs text-blue-600 mt-1">{activeDriverIds.size} en entrega ahora</p>
                         </div>
                         <div className="p-3 bg-blue-50 rounded-lg text-blue-600">
@@ -91,7 +161,7 @@ export const AdminDeliveries: React.FC = () => {
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-sm text-gray-500 mb-1 font-medium uppercase tracking-wide">Entregas en Curso</p>
-                            <p className="text-3xl font-bold text-gray-800">{activeDeliveries.length}</p>
+                            <p className="text-3xl font-bold text-white">{activeDeliveries.length}</p>
                             <p className="text-xs text-orange-600 mt-1">En tránsito o aceptadas</p>
                         </div>
                         <div className="p-3 bg-orange-50 rounded-lg text-orange-600">
@@ -104,7 +174,7 @@ export const AdminDeliveries: React.FC = () => {
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-sm text-gray-500 mb-1 font-medium uppercase tracking-wide">Completadas Hoy</p>
-                            <p className="text-3xl font-bold text-gray-800">{completedToday}</p>
+                            <p className="text-3xl font-bold text-white">{completedToday}</p>
                             <p className="text-xs text-emerald-600 mt-1">Pedidos finalizados</p>
                         </div>
                         <div className="p-3 bg-emerald-50 rounded-lg text-emerald-600">
@@ -158,6 +228,17 @@ export const AdminDeliveries: React.FC = () => {
                                 </span>
                             </div>
                         ))}
+                        {hasMoreActive && (
+                            <div className="p-4 flex justify-center">
+                                <button
+                                    onClick={loadMoreActive}
+                                    disabled={loadingMoreActive}
+                                    className="px-4 py-2 rounded-lg text-sm font-bold bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-60"
+                                >
+                                    {loadingMoreActive ? 'Cargando...' : 'Cargar más'}
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -214,6 +295,17 @@ export const AdminDeliveries: React.FC = () => {
                                 </div>
                             );
                         })}
+                        {hasMoreDrivers && (
+                            <div className="p-4 flex justify-center">
+                                <button
+                                    onClick={loadMoreDrivers}
+                                    disabled={loadingMoreDrivers}
+                                    className="px-4 py-2 rounded-lg text-sm font-bold bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-60"
+                                >
+                                    {loadingMoreDrivers ? 'Cargando...' : 'Cargar más'}
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

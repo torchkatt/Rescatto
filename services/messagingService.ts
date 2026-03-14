@@ -33,7 +33,6 @@ export const messagingService = {
                 const currentToken = await getToken(msgInstance, { vapidKey: VAPID_KEY });
 
                 if (currentToken) {
-                    logger.log('📲 FCM Token obtenido:', currentToken);
                     // Guardar Token en DB atado al usuario
                     const userRef = doc(db, 'users', userId);
                     await updateDoc(userRef, {

@@ -70,7 +70,7 @@ export const AuditLogStats: React.FC<AuditLogStatsProps> = ({ logs, totalCount }
                     <div key={idx} className={`p-4 rounded-2xl border ${kpi.color} flex items-center justify-between transition-all hover:shadow-md`}>
                         <div>
                             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{kpi.label}</p>
-                            <p className="text-2xl font-bold text-gray-900 mt-1">{kpi.value.toLocaleString()}</p>
+                            <p className="text-2xl font-bold text-white mt-1">{kpi.value.toLocaleString()}</p>
                         </div>
                         <div className="p-2 bg-white rounded-xl shadow-sm">
                             {kpi.icon}

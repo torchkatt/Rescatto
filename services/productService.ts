@@ -1,7 +1,8 @@
-import { collection, doc, getDocs, getDoc, addDoc, updateDoc, deleteDoc, query, where, Timestamp, limit, orderBy } from 'firebase/firestore';
+import { collection, doc, getDocs, getDoc, addDoc, updateDoc, deleteDoc, query, where, Timestamp, limit, orderBy, startAfter, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { db } from './firebase';
 import { Product, ProductType } from '../types';
 import { logger } from '../utils/logger';
+import { isProductExpired } from '../utils/productAvailability';
 
 /**
  * Genera un array de palabras clave para búsqueda prefix-based en Firestore.
@@ -51,7 +52,7 @@ export class ProductService {
 
             // 2. Si no hay caché o Forzamos Refresh, ir a Firebase
             const productsRef = collection(db, this.collectionName);
-            const q = query(productsRef, where('venueId', '==', venueId));
+            const q = query(productsRef, where('venueId', '==', venueId), limit(20));
             const snapshot = await getDocs(q);
 
             const products = snapshot.docs.map(doc => ({
@@ -69,6 +70,41 @@ export class ProductService {
         } catch (error) {
             logger.error(`Error fetching products for venue ${venueId}:`, error);
             throw error;
+        }
+    }
+
+    /**
+     * Obtiene productos por venue con paginación (sin caché)
+     */
+    async getProductsByVenuePage(
+        venueId: string,
+        lastDoc?: QueryDocumentSnapshot<DocumentData> | null,
+        pageSize: number = 20
+    ): Promise<{ products: Product[]; lastDoc: QueryDocumentSnapshot<DocumentData> | null; hasMore: boolean }> {
+        try {
+            const productsRef = collection(db, this.collectionName);
+            const constraints: any[] = [
+                where('venueId', '==', venueId),
+                orderBy('__name__'),
+            ];
+            if (lastDoc) constraints.push(startAfter(lastDoc));
+            constraints.push(limit(pageSize));
+
+            const q = query(productsRef, ...constraints);
+            const snapshot = await getDocs(q);
+            const products = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            })) as Product[];
+
+            return {
+                products,
+                lastDoc: snapshot.docs[snapshot.docs.length - 1] || null,
+                hasMore: snapshot.docs.length === pageSize,
+            };
+        } catch (error) {
+            logger.error(`Error fetching paged products for venue ${venueId}:`, error);
+            return { products: [], lastDoc: null, hasMore: false };
         }
     }
 
@@ -182,7 +218,7 @@ export class ProductService {
      */
     async searchProducts(searchTerm: string, filters: { city?: string, category?: string, diet?: string } = {}): Promise<Product[]> {
         const productsRef = collection(db, this.collectionName);
-        let q = query(productsRef, where('isActive', '==', true), limit(50));
+        let q = query(productsRef, where('isActive', '==', true), limit(20));
 
         if (searchTerm) {
             const term = searchTerm.toLowerCase().trim();
@@ -210,6 +246,80 @@ export class ProductService {
         } catch (error) {
             logger.error('Error during product search:', error);
             return [];
+        }
+    }
+
+    /**
+     * Obtiene todos los productos activos (con stock y no expirados) para una ciudad.
+     */
+    async getAllActiveProducts(city?: string): Promise<Product[]> {
+        try {
+            const productsRef = collection(db, this.collectionName);
+            const products: Product[] = [];
+            let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
+            let hasMore = true;
+            while (hasMore) {
+                const constraints: any[] = [
+                    where('quantity', '>', 0),
+                    orderBy('quantity', 'desc'),
+                ];
+                if (city) constraints.push(where('city', '==', city));
+                if (lastDoc) constraints.push(startAfter(lastDoc));
+                constraints.push(limit(50));
+                const q = query(productsRef, ...constraints);
+                const snapshot = await getDocs(q);
+                products.push(...snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                })) as Product[]);
+                lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
+                hasMore = snapshot.docs.length === 50;
+            }
+
+            const now = Date.now();
+            return products.filter(p => !isProductExpired((p as Product).availableUntil, now));
+        } catch (error) {
+            logger.error('Error fetching all active products:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Obtiene productos activos con paginación.
+     */
+    async getAllActiveProductsPage(
+        city?: string,
+        lastDoc?: QueryDocumentSnapshot<DocumentData> | null,
+        pageSize: number = 20
+    ): Promise<{ products: Product[]; lastDoc: QueryDocumentSnapshot<DocumentData> | null; hasMore: boolean }> {
+        try {
+            const productsRef = collection(db, this.collectionName);
+            const constraints: any[] = [
+                where('quantity', '>', 0),
+                orderBy('quantity', 'desc'),
+            ];
+            if (city) constraints.push(where('city', '==', city));
+            if (lastDoc) constraints.push(startAfter(lastDoc));
+            constraints.push(limit(pageSize));
+
+            const q = query(productsRef, ...constraints);
+            const snapshot = await getDocs(q);
+            const now = Date.now();
+            const products = snapshot.docs
+                .map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }))
+                .filter(p => !isProductExpired((p as Product).availableUntil, now)) as Product[];
+
+            return {
+                products,
+                lastDoc: snapshot.docs[snapshot.docs.length - 1] || null,
+                hasMore: snapshot.docs.length === pageSize,
+            };
+        } catch (error) {
+            logger.error('Error fetching active products page:', error);
+            return { products: [], lastDoc: null, hasMore: false };
         }
     }
 }

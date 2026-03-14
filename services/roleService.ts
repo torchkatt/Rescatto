@@ -4,7 +4,13 @@ import {
     doc,
     updateDoc,
     setDoc,
-    getDoc
+    getDoc,
+    query,
+    limit,
+    startAfter,
+    QueryDocumentSnapshot,
+    DocumentData,
+    orderBy
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { UserRole, Permission, ROLE_PERMISSIONS } from '../types';
@@ -23,11 +29,22 @@ export const roleService = {
      * Get all roles from Firestore
      */
     getAllRoles: async (): Promise<RoleDefinition[]> => {
-        const querySnapshot = await getDocs(collection(db, 'roles'));
-        return querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        })) as RoleDefinition[];
+        const roles: RoleDefinition[] = [];
+        let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
+        let hasMore = true;
+        while (hasMore) {
+            const q = lastDoc
+                ? query(collection(db, 'roles'), orderBy('__name__'), startAfter(lastDoc), limit(50))
+                : query(collection(db, 'roles'), orderBy('__name__'), limit(50));
+            const snapshot = await getDocs(q);
+            roles.push(...snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            })) as RoleDefinition[]);
+            lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
+            hasMore = snapshot.docs.length === 50;
+        }
+        return roles;
     },
 
     /**
@@ -44,7 +61,7 @@ export const roleService = {
      */
     seedRoles: async (force = false) => {
         const rolesRef = collection(db, 'roles');
-        const snapshot = await getDocs(rolesRef);
+        const snapshot = await getDocs(query(rolesRef, limit(1)));
 
         if (!snapshot.empty && !force) {
             logger.log('Roles already exist in database');

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
+import { useTranslation } from 'react-i18next';
 import { Chat } from '../../types';
 import { Search, MessageCircle } from 'lucide-react';
 import { format } from 'date-fns';
@@ -13,7 +14,8 @@ interface ChatListProps {
 
 export const ChatList: React.FC<ChatListProps> = ({ onChatSelect, className = '' }) => {
     const { user } = useAuth();
-    const { chats, openChat } = useChat();
+    const { chats, openChat, loadMoreChats, hasMoreChats, loadingMoreChats } = useChat();
+    const { t } = useTranslation();
     const [searchQuery, setSearchQuery] = useState('');
 
     const filteredChats = chats.filter(chat => {
@@ -30,7 +32,7 @@ export const ChatList: React.FC<ChatListProps> = ({ onChatSelect, className = ''
 
     const getOtherParticipantName = (chat: Chat) => {
         const otherUserId = chat.participants.find(id => id !== user?.id);
-        return otherUserId ? chat.participantNames[otherUserId] : 'Unknown';
+        return otherUserId ? chat.participantNames[otherUserId] : t('chat_user');
     };
 
     const getUnreadBadge = (chat: Chat) => {
@@ -45,7 +47,7 @@ export const ChatList: React.FC<ChatListProps> = ({ onChatSelect, className = ''
         
         return (
             <div className="min-w-[20px] h-5 px-1.5 flex items-center justify-center bg-emerald-600 text-white rounded-full text-[10px] font-black shadow-sm shadow-emerald-100 animate-pulse">
-                NEW
+                {t('chat_new')}
             </div>
         );
     };
@@ -58,7 +60,7 @@ export const ChatList: React.FC<ChatListProps> = ({ onChatSelect, className = ''
         if (diffInHours < 24) {
             return format(date, 'HH:mm', { locale: es });
         } else if (diffInHours < 48) {
-            return 'Ayer';
+            return t('chat_yesterday');
         } else {
             return format(date, 'dd/MM', { locale: es });
         }
@@ -76,7 +78,7 @@ export const ChatList: React.FC<ChatListProps> = ({ onChatSelect, className = ''
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Buscar chats..."
+                        placeholder={t('chat_search_ph')}
                         className="w-full pl-11 pr-4 py-3 bg-gray-100/80 border-2 border-gray-200/50 focus:border-emerald-500/30 focus:bg-white focus:shadow-xl focus:shadow-emerald-500/10 rounded-2xl outline-none transition-all font-bold placeholder:font-bold placeholder:text-gray-400 text-sm"
                     />
                 </div>
@@ -90,12 +92,12 @@ export const ChatList: React.FC<ChatListProps> = ({ onChatSelect, className = ''
                             <MessageCircle size={32} className="text-emerald-600/30" />
                         </div>
                         <h3 className="text-gray-900 font-black text-sm mb-1">
-                            {searchQuery ? 'Sin resultados' : 'Bandeja vacía'}
+                            {searchQuery ? t('chat_no_results') : t('chat_empty_tray')}
                         </h3>
                         <p className="text-gray-400 text-xs font-bold leading-relaxed px-4">
                             {searchQuery
-                                ? 'No encontramos nada que coincida con tu búsqueda.'
-                                : 'Tus conversaciones activas aparecerán aquí.'}
+                                ? t('chat_no_results_desc')
+                                : t('chat_empty_desc')}
                         </p>
                     </div>
                 ) : (
@@ -134,9 +136,9 @@ export const ChatList: React.FC<ChatListProps> = ({ onChatSelect, className = ''
 
                                             <p className={`text-xs truncate pr-4 ${unread ? 'text-gray-900 font-black' : 'text-gray-500 font-bold'}`}>
                                                 {chat.lastMessage.senderId === user?.id ? (
-                                                    <span className="text-emerald-600/60 mr-1">Tú:</span>
+                                                    <span className="text-emerald-600/60 mr-1">{t('chat_you')}</span>
                                                 ) : ''}
-                                                {chat.lastMessage.text || 'Sin mensajes'}
+                                                {chat.lastMessage.text || t('chat_no_messages_short')}
                                             </p>
 
                                             {chat.metadata.orderNumber && (
@@ -155,6 +157,17 @@ export const ChatList: React.FC<ChatListProps> = ({ onChatSelect, className = ''
                                 </button>
                             );
                         })}
+                        {hasMoreChats && searchQuery.length === 0 && (
+                            <div className="pt-3 flex justify-center">
+                                <button
+                                    onClick={loadMoreChats}
+                                    disabled={loadingMoreChats}
+                                    className="px-3 py-1.5 text-xs font-bold rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-60"
+                                >
+                                    {loadingMoreChats ? t('loading') : t('chat_load_more_chats')}
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

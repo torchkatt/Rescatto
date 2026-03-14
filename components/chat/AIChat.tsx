@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { useTranslation } from 'react-i18next';
 import { geminiService, AIMessage } from '../../services/geminiService';
 import { AIContextBuilder } from '../../services/aiContextBuilder';
 import { Send, Loader2, Sparkles, HelpCircle, Package, MapPin } from 'lucide-react';
@@ -18,6 +19,7 @@ interface AIChatProps {
 export const AIChat: React.FC<AIChatProps> = ({ className = '' }) => {
     const { user } = useAuth();
     const { error: showError } = useToast();
+    const { t } = useTranslation();
     const [messages, setMessages] = useState<AIMessage[]>([]);
     const [inputText, setInputText] = useState('');
     const [isThinking, setIsThinking] = useState(false);
@@ -28,26 +30,26 @@ export const AIChat: React.FC<AIChatProps> = ({ className = '' }) => {
     const getSuggestions = () => {
         if (user?.role === UserRole.SUPER_ADMIN) {
             return [
-                { icon: Sparkles, text: 'Resumen del Sistema' },
-                { icon: MapPin, text: 'Ver los Negocios Activos' },
-                { icon: Package, text: 'Métricas y Ventas de hoy' },
-                { icon: HelpCircle, text: '¿Cómo asignar credenciales nuevas?' }
+                { icon: Sparkles, text: t('chat_ai_suggestion_1_admin') },
+                { icon: MapPin, text: t('chat_ai_suggestion_2_admin') },
+                { icon: Package, text: t('chat_ai_suggestion_3_admin') },
+                { icon: HelpCircle, text: t('chat_ai_suggestion_4_admin') }
             ];
         }
         if (user?.role === UserRole.VENUE_OWNER) {
             return [
-                { icon: Package, text: '¿Cómo publico un Pack Sorpresa?' },
-                { icon: Sparkles, text: '¿Cómo funcionan los pagos hacia mi negocio?' },
-                { icon: MapPin, text: '¿Es posible limitar las cantidades diarias?' }
+                { icon: Package, text: t('chat_ai_suggestion_1_venue') },
+                { icon: Sparkles, text: t('chat_ai_suggestion_2_venue') },
+                { icon: MapPin, text: t('chat_ai_suggestion_3_venue') }
             ];
         }
         // DEFAULT FALLBACK (Customer / others)
         return [
-            { icon: HelpCircle, text: '¿Cómo funciona Rescatto?' },
-            { icon: Package, text: '¿Qué trae el Pack Sorpresa?' },
-            { icon: Sparkles, text: '¿Cuáles son los métodos de pago?' },
-            { icon: HelpCircle, text: '¿A qué hora debo ir a recoger mi pedido?' },
-            { icon: MapPin, text: 'Mostrar restaurantes cerca de mí' },
+            { icon: HelpCircle, text: t('chat_ai_suggestion_1_cust') },
+            { icon: Package, text: t('chat_ai_suggestion_2_cust') },
+            { icon: Sparkles, text: t('chat_ai_suggestion_3_cust') },
+            { icon: HelpCircle, text: t('chat_ai_suggestion_4_cust') },
+            { icon: MapPin, text: t('chat_ai_suggestion_5_cust') },
         ];
     };
 
@@ -118,7 +120,7 @@ export const AIChat: React.FC<AIChatProps> = ({ className = '' }) => {
 
         } catch (error) {
             logger.error('Error getting AI response:', error);
-            showError('No pude procesar tu mensaje. Intenta nuevamente.');
+            showError(t('chat_ai_error'));
             setIsThinking(false);
 
             // Remove the empty placeholder if it exists and is empty
@@ -154,17 +156,17 @@ export const AIChat: React.FC<AIChatProps> = ({ className = '' }) => {
                             <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center mb-4 shadow-xl shadow-purple-200">
                                 <Sparkles size={40} className="text-white bg-white/20 p-2 rounded-xl" />
                             </div>
-                            <h3 className="text-xl font-black text-gray-900">RescattoBot IA</h3>
-                            <p className="text-sm font-bold text-purple-600 tracking-tight">Tu asistente personal</p>
+                            <h3 className="text-xl font-black text-gray-900">{t('chat_ai_bot_name')}</h3>
+                            <p className="text-sm font-bold text-purple-600 tracking-tight">{t('chat_ai_assistant_label')}</p>
                         </div>
 
                         <div className="w-full space-y-6">
                             <h4 className="text-lg font-black text-gray-800">
-                                ¿En qué puedo ayudarte hoy?
+                                {t('chat_ai_how_help')}
                             </h4>
 
                             <div className="space-y-3 px-4">
-                                <p className="text-[10px] text-gray-400 font-black uppercase tracking-[0.2em] mb-2">Sugerencias Rápidas</p>
+                                <p className="text-[10px] text-gray-400 font-black uppercase tracking-[0.2em] mb-2">{t('chat_ai_suggestions_label')}</p>
                                 <div className="grid grid-cols-1 gap-2.5">
                                     {quickSuggestions.map((suggestion, index) => {
                                         const Icon = suggestion.icon;
@@ -265,7 +267,7 @@ export const AIChat: React.FC<AIChatProps> = ({ className = '' }) => {
                         value={inputText}
                         onChange={(e) => setInputText(e.target.value)}
                         onKeyPress={handleKeyPress}
-                        placeholder="Escribe tu pregunta..."
+                        placeholder={t('chat_ai_placeholder')}
                         disabled={isThinking}
                         className="flex-1 px-4 py-3 bg-transparent placeholder:text-gray-400 text-sm font-bold focus:outline-none disabled:opacity-50"
                     />

@@ -4,15 +4,16 @@
 
 @layer base {
     :root {
-        --primary-color: #10b981;
-        /* Emerald 500 */
-        --background-color: #f8fafc;
-        /* Slate 50 */
+        --primary-color: #1A6B4A;   /* Brand primary */
+        --accent-color:  #FF6B35;   /* Brand accent */
+        --background-color: #FAFAF7; /* Brand bg */
         --surface-color: #ffffff;
-        --text-primary: #0f172a;
-        /* Slate 900 */
+        --text-primary: #0D1F18;    /* Brand dark */
         --text-secondary: #64748b;
-        /* Slate 500 */
+        
+        /* Layout Variables */
+        --sidebar-width: clamp(240px, 16vw, 280px);
+        --header-height: 80px;
     }
 
     html {
@@ -30,12 +31,11 @@
         box-sizing: border-box;
     }
 
-    /* Force all layout components to respect viewport boundaries */
+    /* Root: tamaño exacto del viewport, sin overflow que rompa position:fixed/sticky */
     #root {
-        overflow-x: hidden;
         width: 100%;
+        height: 100%;
         max-width: 100vw;
-        position: relative;
     }
 
     body {

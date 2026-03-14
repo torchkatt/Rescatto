@@ -4,44 +4,67 @@ import { Clock, CheckCircle, Package, RotateCw, UtensilsCrossed, AlertCircle } f
 import { dataService } from '../services/dataService';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
+import { LoadingSpinner } from '../components/customer/common/Loading';
 
 const Orders: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'HISTORY'>('ACTIVE');
   const [orders, setOrders] = useState<Order[]>([]);
   const [isVenueMissing, setIsVenueMissing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
   const { user } = useAuth();
   const { showToast } = useToast();
 
   useEffect(() => {
-    let unsubscribe: () => void = () => { };
-
-    if (user) {
-      // Determinar qué sedes escuchar
-      let targetVenues: string | string[] = 'all';
-
-      if (user.role !== UserRole.SUPER_ADMIN) {
-        if (user.venueIds && user.venueIds.length > 0) {
-          targetVenues = user.venueIds;
-        } else if (user.venueId) {
-          targetVenues = user.venueId;
-        } else {
-          // Si no tiene sede asignada y no es super_admin, no puede ver pedidos
-          setOrders([]);
-          setIsVenueMissing(true);
-          return;
-        }
-      }
-
-      // Resetear estado si tiene sede
-      setIsVenueMissing(false);
-
-      unsubscribe = dataService.subscribeToOrders(targetVenues, (updatedOrders) => {
-        setOrders(updatedOrders);
-      });
-    }
-
-    return () => unsubscribe();
+    if (!user) return;
+    loadOrders(true);
   }, [user?.id, user?.venueId, JSON.stringify(user?.venueIds), user?.role]);
+
+  const resolveTargetVenues = () => {
+    let targetVenues: string | string[] | 'all' = 'all';
+    if (user?.role !== UserRole.SUPER_ADMIN) {
+      if (user?.venueIds && user.venueIds.length > 0) {
+        targetVenues = user.venueIds;
+      } else if (user?.venueId) {
+        targetVenues = user.venueId;
+      } else {
+        return null;
+      }
+    }
+    return targetVenues;
+  };
+
+  const loadOrders = async (initial = false) => {
+    const targetVenues = resolveTargetVenues();
+    if (!targetVenues) {
+      setOrders([]);
+      setIsVenueMissing(true);
+      return;
+    }
+    setIsVenueMissing(false);
+    if (initial) {
+      setLoading(true);
+      setOrders([]);
+      setLastDoc(null);
+      setHasMore(true);
+    } else {
+      setLoadingMore(true);
+    }
+    try {
+      const page = await dataService.getOrdersPage(targetVenues, initial ? null : lastDoc, 20);
+      setOrders(prev => initial ? page.orders : [...prev, ...page.orders]);
+      setLastDoc(page.lastDoc);
+      setHasMore(page.hasMore);
+    } catch (error) {
+      showToast('error', 'Error al cargar pedidos');
+    } finally {
+      if (initial) setLoading(false);
+      setLoadingMore(false);
+    }
+  };
 
   const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
     try {
@@ -76,6 +99,10 @@ const Orders: React.FC = () => {
     ].includes(o.status);
     return o.status === OrderStatus.COMPLETED || o.status === OrderStatus.MISSED;
   });
+
+  if (loading) {
+    return <div className="flex justify-center py-12"><LoadingSpinner /></div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -269,6 +296,17 @@ const Orders: React.FC = () => {
           ))
         )}
       </div>
+      {hasMore && (
+        <div className="flex justify-center">
+          <button
+            onClick={() => loadOrders(false)}
+            disabled={loadingMore}
+            className="px-4 py-2 rounded-full text-sm font-bold bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-60"
+          >
+            {loadingMore ? 'Cargando...' : 'Cargar más pedidos'}
+          </button>
+        </div>
+      )}
     </div>
   );
 };

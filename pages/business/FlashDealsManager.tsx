@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { logger } from '../../utils/logger';
 import { formatCOP } from '../../utils/formatters';
+import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -59,9 +60,15 @@ export const FlashDealsManager: React.FC = () => {
 
     const [deals, setDeals] = useState<FlashDeal[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
+    const [productsLastDoc, setProductsLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+    const [hasMoreProducts, setHasMoreProducts] = useState(true);
+    const [loadingMoreProducts, setLoadingMoreProducts] = useState(false);
     const [venues, setVenues] = useState<Venue[]>([]);
     const [selectedVenueId, setSelectedVenueId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
+    const [loadingMoreDeals, setLoadingMoreDeals] = useState(false);
+    const [hasMoreDeals, setHasMoreDeals] = useState(true);
+    const [dealsLastDoc, setDealsLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
     const [showModal, setShowModal] = useState(false);
     const [editingDeal, setEditingDeal] = useState<FlashDeal | null>(null);
     const [saving, setSaving] = useState(false);
@@ -87,11 +94,15 @@ export const FlashDealsManager: React.FC = () => {
         if (!selectedVenueId) return;
         setLoading(true);
         Promise.all([
-            flashDealService.getDealsByVenue(selectedVenueId),
-            productService.getProductsByVenue(selectedVenueId),
+            flashDealService.getDealsByVenuePage(selectedVenueId, null, 20),
+            productService.getProductsByVenuePage(selectedVenueId, null, 20),
         ]).then(([d, p]) => {
-            setDeals(d);
-            setProducts(p);
+            setDeals(d.data);
+            setDealsLastDoc(d.lastDoc);
+            setHasMoreDeals(d.hasMore);
+            setProducts(p.products);
+            setProductsLastDoc(p.lastDoc);
+            setHasMoreProducts(p.hasMore);
         }).catch(err => {
             logger.error('FlashDealsManager load error:', err);
             toast.error('Error cargando flash deals');
@@ -174,13 +185,45 @@ export const FlashDealsManager: React.FC = () => {
             }
             setShowModal(false);
             // Refresh list
-            const refreshed = await flashDealService.getDealsByVenue(selectedVenueId);
-            setDeals(refreshed);
+            const refreshed = await flashDealService.getDealsByVenuePage(selectedVenueId, null, 20);
+            setDeals(refreshed.data);
+            setDealsLastDoc(refreshed.lastDoc);
+            setHasMoreDeals(refreshed.hasMore);
         } catch (err) {
             logger.error('FlashDealsManager save error:', err);
             toast.error('Error guardando el flash deal');
         } finally {
             setSaving(false);
+        }
+    };
+
+    const loadMoreDeals = async () => {
+        if (!selectedVenueId || !hasMoreDeals || loadingMoreDeals) return;
+        setLoadingMoreDeals(true);
+        try {
+            const next = await flashDealService.getDealsByVenuePage(selectedVenueId, dealsLastDoc, 20);
+            setDeals(prev => [...prev, ...next.data]);
+            setDealsLastDoc(next.lastDoc);
+            setHasMoreDeals(next.hasMore);
+        } catch (err) {
+            logger.error('Error loading more deals:', err);
+        } finally {
+            setLoadingMoreDeals(false);
+        }
+    };
+
+    const loadMoreProducts = async () => {
+        if (!selectedVenueId || !hasMoreProducts || loadingMoreProducts) return;
+        setLoadingMoreProducts(true);
+        try {
+            const next = await productService.getProductsByVenuePage(selectedVenueId, productsLastDoc, 20);
+            setProducts(prev => [...prev, ...next.products]);
+            setProductsLastDoc(next.lastDoc);
+            setHasMoreProducts(next.hasMore);
+        } catch (err) {
+            logger.error('Error loading more products:', err);
+        } finally {
+            setLoadingMoreProducts(false);
         }
     };
 
@@ -348,6 +391,17 @@ export const FlashDealsManager: React.FC = () => {
                             </div>
                         );
                     })}
+                    {hasMoreDeals && (
+                        <div className="flex justify-center">
+                            <button
+                                onClick={loadMoreDeals}
+                                disabled={loadingMoreDeals}
+                                className="px-4 py-2 rounded-full text-sm font-bold bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-60"
+                            >
+                                {loadingMoreDeals ? 'Cargando...' : 'Cargar más deals'}
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -357,6 +411,9 @@ export const FlashDealsManager: React.FC = () => {
                     form={form}
                     setForm={setForm}
                     products={products}
+                    hasMoreProducts={hasMoreProducts}
+                    loadingMoreProducts={loadingMoreProducts}
+                    onLoadMoreProducts={loadMoreProducts}
                     editing={!!editingDeal}
                     saving={saving}
                     onSave={handleSave}
@@ -396,13 +453,16 @@ interface ModalProps {
     form: FormState;
     setForm: React.Dispatch<React.SetStateAction<FormState>>;
     products: Product[];
+    hasMoreProducts: boolean;
+    loadingMoreProducts: boolean;
+    onLoadMoreProducts: () => void;
     editing: boolean;
     saving: boolean;
     onSave: () => void;
     onClose: () => void;
 }
 
-const DealModal: React.FC<ModalProps> = ({ form, setForm, products, editing, saving, onSave, onClose }) => {
+const DealModal: React.FC<ModalProps> = ({ form, setForm, products, hasMoreProducts, loadingMoreProducts, onLoadMoreProducts, editing, saving, onSave, onClose }) => {
     const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
         setForm(f => ({ ...f, [k]: v }));
 
@@ -461,6 +521,17 @@ const DealModal: React.FC<ModalProps> = ({ form, setForm, products, editing, sav
                             </select>
                             <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                         </div>
+                        {hasMoreProducts && (
+                            <div className="mt-2 flex justify-start">
+                                <button
+                                    onClick={onLoadMoreProducts}
+                                    disabled={loadingMoreProducts}
+                                    className="px-3 py-1.5 text-xs font-bold rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-60"
+                                >
+                                    {loadingMoreProducts ? 'Cargando...' : 'Cargar más productos'}
+                                </button>
+                            </div>
+                        )}
                         {selectedProduct && (
                             <div className="mt-1.5 space-y-1">
                                 <p className="text-xs text-gray-500">

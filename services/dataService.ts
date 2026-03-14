@@ -14,6 +14,9 @@ import {
     Timestamp,
     increment,
     Unsubscribe,
+    startAfter,
+    QueryDocumentSnapshot,
+    DocumentData,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { Product, Order, Venue, OrderStatus, ProductType, DonationCenter } from '../types';
@@ -186,32 +189,96 @@ export const dataService = {
         });
     },
 
-    getAllOrders: async (): Promise<Order[]> => {
+    getOrdersPage: async (
+        venueId: string | string[] | 'all',
+        lastDoc?: QueryDocumentSnapshot<DocumentData> | null,
+        pageSize: number = 20
+    ): Promise<{ orders: Order[]; lastDoc: QueryDocumentSnapshot<DocumentData> | null; hasMore: boolean }> => {
         const ordersRef = collection(db, 'orders');
-        const q = query(
-            ordersRef,
-            orderBy('createdAt', 'desc'),
-            limit(500) // Preventivo global
-        );
-        const querySnapshot = await getDocs(q);
+        let q;
+        if (venueId === 'all') {
+            const constraints: any[] = [orderBy('createdAt', 'desc')];
+            if (lastDoc) constraints.push(startAfter(lastDoc));
+            constraints.push(limit(pageSize));
+            q = query(ordersRef, ...constraints);
+        } else if (Array.isArray(venueId)) {
+            if (venueId.length === 0) return { orders: [], lastDoc: null, hasMore: false };
+            const limitedVenueIds = venueId.slice(0, 30);
+            const constraints: any[] = [
+                where('venueId', 'in', limitedVenueIds),
+                orderBy('createdAt', 'desc'),
+            ];
+            if (lastDoc) constraints.push(startAfter(lastDoc));
+            constraints.push(limit(pageSize));
+            q = query(ordersRef, ...constraints);
+        } else {
+            const constraints: any[] = [
+                where('venueId', '==', venueId),
+                orderBy('createdAt', 'desc'),
+            ];
+            if (lastDoc) constraints.push(startAfter(lastDoc));
+            constraints.push(limit(pageSize));
+            q = query(ordersRef, ...constraints);
+        }
 
-        return querySnapshot.docs.map(doc => {
-            const data = doc.data();
+        const querySnapshot = await getDocs(q);
+        const orders = querySnapshot.docs.map(doc => {
+            const data = doc.data() as any;
             return {
                 id: doc.id,
                 customerName: data.customerName || 'Cliente',
                 products: data.products || [],
                 totalAmount: data.totalAmount,
                 status: data.status as OrderStatus,
-                createdAt: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+                createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt || new Date().toISOString(),
                 pickupDeadline: data.pickupDeadline,
-                venueId: data.venueId || '',
+                venueId: data.venueId || (Array.isArray(venueId) ? data.venueId : venueId),
                 customerId: data.customerId || 'unknown',
                 deliveryAddress: data.deliveryAddress || '',
                 phone: data.phone || '',
                 paymentMethod: data.paymentMethod || 'cash',
             };
         });
+
+        return {
+            orders,
+            lastDoc: querySnapshot.docs[querySnapshot.docs.length - 1] || null,
+            hasMore: querySnapshot.docs.length === pageSize,
+        };
+    },
+
+    getAllOrders: async (): Promise<Order[]> => {
+        const ordersRef = collection(db, 'orders');
+        const orders: Order[] = [];
+        let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
+        let hasMore = true;
+        while (hasMore) {
+            const constraints: any[] = [orderBy('createdAt', 'desc')];
+            if (lastDoc) constraints.push(startAfter(lastDoc));
+            constraints.push(limit(50));
+            const q = query(ordersRef, ...constraints);
+            const querySnapshot = await getDocs(q);
+            orders.push(...querySnapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    customerName: data.customerName || 'Cliente',
+                    products: data.products || [],
+                    totalAmount: data.totalAmount,
+                    status: data.status as OrderStatus,
+                    createdAt: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+                    pickupDeadline: data.pickupDeadline,
+                    venueId: data.venueId || '',
+                    customerId: data.customerId || 'unknown',
+                    deliveryAddress: data.deliveryAddress || '',
+                    phone: data.phone || '',
+                    paymentMethod: data.paymentMethod || 'cash',
+                };
+            }));
+            lastDoc = querySnapshot.docs[querySnapshot.docs.length - 1] || null;
+            hasMore = querySnapshot.docs.length === 50;
+        }
+        return orders;
     },
 
     updateOrderStatus: async (id: string, status: OrderStatus, orderMetadata?: { venueId: string, amount: number }): Promise<void> => {
@@ -251,8 +318,7 @@ export const dataService = {
         if (venueId === 'all') {
             q = query(
                 ordersRef,
-                orderBy('createdAt', 'desc'),
-                limit(200)
+                orderBy('createdAt', 'desc')
             );
         } else if (Array.isArray(venueId)) {
             if (venueId.length === 0) {
@@ -264,15 +330,13 @@ export const dataService = {
             q = query(
                 ordersRef,
                 where('venueId', 'in', limitedVenueIds),
-                orderBy('createdAt', 'desc'),
-                limit(200)
+                orderBy('createdAt', 'desc')
             );
         } else {
             q = query(
                 ordersRef,
                 where('venueId', '==', venueId),
-                orderBy('createdAt', 'desc'),
-                limit(200)
+                orderBy('createdAt', 'desc')
             );
         }
 
@@ -303,7 +367,7 @@ export const dataService = {
     },
 
     /**
-     * Suscribirse a pedidos disponibles para conductores (Listos para recoger o en preparación/pagados)
+     * Suscribirse a pedidos disponibles para conductores (Listos para recoger)
      */
     subscribeToAvailableOrders: (callback: (orders: Order[]) => void): Unsubscribe => {
         const ordersRef = collection(db, 'orders');
@@ -312,14 +376,11 @@ export const dataService = {
         const q = query(
             ordersRef,
             where('deliveryMethod', '==', 'delivery'),
-            where('driverId', '==', null),
-            limit(200)
+            where('driverId', '==', null)
         );
 
         return onSnapshot(q, (snapshot) => {
             const allowedStatuses = new Set<OrderStatus>([
-                OrderStatus.PAID,
-                OrderStatus.IN_PREPARATION,
                 OrderStatus.READY_PICKUP,
             ]);
 
@@ -355,8 +416,7 @@ export const dataService = {
         const q = query(
             ordersRef,
             where('driverId', '==', driverId),
-            orderBy('createdAt', 'desc'),
-            limit(100)
+            orderBy('createdAt', 'desc')
         );
 
         return onSnapshot(q, (snapshot) => {
@@ -429,21 +489,31 @@ export const dataService = {
     // --- CENTROS DE DONACIÓN ---
     getDonationCenters: async (): Promise<DonationCenter[]> => {
         const centersRef = collection(db, 'donation_centers');
-        const q = query(centersRef, orderBy('name', 'asc'));
-        const querySnapshot = await getDocs(q);
-
-        return querySnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                name: data.name,
-                address: data.address,
-                city: data.city,
-                phone: data.phone,
-                imageUrl: data.imageUrl,
-                description: data.description,
-                type: data.type,
-            } as DonationCenter;
-        });
+        const centers: DonationCenter[] = [];
+        let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
+        let hasMore = true;
+        while (hasMore) {
+            const constraints: any[] = [orderBy('name', 'asc')];
+            if (lastDoc) constraints.push(startAfter(lastDoc));
+            constraints.push(limit(50));
+            const q = query(centersRef, ...constraints);
+            const querySnapshot = await getDocs(q);
+            centers.push(...querySnapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    name: data.name,
+                    address: data.address,
+                    city: data.city,
+                    phone: data.phone,
+                    imageUrl: data.imageUrl,
+                    description: data.description,
+                    type: data.type,
+                } as DonationCenter;
+            }));
+            lastDoc = querySnapshot.docs[querySnapshot.docs.length - 1] || null;
+            hasMore = querySnapshot.docs.length === 50;
+        }
+        return centers;
     },
 };

@@ -71,7 +71,7 @@ export const AdminSales: React.FC = () => {
         <div className="space-y-6">
             {/* Header */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                <h2 className="text-2xl font-bold text-white flex items-center gap-2">
                     <BarChart3 className="text-emerald-600" />
                     Ventas & Analytics Global
                 </h2>
@@ -116,7 +116,7 @@ export const AdminSales: React.FC = () => {
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-emerald-100 relative overflow-hidden">
                         <div className="absolute right-0 top-0 h-full w-2 bg-emerald-500 rounded-r-xl" />
                         <p className="text-sm text-gray-500 mb-1 font-medium uppercase tracking-wide">Ingresos Totales</p>
-                        <p className="text-3xl font-bold text-gray-800">{formatCOP(revenueMetrics.totalRevenue)}</p>
+                        <p className="text-3xl font-bold text-white">{formatCOP(revenueMetrics.totalRevenue)}</p>
                         {revenueMetrics.revenueGrowth !== undefined && (
                             <p className={`text-xs mt-1 font-medium ${revenueMetrics.revenueGrowth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                 {revenueMetrics.revenueGrowth >= 0 ? '↑' : '↓'} {Math.abs(revenueMetrics.revenueGrowth).toFixed(1)}% vs período anterior
@@ -126,7 +126,7 @@ export const AdminSales: React.FC = () => {
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-blue-100 relative overflow-hidden">
                         <div className="absolute right-0 top-0 h-full w-2 bg-blue-500 rounded-r-xl" />
                         <p className="text-sm text-gray-500 mb-1 font-medium uppercase tracking-wide">Comisión Plataforma (10%)</p>
-                        <p className="text-3xl font-bold text-gray-800">
+                        <p className="text-3xl font-bold text-white">
                             {formatCOP(Math.round(revenueMetrics.totalRevenue * 0.1))}
                         </p>
                         <p className="text-xs text-gray-400 mt-1">{revenueMetrics.totalOrders} pedidos en el período</p>
@@ -134,7 +134,7 @@ export const AdminSales: React.FC = () => {
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-purple-100 relative overflow-hidden">
                         <div className="absolute right-0 top-0 h-full w-2 bg-purple-500 rounded-r-xl" />
                         <p className="text-sm text-gray-500 mb-1 font-medium uppercase tracking-wide">Ticket Promedio</p>
-                        <p className="text-3xl font-bold text-gray-800">
+                        <p className="text-3xl font-bold text-white">
                             {formatCOP(Math.round(revenueMetrics.averageOrderValue))}
                         </p>
                         <p className="text-xs text-gray-400 mt-1">{topProducts.length} productos únicos vendidos</p>

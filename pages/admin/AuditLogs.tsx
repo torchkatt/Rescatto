@@ -108,7 +108,7 @@ export const AuditLogs: React.FC = () => {
             try {
                 const logsRef = collection(db, 'audit_logs');
                 const [snapshot, countSnap] = await Promise.all([
-                    getDocs(query(logsRef, orderBy('timestamp', 'desc'), limit(200))),
+                    getDocs(query(logsRef, orderBy('timestamp', 'desc'), limit(20))),
                     getCountFromServer(logsRef),
                 ]);
                 const fetchedStatsLogs = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as AuditLog[];
@@ -282,7 +282,7 @@ export const AuditLogs: React.FC = () => {
             <div className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm transition-opacity" onClick={() => setSelectedLog(null)}>
                 <div className="w-full sm:max-w-xl bg-white h-full shadow-2xl p-6 overflow-y-auto transform transition-transform animate-in slide-in-from-right duration-200" onClick={e => e.stopPropagation()}>
                     <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                        <h3 className="text-xl font-bold text-white flex items-center gap-2">
                             <Activity className="text-emerald-600" />
                             Detalle del Evento
                         </h3>
@@ -373,8 +373,8 @@ export const AuditLogs: React.FC = () => {
     return (
         <div className="p-8 max-w-7xl mx-auto relative overflow-x-hidden">
             <div className="mb-8">
-                <h1 className="text-3xl font-bold text-gray-900">Centro de Auditoría</h1>
-                <p className="text-gray-500 mt-2">Monitoreo forense y control de seguridad en tiempo real.</p>
+                <h1 className="text-3xl font-bold text-white">Centro de Auditoría</h1>
+                <p className="text-gray-400 mt-2">Monitoreo forense y control de seguridad en tiempo real.</p>
             </div>
 
             {/* STATS & CHARTS */}

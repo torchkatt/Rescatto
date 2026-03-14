@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { adminService } from '../../../services/adminService';
 import { collection, getDocs, getDoc, doc, query, where, Timestamp, getCountFromServer } from 'firebase/firestore';
 import { db } from '../../../services/firebase';
 import {
@@ -55,9 +54,9 @@ export const AdminOverview: React.FC<Props> = ({ city }) => {
             );
 
             // Run optimized queries in parallel — cuts dashboard load time by ~95%
-            const [users, venues, productsSnapshot, todayOrdersSnapshot, activeDeliveriesCount, pendingOrdersCount] = await Promise.all([
-                adminService.getAllUsers(city),
-                adminService.getAllVenues(true, city),
+            const [usersCount, venuesCount, productsSnapshot, todayOrdersSnapshot, activeDeliveriesCount, pendingOrdersCount] = await Promise.all([
+                getCountFromServer(city ? query(collection(db, 'users'), where('city', '==', city)) : collection(db, 'users')),
+                getCountFromServer(city ? query(collection(db, 'venues'), where('city', '==', city)) : collection(db, 'venues')),
                 getCountFromServer(city ? query(collection(db, 'products'), where('city', '==', city)) : collection(db, 'products')),
                 getDocs(city ? query(todayOrdersQuery, where('city', '==', city)) : todayOrdersQuery),
                 getCountFromServer(query(collection(db, 'orders'), where('status', '==', 'IN_TRANSIT'), ...(city ? [where('city', '==', city)] : []))),
@@ -100,6 +99,8 @@ export const AdminOverview: React.FC<Props> = ({ city }) => {
                 todaySales,
                 activeDeliveries: activeDeliveriesCount.data().count,
                 pendingOrders: pendingOrdersCount.data().count,
+                totalUsers: usersCount.data().count,
+                totalVenues: venuesCount.data().count,
             });
         } catch (error) {
             logger.error('Failed to load stats:', error);
@@ -159,7 +160,7 @@ export const AdminOverview: React.FC<Props> = ({ city }) => {
 
     return (
         <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-gray-800">
+            <h2 className="text-2xl font-bold text-white">
                 {city ? `Vista General: ${city}` : 'Vista General de la Plataforma'}
             </h2>
 
@@ -175,7 +176,7 @@ export const AdminOverview: React.FC<Props> = ({ city }) => {
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm text-gray-500 mb-1">{card.label}</p>
-                                    <p className="text-3xl font-bold text-gray-800">{card.value}</p>
+                                    <p className="text-3xl font-bold text-white">{card.value}</p>
                                 </div>
                                 <div className={`${card.color} p-4 rounded-lg`}>
                                     <Icon className="text-white" size={24} />

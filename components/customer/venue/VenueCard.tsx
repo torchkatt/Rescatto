@@ -6,6 +6,8 @@ import { Star, Heart, Flame, TrendingUp, Zap, ChevronRight } from 'lucide-react'
 import { Countdown } from '../common/Countdown';
 import { calculateDistance } from '../../../services/locationService';
 import { useFavorites } from '../../../hooks/useFavorites';
+import { useTranslation } from 'react-i18next';
+import { isVenueOpen } from '../../../utils/venueAvailability';
 
 interface VenueCardProps {
     venue: Venue;
@@ -51,6 +53,7 @@ export const VenueCard: React.FC<VenueCardProps> = ({
 }) => {
     const navigate = useNavigate();
     const { isFavorite, toggleFavorite } = useFavorites();
+    const { t } = useTranslation();
     const isFav = isFavorite(venue.id);
 
     const rawDistance = userLocation
@@ -76,23 +79,11 @@ export const VenueCard: React.FC<VenueCardProps> = ({
         else navigate(`/app/venue/${venue.id}`);
     };
 
-    const isOpen = () => {
-        if (!venue.closingTime) return true;
-        const now = new Date();
-        const currentHours = now.getHours();
-        const currentMinutes = now.getMinutes();
-        const [closingHours, closingMinutes] = venue.closingTime.split(':').map(Number);
-
-        if (currentHours < closingHours) return true;
-        if (currentHours === closingHours && currentMinutes < closingMinutes) return true;
-        return false;
-    };
-
-    const openStatus = isOpen();
+    const openStatus = isVenueOpen(venue);
 
     return (
         <Card
-            className="group relative flex flex-col h-full transition-all duration-300 transform hover:!scale-105 hover:!shadow-2xl hover:z-10 border border-transparent hover:border-emerald-500/30 overflow-hidden"
+            className={`group relative flex flex-col h-full transition-all duration-500 transform hover:!scale-[1.03] hover:!shadow-[0_32px_64px_-16px_rgba(0,0,0,0.12)] hover:z-10 border border-transparent hover:border-emerald-500/10 overflow-hidden ${!openStatus ? 'opacity-60 grayscale-[30%]' : ''}`}
             onClick={handleClick}
         >
             <div className="relative h-48 -mx-4 -mt-4 mb-4 overflow-hidden">
@@ -121,7 +112,7 @@ export const VenueCard: React.FC<VenueCardProps> = ({
 
                 {/* Hot Deal badge — shown when dealScore is high but not trending */}
                 {isHotDeal && !isTrending && (
-                    <div className="absolute top-2 left-2 z-20 flex items-center gap-1 bg-red-500 text-white px-2 py-1 rounded-full text-xs font-black shadow-lg">
+                    <div className="absolute top-2 left-2 z-20 flex items-center gap-1 bg-brand-accent text-white px-2 py-1 rounded-full text-xs font-black shadow-lg">
                         <Zap size={11} />
                         ¡Oferta hot!
                     </div>
@@ -157,7 +148,7 @@ export const VenueCard: React.FC<VenueCardProps> = ({
 
                 {/* Dynamic pricing badge — shown when at least 1 product has dropping price */}
                 {hasDynamicPricing && !isLowStock && (
-                    <div className="absolute bottom-10 left-2 z-20 bg-orange-500 text-white px-2 py-0.5 rounded-full text-[10px] font-black shadow-md flex items-center gap-1 animate-pulse">
+                    <div className="absolute bottom-10 left-2 z-20 bg-brand-accent text-white px-2 py-0.5 rounded-full text-[10px] font-black shadow-md flex items-center gap-1 animate-pulse">
                         ⬇️ Precio bajando
                     </div>
                 )}
@@ -215,15 +206,19 @@ export const VenueCard: React.FC<VenueCardProps> = ({
                                 : 'bg-red-50 text-red-700'
                             }`}>
                             <div className={`shrink-0 w-1.5 h-1.5 rounded-full ${openStatus ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
-                            <span className="truncate">{openStatus ? `Abierto • ${venue.closingTime}` : 'Cerrado'}</span>
+                            <span className="truncate">
+                                {openStatus
+                                    ? t('open_until', { time: venue.closingTime })
+                                    : t('closed_now')}
+                            </span>
                         </div>
                         {productCount !== undefined && productCount > 0 && (
                             <span className="text-[10px] font-bold text-emerald-700 w-fit truncate bg-white">
-                                {productCount} {productCount === 1 ? 'pack disp.' : 'packs disp.'}
+                                {productCount} {productCount === 1 ? t('cart_product') : t('cart_products')} disp.
                             </span>
                         )}
                     </div>
-                    <button 
+                    <button
                         onClick={(e) => {
                             e.stopPropagation();
                             if(onClick) onClick(venue);

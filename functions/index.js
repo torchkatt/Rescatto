@@ -73,8 +73,18 @@ const {
 
 // ─── Subscription Services ────────────────────────────────────────────────────
 const {
-    subscribeToRescattoPass
+    createSubscriptionRequest,
+    submitPaymentProof,
+    approveSubscriptionRequest,
+    rejectSubscriptionRequest,
 } = require("./src/services/subscriptionService");
+
+// ─── Payment Settings Services ────────────────────────────────────────────────
+const {
+    getBankPaymentInfo,
+    requestBankInfoChange,
+    updateBankPaymentInfo,
+} = require("./src/services/paymentSettingsService");
 
 // ─── Leaderboard Services ─────────────────────────────────────────────────────
 const {
@@ -135,5 +145,13 @@ module.exports = {
     healthCheck,
 
     // Subscriptions
-    subscribeToRescattoPass
+    createSubscriptionRequest,
+    submitPaymentProof,
+    approveSubscriptionRequest,
+    rejectSubscriptionRequest,
+
+    // Payment Settings (SUPER_ADMIN)
+    getBankPaymentInfo,
+    requestBankInfoChange,
+    updateBankPaymentInfo,
 };

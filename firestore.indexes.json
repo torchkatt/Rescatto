@@ -145,6 +145,20 @@
             ]
         },
         {
+            "collectionGroup": "products",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "quantity",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "city",
+                    "order": "ASCENDING"
+                }
+            ]
+        },
+        {
             "collectionGroup": "messages",
             "queryScope": "COLLECTION_GROUP",
             "fields": [
@@ -372,6 +386,20 @@
                 },
                 {
                     "fieldPath": "impact.weeklyRescues",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "subscription_requests",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "status",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "createdAt",
                     "order": "DESCENDING"
                 }
             ]

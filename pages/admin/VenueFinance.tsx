@@ -9,12 +9,16 @@ import { formatCOP } from '../../utils/formatters';
 import { adminService } from '../../services/adminService';
 import { reportService } from '../../services/reportService';
 import { venueService } from '../../services/venueService';
+import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 
 export const VenueFinance: React.FC = () => {
     const { user } = useAuth();
     const [wallet, setWallet] = useState<VenueWallet | null>(null);
     const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [hasMore, setHasMore] = useState(true);
+    const [lastTxDoc, setLastTxDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
     const [generatingReport, setGeneratingReport] = useState(false);
     const [selectedDate, setSelectedDate] = useState({ 
         month: new Date().getMonth(), 
@@ -26,12 +30,14 @@ export const VenueFinance: React.FC = () => {
             if (!user?.venueId) return;
             try {
                 setLoading(true);
-                const [walletData, txData] = await Promise.all([
+                const [walletData, txPage] = await Promise.all([
                     walletService.getWalletBalance(user.venueId),
-                    walletService.getTransactions(user.venueId)
+                    walletService.getTransactionsPage(user.venueId, null, 20)
                 ]);
                 setWallet(walletData);
-                setTransactions(txData);
+                setTransactions(txPage.data);
+                setLastTxDoc(txPage.lastDoc);
+                setHasMore(txPage.hasMore);
             } catch (error) {
                 logger.error("Error fetching finance data", error);
             } finally {
@@ -63,6 +69,21 @@ export const VenueFinance: React.FC = () => {
     }
 
     if (loading) return <div className="flex justify-center p-24"><LoadingSpinner size="lg" /></div>;
+
+    const loadMoreTransactions = async () => {
+        if (!user?.venueId || !hasMore || loadingMore) return;
+        setLoadingMore(true);
+        try {
+            const next = await walletService.getTransactionsPage(user.venueId, lastTxDoc, 20);
+            setTransactions(prev => [...prev, ...next.data]);
+            setLastTxDoc(next.lastDoc);
+            setHasMore(next.hasMore);
+        } catch (error) {
+            logger.error('Error loading more transactions', error);
+        } finally {
+            setLoadingMore(false);
+        }
+    };
 
     const balance = wallet?.balance || 0;
     const isDebt = balance < 0;
@@ -236,6 +257,17 @@ export const VenueFinance: React.FC = () => {
                         </tbody>
                     </table>
                 </div>
+                {hasMore && (
+                    <div className="p-6 flex justify-center">
+                        <button
+                            onClick={loadMoreTransactions}
+                            disabled={loadingMore}
+                            className="px-4 py-2 rounded-full text-sm font-bold bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-60"
+                        >
+                            {loadingMore ? 'Cargando...' : 'Cargar más movimientos'}
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );

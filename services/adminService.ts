@@ -51,15 +51,24 @@ export const adminService = {
 
     getAllUsers: async (cityFilter?: string): Promise<User[]> => {
         const usersRef = collection(db, 'users');
-        let q = query(usersRef);
-        if (cityFilter) {
-            q = query(usersRef, where('city', '==', cityFilter));
+        const users: User[] = [];
+        let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
+        let hasMore = true;
+        while (hasMore) {
+            const constraints: any[] = [orderBy('__name__')];
+            if (cityFilter) constraints.push(where('city', '==', cityFilter));
+            if (lastDoc) constraints.push(startAfter(lastDoc));
+            constraints.push(limit(50));
+            const q = query(usersRef, ...constraints);
+            const snapshot = await getDocs(q);
+            users.push(...snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            })) as User[]);
+            lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
+            hasMore = snapshot.docs.length === 50;
         }
-        const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        })) as User[];
+        return users;
     },
 
     getUsersPaginated: async (pageSize: number = 20, lastDoc: QueryDocumentSnapshot<DocumentData> | null = null) => {
@@ -144,16 +153,25 @@ export const adminService = {
         }
 
         const venuesRef = collection(db, 'venues');
-        let q = query(venuesRef);
-        if (cityFilter) {
-            q = query(venuesRef, where('city', '==', cityFilter));
+        const venues: Venue[] = [];
+        let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
+        let hasMore = true;
+
+        while (hasMore) {
+            const constraints: any[] = [orderBy('__name__')];
+            if (cityFilter) constraints.push(where('city', '==', cityFilter));
+            if (lastDoc) constraints.push(startAfter(lastDoc));
+            constraints.push(limit(50));
+            const q = query(venuesRef, ...constraints);
+            const snapshot = await getDocs(q);
+            const batch = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            })) as Venue[];
+            venues.push(...batch);
+            lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
+            hasMore = snapshot.docs.length === 50;
         }
-        
-        const querySnapshot = await getDocs(q);
-        const venues = querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        })) as Venue[];
 
         localStorage.setItem(cacheKey, JSON.stringify({
             expiry: Date.now() + CACHE_TTL,
@@ -222,33 +240,76 @@ export const adminService = {
 
     getAllProducts: async (cityFilter?: string): Promise<Product[]> => {
         const productsRef = collection(db, 'products');
-        let q = query(productsRef);
-        
-        if (cityFilter) {
-            // Requiere que los productos tengan un campo 'city'. 
-            // Si no lo tienen, podríamos filtrar por venueIds de esa ciudad.
-            // Por simplicidad en esta fase, asumimos que los productos tienen 'city' o filtramos en memoria.
-            q = query(productsRef, where('city', '==', cityFilter));
+        const products: Product[] = [];
+        let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
+        let hasMore = true;
+
+        while (hasMore) {
+            const constraints: any[] = [orderBy('__name__')];
+            if (cityFilter) {
+                constraints.push(where('city', '==', cityFilter));
+            }
+            if (lastDoc) constraints.push(startAfter(lastDoc));
+            constraints.push(limit(50));
+            const q = query(productsRef, ...constraints);
+            const snapshot = await getDocs(q);
+            const batch = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            })) as Product[];
+            products.push(...batch);
+            lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
+            hasMore = snapshot.docs.length === 50;
         }
 
-        const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        })) as Product[];
+        return products;
     },
 
     // --- GESTIÓN DE CATEGORÍAS ---
 
     getAllCategories: async (): Promise<any[]> => {
         try {
-            const querySnapshot = await getDocs(collection(db, 'categories'));
-            return querySnapshot.docs.map(doc => ({
+            const categories: any[] = [];
+            let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
+            let hasMore = true;
+            while (hasMore) {
+                const q = lastDoc
+                    ? query(collection(db, 'categories'), orderBy('__name__'), startAfter(lastDoc), limit(50))
+                    : query(collection(db, 'categories'), orderBy('__name__'), limit(50));
+                const snapshot = await getDocs(q);
+                categories.push(...snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                })));
+                lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
+                hasMore = snapshot.docs.length === 50;
+            }
+            return categories;
+        } catch (error) {
+            logger.error('Error obteniendo categorías desde servicio:', error);
+            throw error;
+        }
+    },
+
+    getCategoriesPaginated: async (pageSize: number = 20, lastDoc: QueryDocumentSnapshot<DocumentData> | null = null) => {
+        try {
+            const categoriesRef = collection(db, 'categories');
+            let q = query(categoriesRef, orderBy('name'), limit(pageSize));
+            if (lastDoc) {
+                q = query(categoriesRef, orderBy('name'), startAfter(lastDoc), limit(pageSize));
+            }
+            const snapshot = await getDocs(q);
+            const data = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data()
             }));
+            return {
+                data,
+                lastDoc: snapshot.docs[snapshot.docs.length - 1] || null,
+                hasMore: snapshot.docs.length === pageSize
+            };
         } catch (error) {
-            logger.error('Error obteniendo categorías desde servicio:', error);
+            logger.error('Error obteniendo categorías paginadas:', error);
             throw error;
         }
     },
@@ -305,17 +366,24 @@ export const adminService = {
 
     getAllOrders: async (cityFilter?: string): Promise<Order[]> => {
         const ordersRef = collection(db, 'orders');
-        let q = query(ordersRef, orderBy('createdAt', 'desc'), limit(500));
-        
-        if (cityFilter) {
-            q = query(ordersRef, where('city', '==', cityFilter), orderBy('createdAt', 'desc'), limit(500));
+        const orders: Order[] = [];
+        let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
+        let hasMore = true;
+        while (hasMore) {
+            const constraints: any[] = [orderBy('createdAt', 'desc')];
+            if (cityFilter) constraints.push(where('city', '==', cityFilter));
+            if (lastDoc) constraints.push(startAfter(lastDoc));
+            constraints.push(limit(50));
+            const q = query(ordersRef, ...constraints);
+            const snapshot = await getDocs(q);
+            orders.push(...snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            })) as Order[]);
+            lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
+            hasMore = snapshot.docs.length === 50;
         }
-
-        const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        })) as Order[];
+        return orders;
     },
 
     getOrdersPaginated: async (pageSize: number = 20, lastDoc: QueryDocumentSnapshot<DocumentData> | null = null) => {
@@ -391,29 +459,30 @@ export const adminService = {
 
     getCompletedOrdersLocations: async (cityFilter?: string) => {
         const ordersRef = collection(db, 'orders');
-        let q = query(
-            ordersRef, 
-            where('status', '==', 'COMPLETED'),
-            limit(1000)
-        );
-
-        if (cityFilter) {
-            q = query(q, where('city', '==', cityFilter));
+        const points: { lat: number; lng: number; weight: number }[] = [];
+        let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
+        let hasMore = true;
+        while (hasMore) {
+            const constraints: any[] = [
+                where('status', '==', 'COMPLETED'),
+                orderBy('__name__'),
+            ];
+            if (cityFilter) constraints.push(where('city', '==', cityFilter));
+            if (lastDoc) constraints.push(startAfter(lastDoc));
+            constraints.push(limit(50));
+            const q = query(ordersRef, ...constraints);
+            const snapshot = await getDocs(q);
+            points.push(...snapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    lat: data.venueLatitude || 4.6097,
+                    lng: data.venueLongitude || -74.0817,
+                    weight: 1
+                };
+            }));
+            lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
+            hasMore = snapshot.docs.length === 50;
         }
-
-        const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => {
-            const data = doc.data();
-            // Try to find coordinates in metadata or venue data
-            // Since orders might not have lat/lng directly (usually they have venueId),
-            // We'll need to join or assume the order happened at the venue location for now,
-            // or if it was a delivery, use the delivery address coordinates.
-            // For now, let's use the venue coordinates but aggregated.
-            return {
-                lat: data.venueLatitude || 4.6097,
-                lng: data.venueLongitude || -74.0817,
-                weight: 1
-            };
-        });
+        return points;
     }
 };

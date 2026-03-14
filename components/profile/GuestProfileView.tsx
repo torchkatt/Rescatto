@@ -1,8 +1,10 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogIn, UserPlus, ArrowRight, Heart, ShoppingBag, Sparkles } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 export const GuestProfileView: React.FC = () => {
+    const { t } = useTranslation();
     const navigate = useNavigate();
 
     return (
@@ -20,11 +22,10 @@ export const GuestProfileView: React.FC = () => {
 
                 {/* Text Content */}
                 <h1 className="text-3xl font-black text-gray-900 mb-4 tracking-tight">
-                    ¡Únete a la <br />
-                    <span className="text-emerald-600">comunidad Rescatto!</span>
+                    {t('guest_subtitle') || <>¡Únete a la <br /> <span className="text-emerald-600">comunidad Rescatto!</span></>}
                 </h1>
                 <p className="text-gray-500 text-lg leading-relaxed mb-10">
-                    Crea una cuenta para guardar tus favoritos, ver tus pedidos y disfrutar de beneficios exclusivos.
+                    {t('guest_desc') || 'Crea una cuenta para guardar tus favoritos, ver tus pedidos y disfrutar de beneficios exclusivos.'}
                 </p>
 
                 {/* Action Buttons */}
@@ -34,7 +35,7 @@ export const GuestProfileView: React.FC = () => {
                         className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-bold text-lg shadow-xl shadow-emerald-500/20 transition-all active:scale-[0.98] flex items-center justify-center gap-3"
                     >
                         <UserPlus size={22} />
-                        Crear mi cuenta
+                        {t('guest_btn_register') || 'Crear mi cuenta'}
                     </button>
 
                     <button
@@ -42,7 +43,7 @@ export const GuestProfileView: React.FC = () => {
                         className="w-full py-4 bg-white border-2 border-emerald-600 text-emerald-600 hover:bg-emerald-50 rounded-2xl font-bold text-lg transition-all active:scale-[0.98] flex items-center justify-center gap-3"
                     >
                         <LogIn size={22} />
-                        Ya tengo cuenta
+                        {t('guest_btn_login') || 'Ya tengo cuenta'}
                     </button>
                 </div>
 
@@ -50,13 +51,13 @@ export const GuestProfileView: React.FC = () => {
                 <div className="grid grid-cols-2 gap-4 w-full text-left">
                     <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
                         <ShoppingBag className="text-emerald-600 mb-2" size={20} />
-                        <h3 className="font-bold text-gray-900 text-sm">Tus Pedidos</h3>
-                        <p className="text-gray-400 text-xs">Gestiona tus rescates de comida.</p>
+                        <h3 className="font-bold text-gray-900 text-sm">{t('guest_feat_orders_title') || 'Tus Pedidos'}</h3>
+                        <p className="text-gray-400 text-xs">{t('guest_feat_orders_desc') || 'Gestiona tus rescates de comida.'}</p>
                     </div>
                     <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
                         <Heart className="text-rose-500 mb-2" size={20} />
-                        <h3 className="font-bold text-gray-900 text-sm">Favoritos</h3>
-                        <p className="text-gray-400 text-xs">Guarda tus locales preferidos.</p>
+                        <h3 className="font-bold text-gray-900 text-sm">{t('guest_feat_favs_title') || 'Favoritos'}</h3>
+                        <p className="text-gray-400 text-xs">{t('guest_feat_favs_desc') || 'Guarda tus locales preferidos.'}</p>
                     </div>
                 </div>
 
@@ -65,7 +66,7 @@ export const GuestProfileView: React.FC = () => {
                     onClick={() => navigate('/app')}
                     className="mt-12 text-gray-400 font-bold hover:text-gray-600 flex items-center gap-2 group transition-colors"
                 >
-                    Seguir explorando como invitado
+                    {t('guest_link_explore') || 'Seguir explorando como invitado'}
                     <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
                 </button>
             </div>

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Bell, BellOff, X, Zap, Star, Clock } from 'lucide-react';
 import { messagingService } from '../../../services/messagingService';
 import { logger } from '../../../utils/logger';
+import { useTranslation } from 'react-i18next';
 
 const STORAGE_KEY = 'rescatto_notif_asked';
 
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export const NotificationPermissionModal: React.FC<Props> = ({ userId, onClose }) => {
+    const { t } = useTranslation();
     const [loading, setLoading] = useState(false);
 
     const handleAllow = async () => {
@@ -55,17 +57,17 @@ export const NotificationPermissionModal: React.FC<Props> = ({ userId, onClose }
                     <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mb-3">
                         <Bell size={32} className="text-white" />
                     </div>
-                    <h2 className="text-xl font-black text-center">Activa las alertas</h2>
+                    <h2 className="text-xl font-black text-center">{t('perm_title')}</h2>
                     <p className="text-emerald-100 text-sm text-center mt-1">
-                        Sé el primero en enterarte de los mejores deals
+                        {t('perm_subtitle')}
                     </p>
                 </div>
 
                 {/* Benefits */}
                 <div className="p-6 space-y-3">
-                    <Benefit icon={<Zap size={16} className="text-yellow-500" />} text="Flash Deals antes de que se agoten" />
-                    <Benefit icon={<Clock size={16} className="text-orange-500" />} text="Alertas cuando el precio baja en tiempo real" />
-                    <Benefit icon={<Star size={16} className="text-purple-500" />} text="Recordatorios de tu racha de rescates" />
+                    <Benefit icon={<Zap size={16} className="text-yellow-500" />} text={t('perm_benefit_1')} />
+                    <Benefit icon={<Clock size={16} className="text-orange-500" />} text={t('perm_benefit_2')} />
+                    <Benefit icon={<Star size={16} className="text-purple-500" />} text={t('perm_benefit_3')} />
                 </div>
 
                 {/* Mock notification preview */}
@@ -74,8 +76,8 @@ export const NotificationPermissionModal: React.FC<Props> = ({ userId, onClose }
                         <span className="text-white text-lg">🍱</span>
                     </div>
                     <div>
-                        <p className="text-xs font-bold text-gray-800">Rescatto · ahora</p>
-                        <p className="text-xs text-gray-600">⚡ ¡Flash Deal! Menú del día -40% en La Hamburguesería. Solo 3 quedan.</p>
+                        <p className="text-xs font-bold text-gray-800">Rescatto · {t('perm_now')}</p>
+                        <p className="text-xs text-gray-600">{t('perm_mock_body')}</p>
                     </div>
                 </div>
 
@@ -87,14 +89,14 @@ export const NotificationPermissionModal: React.FC<Props> = ({ userId, onClose }
                         className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-300 text-white font-bold py-4 rounded-2xl transition-colors flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30"
                     >
                         <Bell size={18} />
-                        {loading ? 'Activando...' : 'Sí, quiero alertas'}
+                        {loading ? t('perm_btn_activating') : t('perm_btn_allow')}
                     </button>
                     <button
                         onClick={handleDismiss}
                         className="w-full text-gray-400 font-medium py-2 rounded-2xl hover:text-gray-600 transition-colors text-sm flex items-center justify-center gap-1"
                     >
                         <BellOff size={14} />
-                        Ahora no
+                        {t('perm_btn_dismiss')}
                     </button>
                 </div>
             </div>

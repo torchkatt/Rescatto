@@ -16,8 +16,10 @@ import { httpsCallable } from 'firebase/functions';
 import { useConfirm } from '../../context/ConfirmContext';
 import { logger } from '../../utils/logger';
 import { GuestProfileView } from '../../components/profile/GuestProfileView';
+import { useTranslation } from 'react-i18next';
 
 export const UnifiedProfile: React.FC = () => {
+    const { t } = useTranslation();
     const { user } = useAuth();
     const { showToast, success } = useToast();
     const confirm = useConfirm();
@@ -104,7 +106,7 @@ export const UnifiedProfile: React.FC = () => {
                             }`}
                     >
                         <UserIcon size={18} />
-                        Información Personal
+                        {t('prof_personal_info')}
                     </button>
 
                     {/* Show Stats tab only for roles that have specific stats implemented */}
@@ -117,22 +119,12 @@ export const UnifiedProfile: React.FC = () => {
                                 }`}
                         >
                             <TrendingUp size={18} />
-                            {user.role === UserRole.CUSTOMER ? 'Mi Impacto y Puntos' :
-                                user.role === UserRole.DRIVER ? 'Métricas de Entrega' :
-                                    'Estado Operativo'}
+                            {user.role === UserRole.CUSTOMER ? t('prof_impact') :
+                                user.role === UserRole.DRIVER ? t('prof_delivery_metrics') :
+                                    t('prof_operational_status')}
                         </button>
                     )}
 
-                    <button
-                        onClick={() => setActiveTab('security')}
-                        className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-bold text-sm text-center leading-tight transition-all whitespace-normal sm:whitespace-nowrap active:scale-95 ${activeTab === 'security'
-                            ? 'bg-gray-900 text-white shadow-lg shadow-gray-900/20'
-                            : 'bg-white text-gray-600 hover:bg-gray-100'
-                            }`}
-                    >
-                        <Lock size={18} />
-                        Seguridad
-                    </button>
 
                     {user.role === UserRole.CUSTOMER && (
                         <button
@@ -143,7 +135,7 @@ export const UnifiedProfile: React.FC = () => {
                                 }`}
                         >
                             <Zap size={18} />
-                            Rescatto Pass
+                            {t('prof_pass')}
                         </button>
                     )}
 
@@ -156,9 +148,20 @@ export const UnifiedProfile: React.FC = () => {
                                 }`}
                         >
                             <Gift size={18} />
-                            Mis Referidos
+                            {t('prof_referrals')}
                         </button>
                     )}
+
+                    <button
+                        onClick={() => setActiveTab('security')}
+                        className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-bold text-sm text-center leading-tight transition-all whitespace-normal sm:whitespace-nowrap active:scale-95 ${activeTab === 'security'
+                            ? 'bg-gray-900 text-white shadow-lg shadow-gray-900/20'
+                            : 'bg-white text-gray-600 hover:bg-gray-100'
+                            }`}
+                    >
+                        <Lock size={18} />
+                        {t('prof_security')}
+                    </button>
                 </div>
 
                 {/* Content Area */}
@@ -171,16 +174,12 @@ export const UnifiedProfile: React.FC = () => {
                         <RoleSpecificStats user={user} onRedeem={handleRedeemPoints} />
                     )}
 
-                    {activeTab === 'security' && (
-                        <SecuritySettings />
-                    )}
-
-                    {activeTab === 'referrals' && user.role === UserRole.CUSTOMER && (
-                        <ReferralSection user={user} />
-                    )}
-
                     {activeTab === 'pass' && user.role === UserRole.CUSTOMER && (
                         <RescattoPassManagement user={user} />
+                    )}
+
+                    {activeTab === 'security' && (
+                        <SecuritySettings />
                     )}
                 </div>
             </div>

@@ -8,6 +8,9 @@ const ALLOWED_ORIGINS = IS_PROD
         "https://app.rescatto.com",
         "https://rescatto-c8d2b.web.app",
         "https://rescatto-c8d2b.firebaseapp.com",
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://localhost:5174",
     ]
     : true;
 

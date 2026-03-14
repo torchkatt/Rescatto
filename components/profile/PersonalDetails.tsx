@@ -3,6 +3,8 @@ import { User } from '../../types';
 import { User as UserIcon, Mail, Phone, MapPin, Save, X } from 'lucide-react';
 import { Button } from '../customer/common/Button';
 import { logger } from '../../utils/logger';
+import { useTranslation } from 'react-i18next';
+import { PhoneInput } from '../customer/common/PhoneInput';
 
 interface PersonalDetailsProps {
     user: User;
@@ -10,6 +12,7 @@ interface PersonalDetailsProps {
 }
 
 export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ user, onSave }) => {
+    const { t } = useTranslation();
     const [isEditing, setIsEditing] = useState(false);
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
@@ -50,13 +53,13 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ user, onSave }
     return (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8">
             <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-gray-900">Información Personal</h2>
+                <h2 className="text-xl font-bold text-gray-900">{t('prof_personal_info')}</h2>
                 {!isEditing && (
                     <button
                         onClick={() => setIsEditing(true)}
                         className="text-emerald-600 hover:text-emerald-700 text-base font-bold px-4 py-3 rounded-xl transition-all border border-gray-100 hover:border-emerald-100 active:scale-95"
                     >
-                        Editar
+                        {t('prof_edit')}
                     </button>
                 )}
             </div>
@@ -67,7 +70,7 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ user, onSave }
                     <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
                             <UserIcon size={16} className="text-gray-400" />
-                            Nombre Completo
+                            {t('login_fullname')}
                         </label>
                         {isEditing ? (
                             <input
@@ -89,11 +92,11 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ user, onSave }
                     <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
                             <Mail size={16} className="text-gray-400" />
-                            Correo Electrónico
+                            {t('login_email')}
                         </label>
                         <div className="bg-gray-50 px-4 py-2 rounded-lg text-gray-500 border border-gray-100 min-h-[42px] flex items-center justify-between">
                             <span>{user.email}</span>
-                            <span className="text-[10px] bg-gray-200 px-2 py-0.5 rounded text-gray-600 font-medium">Bloqueado</span>
+                            <span className="text-[10px] bg-gray-200 px-2 py-0.5 rounded text-gray-600 font-medium">{t('prof_blocked')}</span>
                         </div>
                     </div>
 
@@ -101,20 +104,17 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ user, onSave }
                     <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
                             <Phone size={16} className="text-gray-400" />
-                            Teléfono
+                            {t('prof_phone')}
                         </label>
                         {isEditing ? (
-                            <input
-                                type="tel"
-                                name="phone"
+                            <PhoneInput
                                 value={formData.phone}
-                                onChange={handleChange}
+                                onChange={(val) => setFormData(prev => ({ ...prev, phone: val }))}
                                 placeholder="+57 300 123 4567"
-                                className="w-full px-4 py-3 border border-gray-100 bg-gray-50 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all text-base outline-none font-medium"
                             />
                         ) : (
                             <div className={`bg-gray-50 px-4 py-2 rounded-lg border border-gray-100 min-h-[42px] flex items-center ${!user.phone ? 'text-gray-400 italic' : 'text-gray-800'}`}>
-                                {user.phone || 'No especificado'}
+                                {user.phone || t('prof_unspecified')}
                             </div>
                         )}
                     </div>
@@ -123,7 +123,7 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ user, onSave }
                     <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
                             <MapPin size={16} className="text-gray-400" />
-                            Ciudad
+                            {t('prof_city')}
                         </label>
                         {isEditing ? (
                             <input
@@ -136,7 +136,7 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ user, onSave }
                             />
                         ) : (
                             <div className={`bg-gray-50 px-4 py-2 rounded-lg border border-gray-100 min-h-[42px] flex items-center ${!user.city ? 'text-gray-400 italic' : 'text-gray-800'}`}>
-                                {user.city || 'No especificado'}
+                                {user.city || t('prof_unspecified')}
                             </div>
                         )}
                     </div>
@@ -146,7 +146,7 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ user, onSave }
                 <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
                         <MapPin size={16} className="text-gray-400" />
-                        Dirección Completa
+                        {t('prof_address_full')}
                     </label>
                     {isEditing ? (
                         <textarea
@@ -159,7 +159,7 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ user, onSave }
                         />
                     ) : (
                         <div className={`bg-gray-50 px-4 py-3 rounded-lg border border-gray-100 min-h-[80px] ${!user.address ? 'text-gray-400 italic flex items-center' : 'text-gray-800'}`}>
-                            {user.address || 'No especificado'}
+                            {user.address || t('prof_unspecified')}
                         </div>
                     )}
                 </div>
@@ -174,14 +174,14 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ user, onSave }
                             disabled={loading}
                             className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700"
                         >
-                            Cancelar
+                            {t('prof_cancel')}
                         </Button>
                         <Button
                             type="submit"
                             isLoading={loading}
                             className="bg-emerald-600 hover:bg-emerald-700 text-white min-w-[120px]"
                         >
-                            Guardar Cambios
+                            {t('prof_save_changes')}
                         </Button>
                     </div>
                 )}

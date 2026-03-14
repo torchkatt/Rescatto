@@ -121,6 +121,25 @@ export interface RescattoPass {
 }
 
 /** Un canje de puntos que ya fue procesado y aún no se ha consumido en una orden */
+export interface SubscriptionRequest {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  planId: 'monthly' | 'annual';
+  amount: number;
+  referenceCode: string;
+  status: 'pending_payment' | 'pending_review' | 'approved' | 'rejected';
+  createdAt: string;
+  expiresAt: string;
+  approvedAt?: string;
+  approvedBy?: string;
+  rejectedAt?: string;
+  rejectedReason?: string;
+  paymentProofUrl?: string;
+  transactionNumber?: string;
+}
+
 export interface ActiveRedemption {
   id: string;           // ID único del canje (generado por la Cloud Function)
   rewardId: string;     // 'discount_5k', 'discount_10k', 'free_pack', 'donation_meal'

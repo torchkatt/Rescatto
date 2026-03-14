@@ -1,11 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { adminService } from '../../services/adminService';
 import { Order, OrderStatus } from '../../types';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
-import { DollarSign, Search, Calendar, CreditCard, TrendingUp, RotateCw, Store } from 'lucide-react';
+import { DollarSign, Search, Calendar, CreditCard, TrendingUp, RotateCw, Store, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { logger } from '../../utils/logger';
 import { formatCOP } from '../../utils/formatters';
+
+const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
 type Period = 'today' | 'week' | 'month' | 'year';
 
@@ -16,27 +18,26 @@ const PERIOD_LABELS: Record<Period, string> = {
     year: 'Este año',
 };
 
+const toYMD = (d: Date): string => d.toISOString().slice(0, 10);
+
 const getPeriodDates = (period: Period) => {
     const now = new Date();
-    const end = now.toISOString();
-    let start: string;
+    let start: Date;
     switch (period) {
         case 'today': {
-            const d = new Date(now); d.setHours(0, 0, 0, 0);
-            start = d.toISOString(); break;
+            start = new Date(now); start.setHours(0, 0, 0, 0); break;
         }
         case 'week': {
-            const d = new Date(now); d.setDate(now.getDate() - 7); d.setHours(0, 0, 0, 0);
-            start = d.toISOString(); break;
+            start = new Date(now); start.setDate(now.getDate() - 7); start.setHours(0, 0, 0, 0); break;
         }
         case 'month': {
-            start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString(); break;
+            start = new Date(now.getFullYear(), now.getMonth(), 1); break;
         }
         case 'year': {
-            start = new Date(now.getFullYear(), 0, 1).toISOString(); break;
+            start = new Date(now.getFullYear(), 0, 1); break;
         }
     }
-    return { startDate: start, endDate: end };
+    return { startDate: toYMD(start), endDate: toYMD(now) };
 };
 
 interface FinanceStats {
@@ -58,6 +59,8 @@ export const FinanceManager: React.FC = () => {
     const [lastDoc, setLastDoc] = useState<any>(null);
     const [hasMore, setHasMore] = useState(true);
     const [selectedPeriod, setSelectedPeriod] = useState<Period>('month');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(20);
 
     useEffect(() => {
         loadGlobalStats();
@@ -97,33 +100,62 @@ export const FinanceManager: React.FC = () => {
         }
     };
 
-    const loadMore = async () => {
-        if (!hasMore || loadingMore) return;
-        setLoadingMore(true);
-        try {
-            const result = await adminService.getOrdersPaginated(20, lastDoc);
-            setOrders(prev => [...prev, ...result.data]);
-            setLastDoc(result.lastDoc);
-            setHasMore(result.hasMore);
-        } catch (error) {
-            logger.error('Error loading more orders:', error);
-        } finally {
-            setLoadingMore(false);
+    const filteredOrders = useMemo(() =>
+        orders.filter(order =>
+            order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            order.venueId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            order.customerName.toLowerCase().includes(searchTerm.toLowerCase())
+        ),
+        [orders, searchTerm]
+    );
+
+    const totalPages = Math.max(1, Math.ceil(filteredOrders.length / pageSize));
+    const safePage = Math.min(currentPage, totalPages);
+    const paginatedOrders = filteredOrders.slice((safePage - 1) * pageSize, safePage * pageSize);
+    const needsMoreData = hasMore && safePage === totalPages && filteredOrders.length % pageSize === 0;
+
+    const goToPage = async (page: number) => {
+        const target = Math.max(1, Math.min(page, totalPages));
+        if (needsMoreData && target === totalPages) {
+            setLoadingMore(true);
+            try {
+                const result = await adminService.getOrdersPaginated(pageSize, lastDoc);
+                setOrders(prev => [...prev, ...result.data]);
+                setLastDoc(result.lastDoc);
+                setHasMore(result.hasMore);
+            } catch (error) {
+                logger.error('Error loading more orders:', error);
+            } finally {
+                setLoadingMore(false);
+            }
         }
+        setCurrentPage(target);
     };
 
-    const filteredOrders = orders.filter(order =>
-        order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        order.venueId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        order.customerName.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const handlePageSizeChange = (size: number) => {
+        setPageSize(size);
+        setCurrentPage(1);
+    };
+
+    const getPageNumbers = () => {
+        const delta = 2;
+        const pages: (number | '...')[] = [];
+        for (let i = 1; i <= totalPages; i++) {
+            if (i === 1 || i === totalPages || (i >= safePage - delta && i <= safePage + delta)) {
+                pages.push(i);
+            } else if (pages[pages.length - 1] !== '...') {
+                pages.push('...');
+            }
+        }
+        return pages;
+    };
 
     return (
         <div className="space-y-8 overflow-x-hidden">
             {/* Header */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                    <h2 className="text-2xl font-bold text-white flex items-center gap-2">
                         <DollarSign className="text-emerald-600" />
                         Finanzas & Comisiones
                     </h2>
@@ -165,7 +197,7 @@ export const FinanceManager: React.FC = () => {
                             <p className="text-gray-500 text-sm font-medium uppercase tracking-wide">Ingresos Plataforma</p>
                             {statsLoading
                                 ? <div className="h-9 w-32 bg-gray-100 animate-pulse rounded-lg mt-2" />
-                                : <h3 className="text-3xl font-bold text-gray-800 mt-2">{formatCOP(globalStats?.totalPlatformFee || 0)}</h3>
+                                : <h3 className="text-3xl font-bold text-white mt-2">{formatCOP(globalStats?.totalPlatformFee || 0)}</h3>
                             }
                             <p className="text-xs text-gray-400 mt-1">Comisión 10% de ventas brutas</p>
                         </div>
@@ -180,7 +212,7 @@ export const FinanceManager: React.FC = () => {
                             <p className="text-gray-500 text-sm font-medium uppercase tracking-wide">Ganancias Negocios</p>
                             {statsLoading
                                 ? <div className="h-9 w-32 bg-gray-100 animate-pulse rounded-lg mt-2" />
-                                : <h3 className="text-3xl font-bold text-gray-800 mt-2">{formatCOP(globalStats?.totalVenueEarnings || 0)}</h3>
+                                : <h3 className="text-3xl font-bold text-white mt-2">{formatCOP(globalStats?.totalVenueEarnings || 0)}</h3>
                             }
                             <p className="text-xs text-gray-400 mt-1">90% de ventas brutas acumuladas</p>
                         </div>
@@ -195,7 +227,7 @@ export const FinanceManager: React.FC = () => {
                             <p className="text-gray-500 text-sm font-medium uppercase tracking-wide">Pedidos Completados</p>
                             {statsLoading
                                 ? <div className="h-9 w-20 bg-gray-100 animate-pulse rounded-lg mt-2" />
-                                : <h3 className="text-3xl font-bold text-gray-800 mt-2">{globalStats?.totalOrders || 0}</h3>
+                                : <h3 className="text-3xl font-bold text-white mt-2">{globalStats?.totalOrders || 0}</h3>
                             }
                             <p className="text-xs text-gray-400 mt-1">
                                 Ticket promedio: {formatCOP(Math.round(globalStats?.averageOrderValue || 0))}
@@ -241,27 +273,41 @@ export const FinanceManager: React.FC = () => {
 
             {/* Orders Table */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="p-4 border-b bg-gray-50 flex items-center justify-between">
-                    <h3 className="font-bold text-gray-800">Historial de Órdenes Recientes</h3>
-                    <p className="text-xs text-gray-400">{orders.length} cargadas</p>
-                </div>
-                <div className="p-3 border-b border-gray-100 flex items-center gap-3">
-                    <Search className="text-gray-400 shrink-0" size={18} />
-                    <input
-                        type="text"
-                        placeholder="Buscar por ID, negocio o cliente..."
-                        className="flex-1 outline-none text-gray-700 bg-transparent text-sm"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
+                {/* Table Header */}
+                <div className="p-4 border-b bg-gray-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <h3 className="font-bold text-gray-800">Historial de Órdenes</h3>
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2 bg-white flex-1 sm:flex-none sm:w-64">
+                            <Search className="text-gray-400 shrink-0" size={16} />
+                            <input
+                                type="text"
+                                placeholder="Buscar por ID, negocio o cliente..."
+                                className="flex-1 outline-none text-gray-700 bg-transparent text-sm"
+                                value={searchTerm}
+                                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                            />
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-xs text-gray-500">Filas:</span>
+                            <select
+                                value={pageSize}
+                                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 cursor-pointer focus:outline-none focus:border-emerald-400"
+                            >
+                                {PAGE_SIZE_OPTIONS.map(s => (
+                                    <option key={s} value={s}>{s}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
                 </div>
 
                 {loading ? (
                     <div className="p-8 flex justify-center"><LoadingSpinner /></div>
                 ) : (
-                    <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+                    <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse">
-                            <thead className="sticky top-0 z-10 shadow-sm">
+                            <thead>
                                 <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold tracking-wider">
                                     <th className="p-4">ID</th>
                                     <th className="p-4">Fecha</th>
@@ -273,10 +319,10 @@ export const FinanceManager: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100 text-sm">
-                                {filteredOrders.length === 0 ? (
+                                {paginatedOrders.length === 0 ? (
                                     <tr><td colSpan={7} className="p-8 text-center text-gray-400 italic">No se encontraron pedidos.</td></tr>
                                 ) : (
-                                    filteredOrders.map(order => (
+                                    paginatedOrders.map(order => (
                                         <tr key={order.id} className="hover:bg-gray-50 transition-colors">
                                             <td className="p-4 font-mono text-xs text-gray-500">{order.id.slice(0, 8)}...</td>
                                             <td className="p-4 text-gray-600 text-xs">
@@ -304,15 +350,68 @@ export const FinanceManager: React.FC = () => {
                     </div>
                 )}
 
-                {hasMore && !searchTerm && (
-                    <div className="p-4 border-t border-gray-100 flex justify-center">
-                        <button
-                            onClick={loadMore}
-                            disabled={loadingMore}
-                            className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-6 py-2 rounded-full font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
-                        >
-                            {loadingMore ? 'Cargando...' : 'Cargar más pedidos'}
-                        </button>
+                {/* Pagination Controls */}
+                {!loading && filteredOrders.length > 0 && (
+                    <div className="p-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+                        <p className="text-xs text-gray-500 shrink-0">
+                            {loadingMore ? 'Cargando...' : (
+                                <>Mostrando <span className="font-semibold text-gray-700">{(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, filteredOrders.length)}</span> de <span className="font-semibold text-gray-700">{filteredOrders.length}{hasMore ? '+' : ''}</span> pedidos</>
+                            )}
+                        </p>
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={() => goToPage(1)}
+                                disabled={safePage === 1 || loadingMore}
+                                className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                title="Primera página"
+                            >
+                                <ChevronsLeft size={16} />
+                            </button>
+                            <button
+                                onClick={() => goToPage(safePage - 1)}
+                                disabled={safePage === 1 || loadingMore}
+                                className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                title="Página anterior"
+                            >
+                                <ChevronLeft size={16} />
+                            </button>
+
+                            {getPageNumbers().map((page, idx) =>
+                                page === '...' ? (
+                                    <span key={`ellipsis-${idx}`} className="px-2 text-gray-400 text-sm select-none">…</span>
+                                ) : (
+                                    <button
+                                        key={page}
+                                        onClick={() => goToPage(page as number)}
+                                        disabled={loadingMore}
+                                        className={`min-w-[32px] h-8 px-2 rounded-lg text-sm font-medium transition-colors ${
+                                            page === safePage
+                                                ? 'bg-emerald-600 text-white shadow-sm'
+                                                : 'text-gray-600 hover:bg-gray-100'
+                                        }`}
+                                    >
+                                        {page}
+                                    </button>
+                                )
+                            )}
+
+                            <button
+                                onClick={() => goToPage(safePage + 1)}
+                                disabled={(safePage >= totalPages && !hasMore) || loadingMore}
+                                className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                title="Página siguiente"
+                            >
+                                <ChevronRight size={16} />
+                            </button>
+                            <button
+                                onClick={() => goToPage(totalPages)}
+                                disabled={(safePage >= totalPages && !hasMore) || loadingMore}
+                                className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                title="Última página"
+                            >
+                                <ChevronsRight size={16} />
+                            </button>
+                        </div>
                     </div>
                 )}
             </div>

@@ -80,6 +80,11 @@ const createOrder = onCall(
             else if (venueSnap.exists && venueSnap.data().ownerId) venueOwnerIdForMeta = venueSnap.data().ownerId;
         } catch (_) { /* Ignore error */ }
 
+        const settingsSnap = await db.collection("settings").doc("platform").get();
+        const settingsData = settingsSnap.exists ? settingsSnap.data() || {} : {};
+        const commissionPct = Number(settingsData.commissionPct);
+        const commissionRate = Number.isFinite(commissionPct) && commissionPct >= 0 ? commissionPct / 100 : CONFIG.platformCommissionRate;
+
         const result = await db.runTransaction(async (transaction) => {
             let cardApprovedBeforeOrder = false;
             if (normalizedPaymentMethod === "card") {
@@ -140,10 +145,10 @@ const createOrder = onCall(
             }
 
             const walletRef = db.collection("wallets").doc(venueId);
-            const walletDoc = await transaction.get(walletRef);
+            await transaction.get(walletRef);
 
             const effectiveDeliveryFee = normalizedDeliveryMethod === "delivery" ? (clientDeliveryFee !== null ? clientDeliveryFee : CONFIG.deliveryFee) : 0;
-            const platformFee = Math.round((subtotal * CONFIG.platformCommissionRate) * 100) / 100;
+            const platformFee = Math.round((subtotal * commissionRate) * 100) / 100;
             const venueEarnings = Math.round((subtotal - platformFee) * 100) / 100;
 
             let effectiveDiscount = 0;
@@ -177,6 +182,7 @@ const createOrder = onCall(
                 transactionId: normalizedPaymentMethod === "card" ? transactionId : null,
                 paidAt: (normalizedPaymentMethod === "card" && cardApprovedBeforeOrder) ? new Date().toISOString() : null,
                 totalOriginalPrice, moneySaved: totalOriginalPrice - subtotal,
+                commissionRate,
                 deliveryMethod: normalizedDeliveryMethod,
                 deliveryAddress: isDonation ? `DONACIÓN: ${donationCenterName}` : (normalizedDeliveryMethod === "delivery" ? address : "RECOGER EN TIENDA"),
                 city: city || "Bogotá", phone: phone || "", isDonation: Boolean(isDonation), donationCenterId, donationCenterName,
@@ -199,19 +205,6 @@ const createOrder = onCall(
                 transaction.update(redemptionDocRef, { status: "USED", usedAt, orderId: orderRef.id });
             }
 
-            if (normalizedPaymentMethod === "cash" || (normalizedPaymentMethod === "card" && cardApprovedBeforeOrder)) {
-                const currentBalance = walletDoc.exists ? (walletDoc.data().balance || 0) : 0;
-                const walletAdjustment = normalizedPaymentMethod === "cash" ? -platformFee : venueEarnings;
-                transaction.set(walletRef, { venueId, balance: currentBalance + walletAdjustment, updatedAt: new Date().toISOString() }, { merge: true });
-                const walletTxRef = normalizedPaymentMethod === "cash" ? db.collection("wallet_transactions").doc() : db.collection("wallet_transactions").doc(`order_${orderRef.id}_online_credit`);
-                transaction.set(walletTxRef, {
-                    venueId, orderId: orderRef.id, type: normalizedPaymentMethod === "cash" ? "DEBIT" : "CREDIT",
-                    amount: Math.abs(walletAdjustment),
-                    description: normalizedPaymentMethod === "cash" ? `Comisión pedido efectivo` : `Ganancia pedido online`,
-                    referenceType: normalizedPaymentMethod === "cash" ? "ORDER_CASH" : "ORDER_ONLINE",
-                    source: "createOrder", createdAt: new Date().toISOString(),
-                });
-            }
             return { success: true, orderId: orderRef.id };
         });
 
@@ -264,6 +257,65 @@ const onOrderUpdated = onDocumentUpdated("orders/{orderId}", async (event) => {
                 }
             }
         } catch (e) { logError("FCM Error", e); }
+    }
+
+    if (newData.status === "COMPLETED" && oldData.status !== "COMPLETED") {
+        try {
+            const existingTxSnap = await db.collection("wallet_transactions")
+                .where("orderId", "==", orderId)
+                .limit(1)
+                .get();
+            if (!existingTxSnap.empty) {
+                return;
+            }
+            await db.runTransaction(async (transaction) => {
+                const orderRef = db.collection("orders").doc(orderId);
+                const orderSnap = await transaction.get(orderRef);
+                if (!orderSnap.exists) return;
+                const order = orderSnap.data() || {};
+                if (order.commissionBookedAt || order.commissionTxId) return;
+
+                const paymentMethod = order.paymentMethod || "cash";
+                const subtotal = Number(order.subtotal) || 0;
+                const commissionRate = Number.isFinite(Number(order.commissionRate))
+                    ? Number(order.commissionRate)
+                    : CONFIG.platformCommissionRate;
+                const platformFee = Number(order.platformFee) || Math.round((subtotal * commissionRate) * 100) / 100;
+                const venueEarnings = Number(order.venueEarnings) || Math.round((subtotal - platformFee) * 100) / 100;
+                const walletAdjustment = paymentMethod === "cash" ? -platformFee : venueEarnings;
+
+                const walletRef = db.collection("wallets").doc(order.venueId);
+                const walletDoc = await transaction.get(walletRef);
+                const currentBalance = walletDoc.exists ? (walletDoc.data().balance || 0) : 0;
+                transaction.set(walletRef, {
+                    venueId: order.venueId,
+                    balance: currentBalance + walletAdjustment,
+                    updatedAt: new Date().toISOString(),
+                }, { merge: true });
+
+                const txId = paymentMethod === "cash"
+                    ? `order_${orderId}_cash_debit`
+                    : `order_${orderId}_online_credit`;
+                const walletTxRef = db.collection("wallet_transactions").doc(txId);
+                transaction.set(walletTxRef, {
+                    venueId: order.venueId,
+                    orderId,
+                    type: paymentMethod === "cash" ? "DEBIT" : "CREDIT",
+                    amount: Math.abs(walletAdjustment),
+                    description: paymentMethod === "cash" ? "Comisión pedido efectivo (confirmado)" : "Ganancia pedido online (confirmado)",
+                    referenceType: paymentMethod === "cash" ? "ORDER_CASH" : "ORDER_ONLINE",
+                    source: "onOrderUpdated",
+                    createdAt: new Date().toISOString(),
+                }, { merge: true });
+
+                transaction.update(orderRef, {
+                    commissionBookedAt: new Date().toISOString(),
+                    commissionTxId: txId,
+                });
+            });
+        } catch (e) {
+            logError("Commission booking error", e);
+        }
     }
 
     // Gamification... (simplified for logic refactor, but keeping original logic intended)

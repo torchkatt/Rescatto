@@ -79,7 +79,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           logger.log('AuthContext: conectando onSnapshot para', firebaseUser.uid);
 
           userUnsubscribe = onSnapshot(userDocRef, (userDoc) => {
-            logger.log('AuthContext: onSnapshot disparado. Doc existe?', userDoc.exists());
             if (userDoc.exists()) {
               const userData = userDoc.data();
               const role = (userData.role as UserRole) || UserRole.CUSTOMER;
@@ -225,9 +224,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   const loginAsGuest = useCallback(async () => {
+    // Si ya está autenticado (sea invitado o real), evitar re-login innecesario
+    if (auth.currentUser) {
+      logger.log('AuthContext: loginAsGuest saltado (ya hay sesión activa)', auth.currentUser.uid);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     try {
       await authService.loginAsGuest();
+      // Nota: onAuthStateChanged/onSnapshot se encargarán de setIsLoading(false)
+      // Agregamos un fallback de seguridad por si el evento no llegara
+      setTimeout(() => {
+        setIsLoading(prev => {
+          if (prev) {
+            logger.warn('AuthContext: fallback de isLoading en loginAsGuest disparado');
+            return false;
+          }
+          return prev;
+        });
+      }, 5000);
     } catch (error) {
       setIsLoading(false);
       throw error;
@@ -288,14 +305,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const result = hasLegacyRole || hasV2Role;
     
-    if (allowedRoles.includes(UserRole.ADMIN)) {
-      console.log('[AuthDebug] checking Admin access:', { 
-        result, 
-        legacyRole, 
-        v2Role: activeMembership?.role,
-        allowedRoles 
-      });
-    }
 
     return result;
   }, [user, activeMembership]);

@@ -113,7 +113,7 @@ export const Analytics: React.FC = () => {
             {/* Header */}
             <div className="flex justify-between items-start">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-3">
+                    <h1 className="text-3xl font-bold text-white flex items-center gap-3">
                         <BarChart3 className="text-emerald-600" />
                         Analytics & Reportes
                     </h1>

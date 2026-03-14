@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, query, where, getDocs, orderBy, updateDoc, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, updateDoc, doc, getDoc, limit, startAfter, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { dataService } from '../../services/dataService';
 import { useAuth } from '../../context/AuthContext';
@@ -16,6 +16,7 @@ import { RatingStats } from '../../types';
 import { useNotifications } from '../../context/NotificationContext';
 import { logger } from '../../utils/logger';
 
+const PAGE_SIZE = 20;
 
 interface DeliveryOrder {
     id: string;
@@ -55,6 +56,12 @@ export const DriverDashboard: React.FC = () => {
     const [driverStats, setDriverStats] = useState<RatingStats | null>(null);
     const [venueCache, setVenueCache] = useState<VenueCache>({});
     const [gpsError, setGpsError] = useState<string | null>(null);
+    const [availableLastDoc, setAvailableLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+    const [mineLastDoc, setMineLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+    const [hasMoreAvailable, setHasMoreAvailable] = useState(true);
+    const [hasMoreMine, setHasMoreMine] = useState(true);
+    const [loadingMoreAvailable, setLoadingMoreAvailable] = useState(false);
+    const [loadingMoreMine, setLoadingMoreMine] = useState(false);
 
     // Search & Filter State
     const [searchQuery, setSearchQuery] = useState('');
@@ -64,29 +71,19 @@ export const DriverDashboard: React.FC = () => {
     useEffect(() => {
         if (!user || user.role !== UserRole.DRIVER) return;
 
-        // Subscribe to available orders
-        const unsubscribeAvailable = dataService.subscribeToAvailableOrders((orders) => {
-            setAvailableOrders(orders as DeliveryOrder[]);
-            setLoading(false);
-        });
+        let cancelled = false;
 
-        let unsubscribeMyDeliveries: () => void;
+        const loadInitial = async () => {
+            setLoading(true);
+            await Promise.all([loadAvailable(true), loadMine(true)]);
+            if (!cancelled) setLoading(false);
+        };
 
         if (user?.id) {
             getRatingStats(user.id, 'user').then(stats => {
                 setDriverStats(stats);
             });
-
-            // Subscribe to my deliveries (activas + históricas para stats)
-            unsubscribeMyDeliveries = dataService.subscribeToDriverDeliveries(user.id, (orders) => {
-                const active = orders.filter(o =>
-                    o.status === OrderStatus.DRIVER_ACCEPTED ||
-                    o.status === OrderStatus.IN_TRANSIT
-                );
-                const completed = orders.filter(o => o.status === OrderStatus.COMPLETED);
-                setMyDeliveries(active as DeliveryOrder[]);
-                setCompletedOrders(completed as DeliveryOrder[]);
-            });
+            loadInitial();
         }
 
         // Location Check
@@ -101,10 +98,112 @@ export const DriverDashboard: React.FC = () => {
         }
 
         return () => {
-            unsubscribeAvailable();
-            if (unsubscribeMyDeliveries) unsubscribeMyDeliveries();
+            cancelled = true;
         };
     }, [user?.id, user?.role]);
+
+    const loadAvailable = async (initial = false) => {
+        if (initial) {
+            setAvailableOrders([]);
+            setAvailableLastDoc(null);
+            setHasMoreAvailable(true);
+        } else {
+            setLoadingMoreAvailable(true);
+        }
+        try {
+            const constraints: any[] = [
+                where('deliveryMethod', '==', 'delivery'),
+                where('driverId', '==', null),
+                orderBy('createdAt', 'desc'),
+            ];
+            if (!initial && availableLastDoc) constraints.push(startAfter(availableLastDoc));
+            const q = query(collection(db, 'orders'), ...constraints, limit(PAGE_SIZE));
+            const snapshot = await getDocs(q);
+            const allowedStatuses = new Set<OrderStatus>([
+                OrderStatus.READY_PICKUP,
+            ]);
+            const orders = snapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    ...data,
+                    customerName: data.customerName || 'Cliente',
+                    products: data.products || [],
+                    totalAmount: data.totalAmount,
+                    status: data.status as OrderStatus,
+                    createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt || new Date().toISOString(),
+                    pickupDeadline: data.pickupDeadline,
+                    venueId: data.venueId || '',
+                    customerId: data.customerId || 'unknown',
+                    deliveryAddress: data.deliveryAddress || '',
+                    phone: data.phone || '',
+                    paymentMethod: data.paymentMethod || 'cash',
+                } as DeliveryOrder;
+            }).filter(order => allowedStatuses.has(order.status as OrderStatus));
+
+            setAvailableOrders(prev => initial ? orders : [...prev, ...orders]);
+            setAvailableLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
+            setHasMoreAvailable(snapshot.docs.length === PAGE_SIZE);
+        } catch (error) {
+            logger.error('Error loading available orders:', error);
+        } finally {
+            if (!initial) setLoadingMoreAvailable(false);
+        }
+    };
+
+    const loadMine = async (initial = false) => {
+        if (!user?.id) return;
+        if (initial) {
+            setMyDeliveries([]);
+            setCompletedOrders([]);
+            setMineLastDoc(null);
+            setHasMoreMine(true);
+        } else {
+            setLoadingMoreMine(true);
+        }
+        try {
+            const constraints: any[] = [
+                where('driverId', '==', user.id),
+                orderBy('createdAt', 'desc'),
+            ];
+            if (!initial && mineLastDoc) constraints.push(startAfter(mineLastDoc));
+            const q = query(collection(db, 'orders'), ...constraints, limit(PAGE_SIZE));
+            const snapshot = await getDocs(q);
+            const orders = snapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    ...data,
+                    customerName: data.customerName || 'Cliente',
+                    products: data.products || [],
+                    totalAmount: data.totalAmount,
+                    status: data.status as OrderStatus,
+                    createdAt: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+                    pickupDeadline: data.pickupDeadline,
+                    venueId: data.venueId || '',
+                    customerId: data.customerId || 'unknown',
+                    deliveryAddress: data.deliveryAddress || '',
+                    phone: data.phone || '',
+                    paymentMethod: data.paymentMethod || 'cash',
+                } as DeliveryOrder;
+            });
+
+            const active = orders.filter(o =>
+                o.status === OrderStatus.DRIVER_ACCEPTED ||
+                o.status === OrderStatus.IN_TRANSIT
+            );
+            const completed = orders.filter(o => o.status === OrderStatus.COMPLETED);
+
+            setMyDeliveries(prev => initial ? (active as DeliveryOrder[]) : [...prev, ...(active as DeliveryOrder[])]);
+            setCompletedOrders(prev => initial ? (completed as DeliveryOrder[]) : [...prev, ...(completed as DeliveryOrder[])]);
+            setMineLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
+            setHasMoreMine(snapshot.docs.length === PAGE_SIZE);
+        } catch (error) {
+            logger.error('Error loading driver deliveries:', error);
+        } finally {
+            if (!initial) setLoadingMoreMine(false);
+        }
+    };
 
     const handleAcceptOrder = async (orderId: string) => {
         if (!user?.id) {
@@ -129,8 +228,8 @@ export const DriverDashboard: React.FC = () => {
                 if (orderData.driverId) {
                     throw new Error('Este pedido ya fue tomado por otro repartidor.');
                 }
-                // Si el estado ya cambió a algo más allá de READY_PICKUP/PAID, no aplica
-                const pickupableStatuses = [OrderStatus.READY_PICKUP, OrderStatus.PAID, OrderStatus.IN_PREPARATION];
+                // Si el estado ya cambió a algo más allá de READY_PICKUP, no aplica
+                const pickupableStatuses = [OrderStatus.READY_PICKUP];
                 if (!pickupableStatuses.includes(orderData.status)) {
                     throw new Error('Este pedido ya no está disponible para entrega.');
                 }
@@ -155,6 +254,7 @@ export const DriverDashboard: React.FC = () => {
                 );
             }
 
+            setAvailableOrders(prev => prev.filter(o => o.id !== orderId));
             setView('mine');
         } catch (error: any) {
             logger.error('Error accepting order:', error);
@@ -171,7 +271,9 @@ export const DriverDashboard: React.FC = () => {
         try {
             const orderRef = doc(db, 'orders', orderId);
             await updateDoc(orderRef, {
-                status: OrderStatus.IN_TRANSIT
+                status: OrderStatus.IN_TRANSIT,
+                pickedUpAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
             });
             showToast('success', 'Pedido recogido. ¡Buen viaje!');
 
@@ -190,7 +292,8 @@ export const DriverDashboard: React.FC = () => {
             const orderRef = doc(db, 'orders', orderId);
             await updateDoc(orderRef, {
                 status: OrderStatus.COMPLETED,
-                deliveredAt: new Date().toISOString()
+                deliveredAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
             });
             showToast('success', '¡Pedido entregado con éxito!');
 
@@ -224,8 +327,8 @@ export const DriverDashboard: React.FC = () => {
             // Buscar al dueño del restaurante (venueIds array O venueId string legacy)
             const usersRef = collection(db, 'users');
             const [byVenueIds, byVenueId] = await Promise.all([
-                getDocs(query(usersRef, where('venueIds', 'array-contains', order.venueId), where('role', '==', UserRole.VENUE_OWNER))),
-                getDocs(query(usersRef, where('venueId', '==', order.venueId), where('role', '==', UserRole.VENUE_OWNER))),
+                getDocs(query(usersRef, where('venueIds', 'array-contains', order.venueId), where('role', '==', UserRole.VENUE_OWNER), limit(20))),
+                getDocs(query(usersRef, where('venueId', '==', order.venueId), where('role', '==', UserRole.VENUE_OWNER), limit(20))),
             ]);
             const ownerDoc = byVenueIds.docs[0] || byVenueId.docs[0];
 
@@ -668,11 +771,24 @@ export const DriverDashboard: React.FC = () => {
                             </p>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {filteredAvailable.map(order => (
-                                <OrderCard key={order.id} order={order} />
-                            ))}
-                        </div>
+                        <>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {filteredAvailable.map(order => (
+                                    <OrderCard key={order.id} order={order} />
+                                ))}
+                            </div>
+                            {hasMoreAvailable && (
+                                <div className="mt-6 flex justify-center">
+                                    <button
+                                        onClick={() => loadAvailable(false)}
+                                        disabled={loadingMoreAvailable}
+                                        className="px-4 py-2 rounded-lg text-sm font-bold bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-60"
+                                    >
+                                        {loadingMoreAvailable ? 'Cargando...' : 'Cargar más'}
+                                    </button>
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
             )}
@@ -691,11 +807,24 @@ export const DriverDashboard: React.FC = () => {
                             </p>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {filteredMine.map(order => (
-                                <OrderCard key={order.id} order={order} isMyDelivery />
-                            ))}
-                        </div>
+                        <>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {filteredMine.map(order => (
+                                    <OrderCard key={order.id} order={order} isMyDelivery />
+                                ))}
+                            </div>
+                            {hasMoreMine && (
+                                <div className="mt-6 flex justify-center">
+                                    <button
+                                        onClick={() => loadMine(false)}
+                                        disabled={loadingMoreMine}
+                                        className="px-4 py-2 rounded-lg text-sm font-bold bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-60"
+                                    >
+                                        {loadingMoreMine ? 'Cargando...' : 'Cargar más'}
+                                    </button>
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
             )}

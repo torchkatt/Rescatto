@@ -1,5 +1,5 @@
 import { db } from './firebase';
-import { collection, doc, runTransaction, addDoc, getDoc, query, where, orderBy, getDocs, Timestamp } from 'firebase/firestore';
+import { collection, doc, runTransaction, addDoc, getDoc, query, where, orderBy, getDocs, Timestamp, limit, startAfter, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { logger } from '../utils/logger';
 
 export interface WalletTransaction {
@@ -94,12 +94,43 @@ export const walletService = {
      * Obtiene el historial de transacciones para una sede.
      */
     getTransactions: async (venueId: string) => {
-        const q = query(
-            collection(db, 'wallet_transactions'),
+        const transactions: WalletTransaction[] = [];
+        let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
+        let hasMore = true;
+        while (hasMore) {
+            const constraints: any[] = [
+                where('venueId', '==', venueId),
+                orderBy('createdAt', 'desc'),
+            ];
+            if (lastDoc) constraints.push(startAfter(lastDoc));
+            constraints.push(limit(50));
+            const q = query(collection(db, 'wallet_transactions'), ...constraints);
+            const snapshot = await getDocs(q);
+            transactions.push(...snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as WalletTransaction[]);
+            lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
+            hasMore = snapshot.docs.length === 50;
+        }
+        return transactions;
+    },
+
+    getTransactionsPage: async (
+        venueId: string,
+        lastDoc?: QueryDocumentSnapshot<DocumentData> | null,
+        pageSize: number = 20
+    ) => {
+        const constraints: any[] = [
             where('venueId', '==', venueId),
-            orderBy('createdAt', 'desc')
-        );
+            orderBy('createdAt', 'desc'),
+        ];
+        if (lastDoc) constraints.push(startAfter(lastDoc));
+        constraints.push(limit(pageSize));
+        const q = query(collection(db, 'wallet_transactions'), ...constraints);
         const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as WalletTransaction[];
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as WalletTransaction[];
+        return {
+            data,
+            lastDoc: snapshot.docs[snapshot.docs.length - 1] || null,
+            hasMore: snapshot.docs.length === pageSize,
+        };
     }
 };

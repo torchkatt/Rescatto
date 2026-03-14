@@ -1,11 +1,12 @@
-import React from 'react';
 import { X, Share, MoreVertical, Smartphone, Download, CheckCircle2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface PWANotificationProps {
     onClose: () => void;
 }
 
 export const PWANotification: React.FC<PWANotificationProps> = ({ onClose }) => {
+    const { t } = useTranslation();
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
 
     return (
@@ -38,17 +39,17 @@ export const PWANotification: React.FC<PWANotificationProps> = ({ onClose }) => 
                     {/* Content */}
                     <div className="space-y-4">
                         <h3 className="text-2xl font-black text-slate-900 leading-tight">
-                            Instala Rescatto <br />
-                            <span className="text-emerald-600">en tu dispositivo</span>
+                            {t('pwa_install_title')} <br />
+                            <span className="text-emerald-600">{t('pwa_install_subtitle')}</span>
                         </h3>
 
                         <p className="text-slate-600 text-sm leading-relaxed">
-                            Disfruta de una experiencia más rápida y fluida instalando nuestra App directamente en tu pantalla de inicio.
+                            {t('pwa_install_desc')}
                         </p>
 
                         {/* Instructions Box */}
                         <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 space-y-3">
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Instrucciones</p>
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{t('pwa_instructions')}</p>
 
                             <div className="flex items-center gap-3">
                                 <div className="flex-shrink-0 w-8 h-8 bg-white rounded-lg flex items-center justify-center shadow-sm border border-slate-100">
@@ -56,8 +57,8 @@ export const PWANotification: React.FC<PWANotificationProps> = ({ onClose }) => 
                                 </div>
                                 <p className="text-sm text-slate-700 font-medium">
                                     {isIOS
-                                        ? 'Toca el icono de "Compartir" en Safari'
-                                        : 'Toca los tres puntos del navegador'}
+                                        ? t('pwa_ios_share')
+                                        : t('pwa_android_menu')}
                                 </p>
                             </div>
 
@@ -66,7 +67,9 @@ export const PWANotification: React.FC<PWANotificationProps> = ({ onClose }) => 
                                     <Download size={16} className="text-emerald-500" />
                                 </div>
                                 <p className="text-sm text-slate-700 font-medium">
-                                    Selecciona <span className="text-emerald-600 font-bold">"Añadir a pantalla de inicio"</span>
+                                    {t('pwa_add_home').split('"').map((text, i) => (
+                                        i === 1 ? <span key={i} className="text-emerald-600 font-bold">"{text}"</span> : text
+                                    ))}
                                 </p>
                             </div>
                         </div>
@@ -78,7 +81,7 @@ export const PWANotification: React.FC<PWANotificationProps> = ({ onClose }) => 
                         className="mt-8 w-full py-4 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-slate-200"
                     >
                         <CheckCircle2 size={20} />
-                        ¡Entendido!
+                        {t('pwa_understood')}
                     </button>
                 </div>
             </div>

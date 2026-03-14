@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useChat } from '../../context/ChatContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { useTranslation } from 'react-i18next';
 import { MessageBubble } from './MessageBubble';
 import { X, Send, Loader2, MessageSquare, MapPin, ArrowLeft } from 'lucide-react';
 import { doc, setDoc, serverTimestamp, collection, onSnapshot } from 'firebase/firestore';
@@ -22,12 +23,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     showBackButton = false, 
     className = '' 
 }) => {
-    const { currentChat, messages, loading, sending, sendMessage, closeChat } = useChat();
+    const { currentChat, messages, loading, sending, sendMessage, closeChat, loadMoreMessages, hasMoreMessages, loadingMoreMessages } = useChat();
     const { user } = useAuth();
     const { error: toastError } = useToast();
+    const { t } = useTranslation();
     const [messageText, setMessageText] = useState('');
     const [typing, setTyping] = useState<Record<string, boolean>>({});
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const listRef = useRef<HTMLDivElement>(null);
+    const [isAtBottom, setIsAtBottom] = useState(true);
+    const [hasNewMessages, setHasNewMessages] = useState(false);
+    const [newMessagesCount, setNewMessagesCount] = useState(0);
     const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     // Typing presence logic
@@ -77,7 +83,15 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
     // Auto-scroll to bottom when new messages or typing status arrive
     useEffect(() => {
-        scrollToBottom();
+        if (isAtBottom) {
+            scrollToBottom();
+        } else if (messages.length > 0) {
+            setHasNewMessages(true);
+            const last = messages[messages.length - 1];
+            if (last && last.senderId !== user?.id) {
+                setNewMessagesCount((prev) => prev + 1);
+            }
+        }
     }, [messages, typing]);
 
     const scrollToBottom = () => {
@@ -91,7 +105,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             await sendMessage(messageText);
             setMessageText('');
         } catch {
-            toastError('No se pudo enviar el mensaje. Intenta de nuevo.');
+            toastError(t('chat_error_send'));
         }
     };
 
@@ -115,20 +129,20 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 },
                 (error) => {
                     logger.error('Error getting location:', error);
-                    toastError('No se pudo obtener tu ubicación.');
+                    toastError(t('chat_error_location'));
                 }
             );
         } else {
-            toastError('Geolocalización no soportada por el navegador.');
+            toastError(t('chat_error_geolocation'));
         }
     };
 
     const getOtherParticipantName = () => {
-        if (!currentChat || !user) return 'Usuario';
+        if (!currentChat || !user) return t('chat_user');
         const otherId = currentChat.participants.find(id => id !== user.id);
         return (otherId && currentChat.participantNames[otherId])
             ? currentChat.participantNames[otherId]
-            : 'Usuario';
+            : t('chat_user');
     };
 
     if (!currentChat) {
@@ -138,9 +152,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-600">
                         <MessageSquare size={32} />
                     </div>
-                    <h3 className="text-lg font-bold text-gray-900 mb-2">¡Hola! 👋</h3>
+                    <h3 className="text-lg font-bold text-gray-900 mb-2">{t('chat_hello')}</h3>
                     <p className="text-gray-500">
-                        Selecciona una conversación de la lista para comenzar a chatear con tus clientes o repartidores.
+                        {t('chat_select_desc')}
                     </p>
                 </div>
             </div>
@@ -203,7 +217,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                 <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
                             </button>
                         ) : (
-                            <span className="text-[10px] font-bold text-gray-400">En línea ahora</span>
+                            <span className="text-[10px] font-bold text-gray-400">{t('chat_online')}</span>
                         )}
                     </div>
                 </div>
@@ -222,7 +236,20 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-5 py-6">
+            <div
+                ref={listRef}
+                className="flex-1 overflow-y-auto px-5 py-6"
+                onScroll={() => {
+                    const el = listRef.current;
+                    if (!el) return;
+                    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+                    setIsAtBottom(atBottom);
+                    if (atBottom) {
+                        setHasNewMessages(false);
+                        setNewMessagesCount(0);
+                    }
+                }}
+            >
                 {loading && messages.length === 0 ? (
                     <div className="flex justify-center items-center h-full">
                         <LoadingSpinner />
@@ -232,10 +259,21 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         <div className="w-16 h-16 bg-gray-100 rounded-3xl flex items-center justify-center mb-4">
                             <MessageSquare size={24} className="text-gray-300" />
                         </div>
-                        <p className="text-gray-400 font-bold text-xs max-w-[180px]">No hay mensajes aún. ¡Comienza la conversación!</p>
+                        <p className="text-gray-400 font-bold text-xs max-w-[180px]">{t('chat_no_messages')}</p>
                     </div>
                 ) : (
                     <>
+                        {hasMoreMessages && (
+                            <div className="flex justify-center mb-4">
+                                <button
+                                    onClick={loadMoreMessages}
+                                    disabled={loadingMoreMessages}
+                                    className="px-3 py-1.5 text-xs font-bold rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-60"
+                                >
+                                    {loadingMoreMessages ? t('loading') : t('chat_load_older')}
+                                </button>
+                            </div>
+                        )}
                         {messages.map((message, index) => {
                             const isMine = message.senderId === user?.id;
                             const showAvatar = index === 0 || messages[index - 1].senderId !== message.senderId;
@@ -269,6 +307,21 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 )}
             </div>
 
+            {hasNewMessages && (
+                <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-20">
+                    <button
+                        onClick={() => {
+                            setHasNewMessages(false);
+                            setNewMessagesCount(0);
+                            scrollToBottom();
+                        }}
+                        className="px-4 py-2 rounded-full text-xs font-bold bg-emerald-600 text-white shadow-lg shadow-emerald-200 hover:bg-emerald-700 active:scale-95 transition-all"
+                    >
+                        {t('chat_new_messages', { count: newMessagesCount })}
+                    </button>
+                </div>
+            )}
+
             {/* Input */}
             <div className="px-5 py-5 pb-8 bg-white border-t border-gray-100">
                 <div className="flex gap-2 p-1 bg-gray-50 rounded-2xl border border-gray-100 focus-within:border-emerald-200 focus-within:bg-white focus-within:shadow-xl focus-within:shadow-emerald-500/5 transition-all duration-300">
@@ -276,7 +329,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         onClick={handleSendLocation}
                         disabled={sending}
                         className="p-3.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all disabled:opacity-30"
-                        title="Compartir ubicación"
+                        title={t('chat_share_location')}
                     >
                         <MapPin size={22} />
                     </button>
@@ -285,7 +338,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         value={messageText}
                         onChange={(e) => setMessageText(e.target.value)}
                         onKeyPress={handleKeyPress}
-                        placeholder="Escribe un mensaje..."
+                        placeholder={t('chat_placeholder')}
                         disabled={sending}
                         className="flex-1 py-3 bg-transparent text-gray-900 placeholder-gray-400 font-bold focus:outline-none text-sm"
                     />

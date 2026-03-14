@@ -1,6 +1,6 @@
 import {
-    collection, query, where, orderBy, onSnapshot, getDocs,
-    addDoc, updateDoc, deleteDoc, doc, serverTimestamp, Unsubscribe
+    collection, query, where, orderBy, onSnapshot, getDocs, limit, startAfter,
+    addDoc, updateDoc, deleteDoc, doc, serverTimestamp, Unsubscribe, QueryDocumentSnapshot, DocumentData
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { FlashDeal } from '../types';
@@ -19,7 +19,8 @@ export const flashDealService = {
             collection(db, 'flash_deals'),
             where('isActive', '==', true),
             where('endTime', '>', now),
-            orderBy('endTime', 'asc')
+            orderBy('endTime', 'asc'),
+            limit(20)
         );
 
         return onSnapshot(q, (snapshot) => {
@@ -43,13 +44,43 @@ export const flashDealService = {
                 collection(db, 'flash_deals'),
                 where('isActive', '==', true),
                 where('endTime', '>', now),
-                orderBy('endTime', 'asc')
+                orderBy('endTime', 'asc'),
+                limit(20)
             );
             const snapshot = await getDocs(q);
             return snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as FlashDeal[];
         } catch (error) {
             logger.error('flashDealService.getActiveDeals error:', error);
             return [];
+        }
+    },
+
+    getActiveDealsPage: async (
+        lastDoc?: QueryDocumentSnapshot<DocumentData> | null,
+        pageSize: number = 20
+    ) => {
+        try {
+            const now = new Date().toISOString();
+            const constraints: any[] = [
+                where('isActive', '==', true),
+                where('endTime', '>', now),
+                orderBy('endTime', 'asc'),
+            ];
+            if (lastDoc) constraints.push(startAfter(lastDoc));
+            constraints.push(limit(pageSize));
+            const q = query(collection(db, 'flash_deals'), ...constraints);
+            const snapshot = await getDocs(q);
+            const data = snapshot.docs
+                .map(d => ({ id: d.id, ...d.data() } as FlashDeal))
+                .filter(d => !d.startTime || d.startTime <= now);
+            return {
+                data,
+                lastDoc: snapshot.docs[snapshot.docs.length - 1] || null,
+                hasMore: snapshot.docs.length === pageSize,
+            };
+        } catch (error) {
+            logger.error('flashDealService.getActiveDealsPage error:', error);
+            return { data: [], lastDoc: null, hasMore: false };
         }
     },
 
@@ -70,16 +101,51 @@ export const flashDealService = {
     /** Fetch all deals for a venue (admin view, includes inactive/expired) */
     getDealsByVenue: async (venueId: string): Promise<FlashDeal[]> => {
         try {
-            const q = query(
-                collection(db, 'flash_deals'),
-                where('venueId', '==', venueId),
-                orderBy('startTime', 'desc')
-            );
-            const snapshot = await getDocs(q);
-            return snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as FlashDeal[];
+            const deals: FlashDeal[] = [];
+            let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
+            let hasMore = true;
+            while (hasMore) {
+                const constraints: any[] = [
+                    where('venueId', '==', venueId),
+                    orderBy('startTime', 'desc'),
+                ];
+                if (lastDoc) constraints.push(startAfter(lastDoc));
+                constraints.push(limit(50));
+                const q = query(collection(db, 'flash_deals'), ...constraints);
+                const snapshot = await getDocs(q);
+                deals.push(...snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as FlashDeal[]);
+                lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
+                hasMore = snapshot.docs.length === 50;
+            }
+            return deals;
         } catch (error) {
             logger.error('flashDealService.getDealsByVenue error:', error);
             return [];
+        }
+    },
+
+    getDealsByVenuePage: async (
+        venueId: string,
+        lastDoc?: QueryDocumentSnapshot<DocumentData> | null,
+        pageSize: number = 20
+    ) => {
+        try {
+            const constraints: any[] = [
+                where('venueId', '==', venueId),
+                orderBy('startTime', 'desc'),
+            ];
+            if (lastDoc) constraints.push(startAfter(lastDoc));
+            constraints.push(limit(pageSize));
+            const q = query(collection(db, 'flash_deals'), ...constraints);
+            const snapshot = await getDocs(q);
+            return {
+                data: snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as FlashDeal[],
+                lastDoc: snapshot.docs[snapshot.docs.length - 1] || null,
+                hasMore: snapshot.docs.length === pageSize,
+            };
+        } catch (error) {
+            logger.error('flashDealService.getDealsByVenuePage error:', error);
+            return { data: [], lastDoc: null, hasMore: false };
         }
     },
 

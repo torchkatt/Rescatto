@@ -8,7 +8,6 @@ import { PermissionGate } from '../../components/PermissionGate';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
 import { Button } from '../../components/customer/common/Button';
 import { Plus, Pencil, Trash2, Package, Search, X, Store, Eye, EyeOff, RotateCw, AlertTriangle, Clock, Copy } from 'lucide-react';
-import { Pagination } from '../../components/common/Pagination';
 import { useToast } from '../../context/ToastContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import { Tooltip } from '../../components/common/Tooltip';
@@ -17,6 +16,7 @@ import { logger } from '../../utils/logger';
 import { formatCOP } from '../../utils/formatters';
 import { geminiService } from '../../services/geminiService';
 import { Sparkles } from 'lucide-react';
+import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 
 export const ProductManager: React.FC = () => {
     const toast = useToast();
@@ -25,6 +25,9 @@ export const ProductManager: React.FC = () => {
     const [products, setProducts] = useState<Product[]>([]);
     const [availableTags, setAvailableTags] = useState<VenueCategory[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [hasMore, setHasMore] = useState(true);
+    const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
 
     // Super Admin Venue Selection
     const [searchParams] = useSearchParams();
@@ -74,7 +77,7 @@ export const ProductManager: React.FC = () => {
 
     useEffect(() => {
         if (selectedVenueId) {
-            loadProducts();
+            loadProducts(true);
         }
     }, [selectedVenueId]);
 
@@ -112,20 +115,31 @@ export const ProductManager: React.FC = () => {
         }
     };
 
-    const loadProducts = async () => {
+    const loadProducts = async (initial = false) => {
         if (!selectedVenueId) return;
 
-        setLoading(true);
+        if (initial) {
+            setLoading(true);
+            setProducts([]);
+            setLastDoc(null);
+            setHasMore(true);
+        } else {
+            setLoadingMore(true);
+        }
         try {
-            const productsData = await productService.getProductsByVenue(selectedVenueId);
-            setProducts(productsData);
-            if (productsData.length > 0 && !selectedProduct) {
-                setSelectedProduct(productsData[0]);
+            const page = await productService.getProductsByVenuePage(selectedVenueId, initial ? null : lastDoc, 20);
+            const nextProducts = initial ? page.products : [...products, ...page.products];
+            setProducts(nextProducts);
+            setLastDoc(page.lastDoc);
+            setHasMore(page.hasMore);
+            if (nextProducts.length > 0 && !selectedProduct) {
+                setSelectedProduct(nextProducts[0]);
             }
         } catch (error) {
             logger.error('Error loading products:', error);
         } finally {
-            setLoading(false);
+            if (initial) setLoading(false);
+            setLoadingMore(false);
         }
     };
 
@@ -244,7 +258,7 @@ export const ProductManager: React.FC = () => {
 
             toast.success(editingProduct ? 'Producto actualizado' : 'Producto creado');
             handleCloseModal();
-            loadProducts();
+            loadProducts(true);
         } catch (error) {
             logger.error('Error saving product:', error);
             toast.error('Error al guardar el producto');
@@ -295,9 +309,6 @@ export const ProductManager: React.FC = () => {
         toast.info?.('Producto duplicado — ajusta el stock y la fecha antes de guardar');
     };
 
-    const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 6; // Reduced to fit with preview
-
     // Stock + expiry alerts
     const now = new Date();
     const LOW_STOCK_THRESHOLD = 3;
@@ -308,18 +319,6 @@ export const ProductManager: React.FC = () => {
         (product.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
         (product.category?.toLowerCase() || '').includes(searchTerm.toLowerCase())
     );
-
-    // Calculate Pagination
-    const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
-    const paginatedProducts = filteredProducts.slice(
-        (currentPage - 1) * itemsPerPage,
-        currentPage * itemsPerPage
-    );
-
-    // Reset to page 1 when search changes
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [searchTerm]);
 
     if (loading) return <LoadingSpinner fullPage />;
 
@@ -340,7 +339,7 @@ export const ProductManager: React.FC = () => {
         <div className="space-y-6 overflow-x-hidden">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                    <h2 className="text-2xl font-bold text-white flex items-center gap-2">
                         <Package className="text-emerald-600" />
                         Gestión de Catálogo
                     </h2>
@@ -451,7 +450,7 @@ export const ProductManager: React.FC = () => {
                 <div className="flex flex-col lg:flex-row gap-6">
                     <div className="flex-1 space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                            {paginatedProducts.map(product => (
+                            {filteredProducts.map(product => (
                                 <div
                                     key={product.id}
                                     onClick={() => setSelectedProduct(product)}
@@ -535,11 +534,17 @@ export const ProductManager: React.FC = () => {
                             ))}
                         </div>
 
-                        <Pagination
-                            currentPage={currentPage}
-                            totalPages={totalPages}
-                            onPageChange={setCurrentPage}
-                        />
+                        {hasMore && searchTerm.length === 0 && (
+                            <div className="flex justify-center">
+                                <button
+                                    onClick={() => loadProducts(false)}
+                                    disabled={loadingMore}
+                                    className="px-4 py-2 rounded-full text-sm font-bold bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-60"
+                                >
+                                    {loadingMore ? 'Cargando...' : 'Cargar más'}
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     {/* Mobile Preview Panel */}

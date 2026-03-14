@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FlashDeal } from '../../../types';
 import { flashDealService } from '../../../services/flashDealService';
 import { Zap, ChevronRight, X } from 'lucide-react';
+import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 
 interface Props {
     deal: FlashDeal;
@@ -102,10 +103,18 @@ export const FlashDealBanner: React.FC<Props> = ({ deal, onDismiss }) => {
 export const FlashDealsSection: React.FC = () => {
     const [deals, setDeals] = useState<FlashDeal[]>([]);
     const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [hasMore, setHasMore] = useState(true);
+    const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
 
     useEffect(() => {
-        const unsub = flashDealService.subscribeToActiveDeals(setDeals);
-        return unsub;
+        const loadInitial = async () => {
+            const page = await flashDealService.getActiveDealsPage(null, 20);
+            setDeals(page.data);
+            setLastDoc(page.lastDoc);
+            setHasMore(page.hasMore);
+        };
+        loadInitial();
     }, []);
 
     const visibleDeals = deals.filter(d => !dismissed.has(d.id));
@@ -127,6 +136,25 @@ export const FlashDealsSection: React.FC = () => {
                     onDismiss={() => setDismissed(prev => new Set([...prev, deal.id]))}
                 />
             ))}
+            {hasMore && (
+                <div className="flex justify-center">
+                    <button
+                        onClick={async () => {
+                            if (loadingMore) return;
+                            setLoadingMore(true);
+                            const next = await flashDealService.getActiveDealsPage(lastDoc, 20);
+                            setDeals(prev => [...prev, ...next.data]);
+                            setLastDoc(next.lastDoc);
+                            setHasMore(next.hasMore);
+                            setLoadingMore(false);
+                        }}
+                        disabled={loadingMore}
+                        className="px-3 py-1.5 text-xs font-bold rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-60"
+                    >
+                        {loadingMore ? 'Cargando...' : 'Cargar más deals'}
+                    </button>
+                </div>
+            )}
         </div>
     );
 };

@@ -6,7 +6,7 @@ import { Order, OrderStatus } from '../types';
 export const usePaginatedOrders = (
   venueId?: string | string[],
   filters?: { status?: 'all' | OrderStatus; search?: string },
-  limitPerPage = 50 // Pulling 50 to ensure in-memory filtering has enough data per page
+  limitPerPage = 20 // Cost-optimized page size
 ) => {
   return useInfiniteQuery({
     queryKey: ['ordersPaginated', venueId, filters?.status, filters?.search],
