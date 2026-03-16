@@ -10,7 +10,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 import { logger } from '../utils/logger';
 
 // Firebase configuration from environment variables
-const firebaseConfig = {
+const firebaseConfig: Record<string, string> = {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
     authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
     projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
@@ -19,14 +19,21 @@ const firebaseConfig = {
     appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
+// Solo incluir measurementId si está configurado — evita cargar gtag con id=undefined
+if (import.meta.env.VITE_FIREBASE_MEASUREMENT_ID) {
+    firebaseConfig.measurementId = import.meta.env.VITE_FIREBASE_MEASUREMENT_ID;
+}
+
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
 // Initialize Firebase Authentication and get a reference to the service
 export const auth = getAuth(app);
  
-// Initialize Analytics
-export const analytics = typeof window !== 'undefined' ? getAnalytics(app) : null;
+// Initialize Analytics — solo si measurementId está configurado
+export const analytics = typeof window !== 'undefined' && import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
+    ? getAnalytics(app)
+    : null;
 
 // Initialize Firebase App Check (reCAPTCHA v3) to prevent backend abuse
 // In local development, you need to set `self.FIREBASE_APPCHECK_DEBUG_TOKEN = true`

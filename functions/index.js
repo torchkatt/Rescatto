@@ -51,7 +51,8 @@ const {
 const {
     getFinanceStats,
     aggregateAdminStats,
-    migrateVenueIdToVenueIds
+    migrateVenueIdToVenueIds,
+    recordManualSettlement
 } = require("./src/services/adminService");
 
 // ─── Cron & Scheduled Jobs ────────────────────────────────────────────────────
@@ -130,6 +131,7 @@ module.exports = {
     getFinanceStats,
     aggregateAdminStats,
     migrateVenueIdToVenueIds,
+    recordManualSettlement,
 
     // Cron
     applyDynamicPricing,

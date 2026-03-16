@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate, Link } from 'react-router-dom';
-import { LayoutDashboard, ShoppingBag, FileText, Settings, UtensilsCrossed, ClipboardList, LogOut, Menu, X, Package, BarChart, MessageSquare, Users, Shield, Download, Tag, RefreshCw, MapPin, DollarSign, Zap, Moon, Sun, Truck, TrendingUp, BadgeCheck, Building2 } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, FileText, Settings, UtensilsCrossed, ClipboardList, LogOut, Menu, X, Package, BarChart, MessageSquare, Users, Shield, Download, Tag, RefreshCw, MapPin, DollarSign, Zap, Moon, Sun, Truck, TrendingUp, BadgeCheck, Building2, Landmark } from 'lucide-react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../context/AuthContext';
@@ -269,6 +269,12 @@ const Sidebar: React.FC = () => {
                     <DollarSign size={18} className="sidebar-icon text-emerald-400" />
                   </div>
                   <span className="font-medium">Finanzas Global</span>
+                </NavLink>
+                <NavLink to="/admin/commissions" className={navClass} onClick={() => setIsMobileOpen(false)}>
+                  <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-white/10 transition-colors">
+                    <Landmark size={18} className="sidebar-icon text-amber-400" />
+                  </div>
+                  <span className="font-medium">Comisiones</span>
                 </NavLink>
                 <NavLink to="/admin/sales" className={navClass} onClick={() => setIsMobileOpen(false)}>
                   <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-white/10 transition-colors">

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { AuditLogStats } from './AuditLogStats';
 import {
     collection,
@@ -14,7 +14,9 @@ import {
 import { db } from '../../services/firebase';
 import { AuditLog } from '../../types';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
-import { Shield, Search, Calendar, User, Activity, Trash2, Download, X, AlertCircle, Info } from 'lucide-react';
+import { Shield, Search, Calendar, User, Activity, Trash2, Download, X, AlertCircle, Info, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+
+const PAGE_SIZE_OPTIONS = [25, 50, 100];
 import { cacheService } from '../../services/cacheService';
 import { adminService } from '../../services/adminService';
 import { logger } from '../../utils/logger';
@@ -88,6 +90,8 @@ export const AuditLogs: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [lastDoc, setLastDoc] = useState<any>(null);
     const [hasMore, setHasMore] = useState(true);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(50);
 
     // Filters
     const [searchTerm, setSearchTerm] = useState('');
@@ -247,33 +251,53 @@ export const AuditLogs: React.FC = () => {
         }
     };
 
-    const filteredLogs = logs.filter(log => {
+    const filteredLogs = useMemo(() => logs.filter(log => {
         if (IGNORED_ACTIONS.includes(log.action)) return false;
-
         const searchLower = searchTerm.toLowerCase();
         const actor = entityNames[log.performedBy] || log.performedBy;
         const target = entityNames[log.targetId || ''] || '';
-        const action = log.action;
-
         const matchesSearch =
             actor.toLowerCase().includes(searchLower) ||
             target.toLowerCase().includes(searchLower) ||
-            action.toLowerCase().includes(searchLower);
-
+            log.action.toLowerCase().includes(searchLower);
         const matchesCategory = selectedCategory === 'ALL' || getCategory(log.action).label === selectedCategory;
-
         let matchesDate = true;
-        if (dateRange.start) {
-            matchesDate = matchesDate && new Date(log.timestamp) >= new Date(dateRange.start);
-        }
+        if (dateRange.start) matchesDate = matchesDate && new Date(log.timestamp) >= new Date(dateRange.start);
         if (dateRange.end) {
             const endDate = new Date(dateRange.end);
             endDate.setHours(23, 59, 59, 999);
             matchesDate = matchesDate && new Date(log.timestamp) <= endDate;
         }
-
         return matchesSearch && matchesCategory && matchesDate;
-    });
+    }), [logs, searchTerm, entityNames, selectedCategory, dateRange]);
+
+    const totalPages = Math.max(1, Math.ceil(filteredLogs.length / pageSize));
+    const safePage = Math.min(currentPage, totalPages);
+    const paginatedLogs = filteredLogs.slice((safePage - 1) * pageSize, safePage * pageSize);
+    const needsMoreData = hasMore && safePage === totalPages && filteredLogs.length > 0 && filteredLogs.length % pageSize === 0;
+
+    const goToPage = async (page: number) => {
+        const target = Math.max(1, Math.min(page, totalPages));
+        if (needsMoreData && target === totalPages) {
+            await fetchLogs(true);
+        }
+        setCurrentPage(target);
+    };
+
+    const handlePageSizeChange = (size: number) => { setPageSize(size); setCurrentPage(1); };
+
+    const getPageNumbers = () => {
+        const delta = 2;
+        const pages: (number | '...')[] = [];
+        for (let i = 1; i <= totalPages; i++) {
+            if (i === 1 || i === totalPages || (i >= safePage - delta && i <= safePage + delta)) {
+                pages.push(i);
+            } else if (pages[pages.length - 1] !== '...') {
+                pages.push('...');
+            }
+        }
+        return pages;
+    };
 
     const renderDrawer = () => {
         if (!selectedLog) return null;
@@ -380,82 +404,51 @@ export const AuditLogs: React.FC = () => {
             {/* STATS & CHARTS */}
             <AuditLogStats logs={statsLogs} totalCount={totalLogCount} />
 
-            {/* FILTERS TOOLBAR */}
-            <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm mb-6 flex flex-col xl:flex-row gap-4 xl:items-center justify-between">
-
-                {/* Left: Search */}
-                <div className="relative w-full xl:w-96">
-                    <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
-                    <input
-                        type="text"
-                        placeholder="Buscar actor, acción, ID..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-base outline-none"
-                    />
-                </div>
-
-                {/* Right: Filters & Export */}
-                <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
-                    {/* Category */}
-                    <div className="flex items-center gap-2">
+            {/* TABLE */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden min-h-[400px]">
+                {/* Table Header */}
+                <div className="p-4 border-b bg-gray-50 flex flex-col xl:flex-row gap-3 xl:items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <h3 className="font-bold text-gray-800 shrink-0">Registros de Auditoría</h3>
+                        <div className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2 bg-white flex-1 xl:w-72">
+                            <Search className="text-gray-400 shrink-0" size={16} />
+                            <input
+                                type="text"
+                                placeholder="Buscar actor, acción, ID..."
+                                value={searchTerm}
+                                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                                className="flex-1 outline-none text-gray-700 bg-transparent text-sm"
+                            />
+                        </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
                         <select
                             value={selectedCategory}
                             onChange={(e) => setSelectedCategory(e.target.value)}
-                            className="w-full sm:w-auto py-2.5 px-4 border border-gray-200 rounded-xl text-base bg-gray-50 text-gray-700 focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all"
+                            className="text-sm py-2 px-3 border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:border-emerald-400"
                         >
                             <option value="ALL">Todas las Categorías</option>
                             {Object.values(ACTION_CATEGORIES).map(cat => (
                                 <option key={cat.label} value={cat.label}>{cat.label}</option>
                             ))}
                         </select>
+                        <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg px-2 py-1.5">
+                            <input type="date" className="text-sm bg-transparent border-none focus:ring-0 text-gray-600 outline-none" value={dateRange.start} onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })} title="Desde" />
+                            <span className="text-gray-400 text-xs">—</span>
+                            <input type="date" className="text-sm bg-transparent border-none focus:ring-0 text-gray-600 outline-none" value={dateRange.end} onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })} title="Hasta" />
+                        </div>
+                        <button onClick={() => exportToCSV(filteredLogs, entityNames, false)} className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 border border-emerald-100 text-emerald-700 font-medium rounded-lg hover:bg-emerald-100 transition text-sm" title="Exportar con datos completos">
+                            <Download size={14} /><span>CSV</span>
+                        </button>
+                        <button onClick={() => exportToCSV(filteredLogs, entityNames, true)} className="flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-200 text-gray-600 font-medium rounded-lg hover:bg-gray-50 transition text-sm" title="IPs parciales, nombres como iniciales">
+                            <Download size={14} /><span>Anonimizado</span>
+                        </button>
                     </div>
-
-                    {/* Date Range */}
-                    <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-xl border border-gray-200 w-full sm:w-auto overflow-x-auto">
-                        <input
-                            type="date"
-                            className="py-1 px-2 text-base bg-transparent border-none focus:ring-0 text-gray-600 appearance-none min-w-0"
-                            value={dateRange.start}
-                            onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-                            title="Desde"
-                        />
-                        <span className="text-gray-400">-</span>
-                        <input
-                            type="date"
-                            className="py-1 px-2 text-base bg-transparent border-none focus:ring-0 text-gray-600 appearance-none min-w-0"
-                            value={dateRange.end}
-                            onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-                            title="Hasta"
-                        />
-                    </div>
-
-                    {/* Export buttons */}
-                    <button
-                        onClick={() => exportToCSV(filteredLogs, entityNames, false)}
-                        className="flex items-center justify-center gap-2 px-5 py-3 bg-emerald-50 border border-emerald-100 text-emerald-700 font-bold rounded-xl hover:bg-emerald-100 active:scale-95 transition-all shadow-sm ml-auto w-full sm:w-auto"
-                        title="Exportar con datos completos"
-                    >
-                        <Download size={18} />
-                        <span>Exportar CSV</span>
-                    </button>
-                    <button
-                        onClick={() => exportToCSV(filteredLogs, entityNames, true)}
-                        className="flex items-center justify-center gap-2 px-5 py-3 bg-gray-50 border border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-100 active:scale-95 transition-all shadow-sm w-full sm:w-auto"
-                        title="IPs parciales, nombres como iniciales, sin payload técnico"
-                    >
-                        <Download size={18} />
-                        <span>CSV Anonimizado</span>
-                    </button>
                 </div>
-            </div>
-
-            {/* TABLE */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden min-h-[400px]">
                 <div className="overflow-x-auto">
                     <table className="w-full">
-                        <thead className="bg-gray-50 text-gray-600 font-semibold border-b border-gray-200">
-                            <tr>
+                        <thead>
+                            <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold tracking-wider">
                                 <th className="p-4 w-40 text-left">Fecha</th>
                                 <th className="p-4 w-48 text-left">Categoría</th>
                                 <th className="p-4 w-56 text-left">Actor (Quién)</th>
@@ -463,7 +456,7 @@ export const AuditLogs: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 text-sm">
-                            {filteredLogs.length === 0 ? (
+                            {paginatedLogs.length === 0 ? (
                                 <tr>
                                     <td colSpan={4} className="p-12 text-center text-gray-400 flex flex-col items-center justify-center gap-2">
                                         <div className="bg-gray-50 p-4 rounded-full">
@@ -473,7 +466,7 @@ export const AuditLogs: React.FC = () => {
                                     </td>
                                 </tr>
                             ) : (
-                                filteredLogs.map((log) => {
+                                paginatedLogs.map((log) => {
                                     const category = getCategory(log.action);
                                     const actorName = entityNames[log.performedBy] || (log.performedBy.includes('@') ? log.performedBy : 'Usuario');
 
@@ -522,19 +515,31 @@ export const AuditLogs: React.FC = () => {
                     </table>
                 </div>
 
-                {/* LOAD MORE */}
-                {hasMore && filteredLogs.length > 0 && (
-                    <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-center">
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                fetchLogs(true);
-                            }}
-                            disabled={loading}
-                            className="text-sm font-medium text-emerald-600 hover:text-emerald-700 hover:underline disabled:opacity-50 py-2"
-                        >
-                            {loading ? 'Cargando más...' : 'Cargar más registros antiguos'}
-                        </button>
+                {/* Pagination Controls */}
+                {filteredLogs.length > 0 && (
+                    <div className="p-4 border-t border-gray-100 bg-gray-50 flex flex-col sm:flex-row items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                            <p className="text-xs text-gray-500">
+                                {loading ? 'Cargando...' : <>Mostrando <span className="font-semibold text-gray-700">{(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, filteredLogs.length)}</span> de <span className="font-semibold text-gray-700">{filteredLogs.length}{hasMore ? '+' : ''}</span></>}
+                            </p>
+                            <div className="flex items-center gap-1.5">
+                                <span className="text-xs text-gray-400">Filas:</span>
+                                <select value={pageSize} onChange={(e) => handlePageSizeChange(Number(e.target.value))} className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white text-gray-700 cursor-pointer focus:outline-none focus:border-emerald-400">
+                                    {PAGE_SIZE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <button onClick={() => goToPage(1)} disabled={safePage === 1 || loading} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronsLeft size={15} /></button>
+                            <button onClick={() => goToPage(safePage - 1)} disabled={safePage === 1 || loading} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronLeft size={15} /></button>
+                            {getPageNumbers().map((page, idx) =>
+                                page === '...' ? <span key={`e-${idx}`} className="px-2 text-gray-400 text-sm">…</span> : (
+                                    <button key={page} onClick={() => goToPage(page as number)} disabled={loading} className={`min-w-[30px] h-7 px-2 rounded-lg text-xs font-medium transition-colors ${page === safePage ? 'bg-emerald-600 text-white' : 'text-gray-600 hover:bg-gray-200'}`}>{page}</button>
+                                )
+                            )}
+                            <button onClick={() => goToPage(safePage + 1)} disabled={(safePage >= totalPages && !hasMore) || loading} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronRight size={15} /></button>
+                            <button onClick={() => goToPage(totalPages)} disabled={(safePage >= totalPages && !hasMore) || loading} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronsRight size={15} /></button>
+                        </div>
                     </div>
                 )}
             </div>

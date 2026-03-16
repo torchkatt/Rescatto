@@ -61,17 +61,19 @@ const getFinanceStats = onCall(withErrorHandling("getFinanceStats", async (reque
     if (!finParsed.success) throw new HttpsError("invalid-argument", "Invalid dates.");
     const { startDate, endDate } = finParsed.data;
 
-    let ordersQuery = db.collection("orders").where("status", "in", ["COMPLETED", "PAID"]);
-    if (startDate) {
-        ordersQuery = ordersQuery.where("createdAt", ">=", admin.firestore.Timestamp.fromDate(new Date(startDate)));
-    }
-    if (endDate) {
-        const endOfDay = new Date(endDate);
-        endOfDay.setHours(23, 59, 59, 999);
-        ordersQuery = ordersQuery.where("createdAt", "<=", admin.firestore.Timestamp.fromDate(endOfDay));
-    }
+    const startTs = startDate ? admin.firestore.Timestamp.fromDate(new Date(startDate)) : null;
+    const endTs = endDate ? (() => { const d = new Date(endDate); d.setHours(23, 59, 59, 999); return admin.firestore.Timestamp.fromDate(d); })() : null;
 
-    const snapshot = await ordersQuery.get();
+    const buildQuery = (status) => {
+        let q = db.collection("orders").where("status", "==", status);
+        if (startTs) q = q.where("createdAt", ">=", startTs);
+        if (endTs) q = q.where("createdAt", "<=", endTs);
+        return q.get();
+    };
+
+    const [completedSnap, paidSnap] = await Promise.all([buildQuery("COMPLETED"), buildQuery("PAID")]);
+    const allDocs = [...completedSnap.docs, ...paidSnap.docs];
+    const snapshot = { forEach: (fn) => allDocs.forEach(fn) };
     let totalRevenue = 0, totalPlatformFee = 0, totalVenueEarnings = 0, totalOrders = 0;
     const venueBreakdown = {};
 
@@ -126,4 +128,60 @@ const migrateVenueIdToVenueIds = onCall(async (request) => {
     return { migrated };
 });
 
-module.exports = { aggregateAdminStats, getFinanceStats, migrateVenueIdToVenueIds };
+/**
+ * Admin: registra un pago manual de comisión o liquidación a un negocio. Solo SUPER_ADMIN.
+ * - type "DEBT_PAYMENT": el negocio paga su deuda a Rescatto → balance sube (deuda disminuye)
+ * - type "PAYOUT": Rescatto le paga al negocio sus ganancias → balance baja
+ */
+const recordManualSettlement = onCall(withErrorHandling("recordManualSettlement", async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Auth required.");
+
+    const userDoc = await db.collection("users").doc(request.auth.uid).get();
+    if (!userDoc.exists || userDoc.data().role !== "SUPER_ADMIN") {
+        throw new HttpsError("permission-denied", "Access denied.");
+    }
+
+    const { venueId, amount, type, description } = request.data || {};
+    if (!venueId || !amount || !type || !description) {
+        throw new HttpsError("invalid-argument", "Faltan campos requeridos: venueId, amount, type, description.");
+    }
+    if (!["DEBT_PAYMENT", "PAYOUT"].includes(type)) {
+        throw new HttpsError("invalid-argument", "type debe ser DEBT_PAYMENT o PAYOUT.");
+    }
+    if (typeof amount !== "number" || amount <= 0) {
+        throw new HttpsError("invalid-argument", "amount debe ser un número positivo.");
+    }
+
+    await db.runTransaction(async (tx) => {
+        const walletRef = db.collection("wallets").doc(venueId);
+        const walletDoc = await tx.get(walletRef);
+        const currentBalance = walletDoc.exists ? (walletDoc.data().balance || 0) : 0;
+
+        // DEBT_PAYMENT: negocio paga → sube balance (menos negativo / más crédito)
+        // PAYOUT: Rescatto paga → baja balance
+        const adjustment = type === "DEBT_PAYMENT" ? amount : -amount;
+        const newBalance = currentBalance + adjustment;
+
+        tx.set(walletRef, {
+            venueId,
+            balance: newBalance,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+
+        const txRef = db.collection("wallet_transactions").doc();
+        tx.set(txRef, {
+            venueId,
+            type: type === "DEBT_PAYMENT" ? "CREDIT" : "DEBIT",
+            amount,
+            description,
+            referenceType: type,
+            createdAt: new Date().toISOString(),
+            recordedBy: request.auth.uid,
+        });
+    });
+
+    log(`Settlement recorded for venue ${venueId}: type=${type}, amount=${amount}`);
+    return { success: true };
+}));
+
+module.exports = { aggregateAdminStats, getFinanceStats, migrateVenueIdToVenueIds, recordManualSettlement };

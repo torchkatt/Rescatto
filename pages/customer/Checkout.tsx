@@ -7,7 +7,6 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../services/firebase';
 import { OrderStatus, DonationCenter, ActiveRedemption } from '../../types';
 import { ArrowLeft, CreditCard, Wallet, MapPin, Phone, Store, Leaf, Heart, Gift, Tag, Zap } from 'lucide-react';
-import { PaymentForm } from '../../components/customer/checkout/PaymentForm';
 import { DonationCenterSelector } from '../../components/customer/checkout/DonationCenterSelector';
 import { dataService } from '../../services/dataService';
 import { useLocation } from '../../context/LocationContext';
@@ -48,7 +47,6 @@ export const Checkout: React.FC = () => {
 
     const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>('delivery');
     const [paymentMethod, setPaymentMethod] = useState<'card' | 'cash'>('cash');
-    const isCardPaymentDisabled = true;
     const [address, setAddress] = useState(user?.address || '');
     const [phone, setPhone] = useState(user?.phone || '');
     const [selectedDonationCenter, setSelectedDonationCenter] = useState<DonationCenter | null>(null);
@@ -312,35 +310,6 @@ export const Checkout: React.FC = () => {
         }
     };
 
-    const handleCardPaymentSuccess = async (transactionId: string) => {
-        if (!user || user.isGuest) {
-            error(t('checkout_login_required'));
-            sessionStorage.setItem('rescatto_post_login_redirect', '/app/checkout');
-            navigate('/login');
-            return;
-        }
-
-        const expiredItems = items.filter(item => isProductExpired(item.availableUntil));
-        if (expiredItems.length > 0) {
-            expiredItems.forEach(item => removeFromCart(item.id));
-            error(t('checkout_expired_removed_card'));
-            navigate('/app/cart');
-            return;
-        }
-
-        orderJustPlacedRef.current = true;
-        await processOrder({
-            paymentMethod: 'card',
-            deliveryMethod,
-            address,
-            phoneDigits: phone,
-            selectedDonationCenter,
-            estimatedCo2,
-            selectedRedemption,
-            calculateOrderTotals,
-            transactionId
-        });
-    };
 
     useEffect(() => {
         if (items.length === 0 && !loading && !orderJustPlacedRef.current && !authLoading && isAuthenticated) {
@@ -531,42 +500,8 @@ export const Checkout: React.FC = () => {
                                         </div>
                                     </label>
 
-                                    <label className={`flex items-center gap-3 p-4 border-2 rounded-xl transition-all ${isCardPaymentDisabled ? 'opacity-60 cursor-not-allowed border-gray-100 bg-gray-50' : 'cursor-pointer active:scale-[0.98]'} ${paymentMethod === 'card' ? 'border-emerald-600 bg-emerald-50/50 shadow-sm' : 'border-gray-100 hover:border-emerald-200'
-                                        }`}>
-                                        <input
-                                            type="radio"
-                                            name="payment"
-                                            value="card"
-                                            checked={paymentMethod === 'card'}
-                                            onChange={(e) => setPaymentMethod(e.target.value as 'card')}
-                                            disabled={isCardPaymentDisabled}
-                                            className="text-emerald-600 focus:ring-emerald-500 w-5 h-5"
-                                        />
-                                        <CreditCard className={paymentMethod === 'card' ? 'text-emerald-600' : 'text-gray-400'} size={24} />
-                                        <div>
-                                            <p className="font-bold text-gray-900">{t('checkout_payment_card')}</p>
-                                            <p className="text-sm text-gray-500">{isCardPaymentDisabled ? t('checkout_payment_card_disabled') : t('checkout_payment_card_desc')}</p>
-                                        </div>
-                                    </label>
                                 </div>
                             </div>
-
-                            {paymentMethod === 'card' && !isCardPaymentDisabled && (
-                                <div className="bg-white rounded-xl p-6 shadow-sm border border-emerald-100 ring-1 ring-emerald-50">
-                                    <h3 className="font-bold text-lg mb-4 text-emerald-800">{t('checkout_payment_details')}</h3>
-                                    {((deliveryMethod === 'delivery' && !address) || !isPhoneValid || !!cityError) ? (
-                                        <div className="text-yellow-600 bg-yellow-50 p-4 rounded-lg text-sm mb-4">
-                                            ⚠️ {cityError ? t('checkout_payment_details_error') : t('checkout_payment_details_error')}
-                                        </div>
-                                    ) : (
-                                        <PaymentForm
-                                            amount={getGrandTotal()}
-                                            onSuccess={handleCardPaymentSuccess}
-                                            onError={(err) => error(err)}
-                                        />
-                                    )}
-                                </div>
-                            )}
 
                             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
                                 <h3 className="font-bold text-lg mb-4">{t('checkout_product_summary')}</h3>

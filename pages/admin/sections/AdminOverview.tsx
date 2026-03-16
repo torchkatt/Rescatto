@@ -73,7 +73,7 @@ export const AdminOverview: React.FC<Props> = ({ city }) => {
             // Build 7-day chart data
             const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); sevenDaysAgo.setHours(0, 0, 0, 0);
             const weekOrdersQuery = query(
-                collection(db, 'orders'), 
+                collection(db, 'orders'),
                 where('createdAt', '>=', Timestamp.fromDate(sevenDaysAgo)),
                 ...(city ? [where('city', '==', city)] : [])
             );
@@ -199,7 +199,7 @@ export const AdminOverview: React.FC<Props> = ({ city }) => {
                             </defs>
                             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                             <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-                            <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v/1000).toFixed(0)}k`} />
+                            <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
                             <Tooltip formatter={(v: number) => [formatCOP(v), 'Ventas']} contentStyle={{ borderRadius: '10px', border: '1px solid #e5e7eb', fontSize: 12 }} />
                             <Area type="monotone" dataKey="ventas" stroke="#10b981" strokeWidth={2.5} fill="url(#colorVentas)" dot={{ r: 3, fill: '#10b981' }} activeDot={{ r: 5 }} />
                         </AreaChart>

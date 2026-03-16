@@ -1,11 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { adminService } from '../../services/adminService';
 import { roleService, RoleDefinition } from '../../services/roleService';
 import { User, UserRole, Permission, ROLE_PERMISSIONS } from '../../types';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
 import { PermissionGate } from '../../components/PermissionGate';
 import { useAuth } from '../../context/AuthContext';
-import { Pencil, Trash2, Shield, User as UserIcon, Search, CheckCircle2, Eye, EyeOff, RotateCw, MapPin } from 'lucide-react';
+import { Pencil, Trash2, Shield, User as UserIcon, Search, CheckCircle2, Eye, EyeOff, RotateCw, MapPin, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+
+const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
 import { UserProfilePreview } from '../../components/admin/UserProfilePreview';
 import { useToast } from '../../context/ToastContext';
@@ -69,7 +71,7 @@ export const UsersManager: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [showPreview, setShowPreview] = useState(true);
+    const showPreview = false;
     const [previewUser, setPreviewUser] = useState<User | null>(null);
 
     // Create User State
@@ -195,6 +197,8 @@ export const UsersManager: React.FC = () => {
     const [lastDoc, setLastDoc] = useState<any>(null);
     const [hasMore, setHasMore] = useState(true);
     const [isLoadMoreLoading, setIsLoadMoreLoading] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(20);
 
     const loadUsers = async () => {
         setLoading(true);
@@ -210,25 +214,6 @@ export const UsersManager: React.FC = () => {
         }
     };
 
-    const loadMoreUsers = async () => {
-        if (!hasMore || isLoadMoreLoading) return;
-        setIsLoadMoreLoading(true);
-        try {
-            const result = await adminService.getUsersPaginated(20, lastDoc);
-            setUsers(prev => {
-                // Remove potential duplicates when merging
-                const existingIds = new Set(prev.map(u => u.id));
-                const newUsers = result.data.filter(u => !existingIds.has(u.id));
-                return [...prev, ...newUsers];
-            });
-            setLastDoc(result.lastDoc);
-            setHasMore(result.hasMore);
-        } catch (error) {
-            logger.error('Error loading more users:', error);
-        } finally {
-            setIsLoadMoreLoading(false);
-        }
-    };
 
     const mapAuthError = (code: string) => {
         switch (code) {
@@ -342,27 +327,60 @@ export const UsersManager: React.FC = () => {
 
     // ... (existing useEffects)
 
-    const filteredUsers = users.filter(user => {
-        // 1. Business Context Filter
+    const filteredUsers = useMemo(() => users.filter(user => {
         if (currentUser?.role !== UserRole.SUPER_ADMIN) {
-            // Admin only sees users from their venue/s
             const userVenues = currentUser?.venueIds || (currentUser?.venueId ? [currentUser.venueId] : []);
             const targetVenue = user.venueId;
-
-            // If the user has no venue, usually ADMIN shouldn't see them (unless they are a global user which only SuperAdmin manages)
-            if (!targetVenue || !userVenues.includes(targetVenue)) {
-                return false;
-            }
+            if (!targetVenue || !userVenues.includes(targetVenue)) return false;
         }
-
-        // 2. Search Filter
         const matchesSearch = (user.fullName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
             (user.email?.toLowerCase() || '').includes(searchTerm.toLowerCase());
-
         return matchesSearch;
-    });
+    }), [users, searchTerm, currentUser]);
 
-    const paginatedUsers = filteredUsers;
+    const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
+    const safePage = Math.min(currentPage, totalPages);
+    const paginatedUsers = filteredUsers.slice((safePage - 1) * pageSize, safePage * pageSize);
+    const needsMoreData = hasMore && safePage === totalPages && filteredUsers.length > 0 && filteredUsers.length % pageSize === 0;
+
+    const goToPage = async (page: number) => {
+        const target = Math.max(1, Math.min(page, totalPages));
+        if (needsMoreData && target === totalPages) {
+            setIsLoadMoreLoading(true);
+            try {
+                const result = await adminService.getUsersPaginated(pageSize, lastDoc);
+                setUsers(prev => {
+                    const existingIds = new Set(prev.map(u => u.id));
+                    return [...prev, ...result.data.filter(u => !existingIds.has(u.id))];
+                });
+                setLastDoc(result.lastDoc);
+                setHasMore(result.hasMore);
+            } catch (error) {
+                logger.error('Error loading more users:', error);
+            } finally {
+                setIsLoadMoreLoading(false);
+            }
+        }
+        setCurrentPage(target);
+    };
+
+    const handlePageSizeChange = (size: number) => {
+        setPageSize(size);
+        setCurrentPage(1);
+    };
+
+    const getPageNumbers = () => {
+        const delta = 2;
+        const pages: (number | '...')[] = [];
+        for (let i = 1; i <= totalPages; i++) {
+            if (i === 1 || i === totalPages || (i >= safePage - delta && i <= safePage + delta)) {
+                pages.push(i);
+            } else if (pages[pages.length - 1] !== '...') {
+                pages.push('...');
+            }
+        }
+        return pages;
+    };
 
     const toggleSelectAll = () => {
         // Only select users that can be managed
@@ -572,16 +590,6 @@ export const UsersManager: React.FC = () => {
                 </h2>
                 <div className="flex flex-wrap gap-2 w-full lg:w-auto">
                     <button
-                        onClick={() => setShowPreview(!showPreview)}
-                        className={`hidden lg:flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${showPreview
-                            ? 'bg-blue-50 text-blue-600 border border-blue-100'
-                            : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
-                            }`}
-                    >
-                        {showPreview ? <EyeOff size={18} /> : <Eye size={18} />}
-                        {showPreview ? 'Ocultar Vista Previa' : 'Vista Previa'}
-                    </button>
-                    <button
                         onClick={() => loadUsers()}
                         className="bg-white border border-gray-200 text-gray-600 p-2 rounded-lg hover:bg-gray-50 transition shadow-sm flex items-center justify-center flex-1 lg:flex-none"
                         title="Refrescar usuarios"
@@ -644,17 +652,6 @@ export const UsersManager: React.FC = () => {
                 </div>
             </div>
 
-            {/* Search Bar */}
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center gap-3">
-                <Search className="text-gray-400" size={20} />
-                <input
-                    type="text"
-                    placeholder="Buscar usuario por nombre o email..."
-                    className="flex-1 outline-none text-gray-700 bg-transparent"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                />
-            </div>
 
             {/* Current User Info Banner */}
             <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 flex items-center justify-between">
@@ -685,6 +682,29 @@ export const UsersManager: React.FC = () => {
             <div className="flex gap-6 items-start">
                 <div className="flex-1 min-w-0">
                     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+
+                        {/* Table Header */}
+                        <div className="p-4 border-b bg-gray-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <h3 className="font-bold text-gray-800">Usuarios</h3>
+                            <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2 bg-white flex-1 sm:flex-none sm:w-64">
+                                    <Search className="text-gray-400 shrink-0" size={16} />
+                                    <input
+                                        type="text"
+                                        placeholder="Buscar usuario por nombre o email..."
+                                        className="flex-1 outline-none text-gray-700 bg-transparent text-sm"
+                                        value={searchTerm}
+                                        onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                                    />
+                                </div>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                    <span className="text-xs text-gray-500">Filas:</span>
+                                    <select value={pageSize} onChange={(e) => handlePageSizeChange(Number(e.target.value))} className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 cursor-pointer focus:outline-none focus:border-emerald-400">
+                                        {PAGE_SIZE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
 
                         {/* Mobile Card View (Visible on small screens) */}
                         <div className="block lg:hidden">
@@ -854,8 +874,8 @@ export const UsersManager: React.FC = () => {
                         {/* Desktop Table View (Hidden on small screens) */}
                         <div className="hidden lg:block overflow-x-auto">
                             <table className={`w-full text-left border-collapse ${showPreview ? 'min-w-[1000px]' : ''}`}>
-                                <thead className="bg-gray-50 text-gray-600 font-semibold border-b border-gray-200">
-                                    <tr>
+                                <thead>
+                                    <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold tracking-wider">
                                         <th className="p-4 w-10">
                                             <input
                                                 type="checkbox"
@@ -1038,6 +1058,28 @@ export const UsersManager: React.FC = () => {
                                 </tbody>
                             </table>
                         </div>
+
+                        {/* Pagination Controls */}
+                        {filteredUsers.length > 0 && (
+                            <div className="p-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+                                <p className="text-xs text-gray-500 shrink-0">
+                                    {isLoadMoreLoading ? 'Cargando...' : (
+                                        <>Mostrando <span className="font-semibold text-gray-700">{(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, filteredUsers.length)}</span> de <span className="font-semibold text-gray-700">{filteredUsers.length}{hasMore ? '+' : ''}</span> usuarios</>
+                                    )}
+                                </p>
+                                <div className="flex items-center gap-1">
+                                    <button onClick={() => goToPage(1)} disabled={safePage === 1 || isLoadMoreLoading} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronsLeft size={16} /></button>
+                                    <button onClick={() => goToPage(safePage - 1)} disabled={safePage === 1 || isLoadMoreLoading} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronLeft size={16} /></button>
+                                    {getPageNumbers().map((page, idx) =>
+                                        page === '...' ? <span key={`e-${idx}`} className="px-2 text-gray-400 text-sm select-none">…</span> : (
+                                            <button key={page} onClick={() => goToPage(page as number)} disabled={isLoadMoreLoading} className={`min-w-[32px] h-8 px-2 rounded-lg text-sm font-medium transition-colors ${page === safePage ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'}`}>{page}</button>
+                                        )
+                                    )}
+                                    <button onClick={() => goToPage(safePage + 1)} disabled={(safePage >= totalPages && !hasMore) || isLoadMoreLoading} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronRight size={16} /></button>
+                                    <button onClick={() => goToPage(totalPages)} disabled={(safePage >= totalPages && !hasMore) || isLoadMoreLoading} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronsRight size={16} /></button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -1085,19 +1127,6 @@ export const UsersManager: React.FC = () => {
                 )}
             </div>
 
-
-            {/* Load More Users */}
-            {hasMore && !searchTerm && (
-                <div className="mt-8 flex justify-center">
-                    <button
-                        onClick={loadMoreUsers}
-                        disabled={isLoadMoreLoading}
-                        className="bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 px-6 py-2 rounded-full font-bold shadow-sm transition-all flex items-center gap-2"
-                    >
-                        {isLoadMoreLoading ? 'Cargando...' : 'Ver más usuarios 👇'}
-                    </button>
-                </div>
-            )}
 
             {/* Permission Editor Modal */}
             {

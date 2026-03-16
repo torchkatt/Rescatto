@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { adminService } from '../../services/adminService';
 import { VenueCategory } from '../../types';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
-import { Plus, Edit2, Trash2, Tag, X, Save, Search, Archive, Store, Package, RotateCw } from 'lucide-react';
+import { Plus, Edit2, Trash2, Tag, X, Save, Search, Archive, Store, Package, RotateCw, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+
+const PAGE_SIZE_OPTIONS = [10, 20, 50];
 import { PermissionGate } from '../../components/PermissionGate';
 import { Permission } from '../../types';
 import { useToast } from '../../context/ToastContext';
@@ -29,6 +31,8 @@ export const CategoriesManager: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
 
     const PAGE_SIZE = 20;
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(PAGE_SIZE);
 
     useEffect(() => {
         loadCategories(true);
@@ -206,11 +210,33 @@ export const CategoriesManager: React.FC = () => {
         }
     };
 
-    // Filter Logic
-    const filteredCategories = categories.filter(cat =>
+    const filteredCategories = useMemo(() => categories.filter(cat =>
         (cat.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
         (cat.slug?.toLowerCase() || '').includes(searchTerm.toLowerCase())
-    );
+    ), [categories, searchTerm]);
+
+    const totalPages = Math.max(1, Math.ceil(filteredCategories.length / pageSize));
+    const safePage = Math.min(currentPage, totalPages);
+    const paginatedCategories = filteredCategories.slice((safePage - 1) * pageSize, safePage * pageSize);
+    const needsMoreData = hasMore && safePage === totalPages && filteredCategories.length > 0 && filteredCategories.length % pageSize === 0;
+
+    const goToPage = async (page: number) => {
+        const target = Math.max(1, Math.min(page, totalPages));
+        if (needsMoreData && target === totalPages) await loadCategories(false);
+        setCurrentPage(target);
+    };
+
+    const handlePageSizeChange = (size: number) => { setPageSize(size); setCurrentPage(1); };
+
+    const getPageNumbers = () => {
+        const delta = 2;
+        const pages: (number | '...')[] = [];
+        for (let i = 1; i <= totalPages; i++) {
+            if (i === 1 || i === totalPages || (i >= safePage - delta && i <= safePage + delta)) pages.push(i);
+            else if (pages[pages.length - 1] !== '...') pages.push('...');
+        }
+        return pages;
+    };
 
 
     if (loading && !isModalOpen) return <LoadingSpinner fullPage />;
@@ -260,29 +286,37 @@ export const CategoriesManager: React.FC = () => {
                 </div>
             </div>
 
-            {/* Toolbar */}
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center gap-3">
-                <Search className="text-gray-400" size={20} />
-                <input
-                    type="text"
-                    placeholder="Buscar categorías..."
-                    className="flex-1 outline-none text-gray-700 bg-transparent text-base"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                />
-                {searchTerm && (
-                    <button onClick={() => setSearchTerm('')} className="text-gray-400 hover:text-gray-600">
-                        <X size={16} />
-                    </button>
-                )}
-            </div>
-
             {/* Table */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                {/* Table Header */}
+                <div className="p-4 border-b bg-gray-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <h3 className="font-bold text-gray-800">Categorías</h3>
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2 bg-white flex-1 sm:flex-none sm:w-64">
+                            <Search className="text-gray-400 shrink-0" size={16} />
+                            <input
+                                type="text"
+                                placeholder="Buscar categorías..."
+                                className="flex-1 outline-none text-gray-700 bg-transparent text-sm"
+                                value={searchTerm}
+                                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                            />
+                            {searchTerm && (
+                                <button onClick={() => { setSearchTerm(''); setCurrentPage(1); }} className="text-gray-400 hover:text-gray-600"><X size={14} /></button>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-xs text-gray-500">Filas:</span>
+                            <select value={pageSize} onChange={(e) => handlePageSizeChange(Number(e.target.value))} className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 cursor-pointer focus:outline-none focus:border-emerald-400">
+                                {PAGE_SIZE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                        </div>
+                    </div>
+                </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
-                        <thead className="bg-gray-50 text-gray-600 font-semibold border-b border-gray-200">
-                            <tr>
+                        <thead>
+                            <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold tracking-wider">
                                 <th className="p-4 w-16 text-center">Icono</th>
                                 <th className="p-4">Nombre</th>
                                 <th className="p-4 hidden sm:table-cell">Slug</th>
@@ -292,14 +326,14 @@ export const CategoriesManager: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                            {filteredCategories.length === 0 ? (
+                            {paginatedCategories.length === 0 ? (
                                 <tr>
                                     <td colSpan={6} className="p-8 text-center text-gray-400">
                                         No se encontraron categorías
                                     </td>
                                 </tr>
                             ) : (
-                                filteredCategories.map(cat => {
+                                paginatedCategories.map(cat => {
                                     const usage = usageMap[cat.id] || { venues: 0, products: 0, total: 0 };
 
                                     return (
@@ -379,19 +413,27 @@ export const CategoriesManager: React.FC = () => {
                         </tbody>
                     </table>
                 </div>
-            </div>
 
-            {hasMore && searchTerm.length === 0 && (
-                <div className="flex justify-center">
-                    <button
-                        onClick={() => loadCategories(false)}
-                        disabled={loadingMore}
-                        className="px-4 py-2 rounded-full text-sm font-bold bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-60"
-                    >
-                        {loadingMore ? 'Cargando...' : 'Cargar más'}
-                    </button>
-                </div>
-            )}
+                {/* Pagination Controls */}
+                {filteredCategories.length > 0 && (
+                    <div className="p-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+                        <p className="text-xs text-gray-500 shrink-0">
+                            {loadingMore ? 'Cargando...' : <>Mostrando <span className="font-semibold text-gray-700">{(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, filteredCategories.length)}</span> de <span className="font-semibold text-gray-700">{filteredCategories.length}{hasMore ? '+' : ''}</span> etiquetas</>}
+                        </p>
+                        <div className="flex items-center gap-1">
+                            <button onClick={() => goToPage(1)} disabled={safePage === 1 || loadingMore} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronsLeft size={16} /></button>
+                            <button onClick={() => goToPage(safePage - 1)} disabled={safePage === 1 || loadingMore} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronLeft size={16} /></button>
+                            {getPageNumbers().map((page, idx) =>
+                                page === '...' ? <span key={`e-${idx}`} className="px-2 text-gray-400 text-sm select-none">…</span> : (
+                                    <button key={page} onClick={() => goToPage(page as number)} disabled={loadingMore} className={`min-w-[32px] h-8 px-2 rounded-lg text-sm font-medium transition-colors ${page === safePage ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'}`}>{page}</button>
+                                )
+                            )}
+                            <button onClick={() => goToPage(safePage + 1)} disabled={(safePage >= totalPages && !hasMore) || loadingMore} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronRight size={16} /></button>
+                            <button onClick={() => goToPage(totalPages)} disabled={(safePage >= totalPages && !hasMore) || loadingMore} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronsRight size={16} /></button>
+                        </div>
+                    </div>
+                )}
+            </div>
 
             {/* Create/Edit Modal */}
             {isModalOpen && (

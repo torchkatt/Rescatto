@@ -457,6 +457,19 @@ export const adminService = {
         };
     },
 
+    // --- BILLETERAS / COMISIONES ---
+
+    getAllWallets: async (): Promise<{ venueId: string; balance: number; updatedAt: string }[]> => {
+        const snapshot = await getDocs(collection(db, 'wallets'));
+        return snapshot.docs.map(d => ({ venueId: d.id, ...d.data() } as { venueId: string; balance: number; updatedAt: string }));
+    },
+
+    recordSettlement: async (params: { venueId: string; amount: number; type: 'DEBT_PAYMENT' | 'PAYOUT'; description: string }) => {
+        const fn = httpsCallable(functions, 'recordManualSettlement');
+        const result = await fn(params);
+        return result.data;
+    },
+
     getCompletedOrdersLocations: async (cityFilter?: string) => {
         const ordersRef = collection(db, 'orders');
         const points: { lat: number; lng: number; weight: number }[] = [];

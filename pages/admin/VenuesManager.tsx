@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { adminService } from '../../services/adminService';
 import { Venue, VenueCategory, BUSINESS_TYPES_LIST } from '../../types';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
-import { Store, Plus, Search, X, Eye, EyeOff, RotateCw, MapPin, Loader2 } from 'lucide-react';
+import { Store, Plus, Search, X, RotateCw, MapPin, Loader2 } from 'lucide-react';
 import { VenueCard } from '../../components/customer/venue/VenueCard';
 import { VenueDetailsModal } from '../../components/customer/venue/VenueDetailsModal';
 import { VenueMobilePreview } from '../../components/admin/VenueMobilePreview';
@@ -103,7 +103,7 @@ export const VenuesManager: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState(querySearch);
     const [selectedVenueDetails, setSelectedVenueDetails] = useState<Venue | null>(null);
-    const [showPreview, setShowPreview] = useState(true);
+    const showPreview = false;
     const [previewVenue, setPreviewVenue] = useState<Venue | null>(null);
 
     // Modal State
@@ -320,16 +320,6 @@ export const VenuesManager: React.FC = () => {
                     Gestión de Negocios
                 </h2>
                 <div className="flex items-center gap-2">
-                    <button
-                        onClick={() => setShowPreview(!showPreview)}
-                        className={`hidden lg:flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${showPreview
-                            ? 'bg-blue-50 text-blue-600 border border-blue-100'
-                            : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
-                            }`}
-                    >
-                        {showPreview ? <EyeOff size={18} /> : <Eye size={18} />}
-                        {showPreview ? 'Ocultar Vista Previa' : 'Ver Vista Previa'}
-                    </button>
                     <button
                         onClick={() => loadInitialData()}
                         className="bg-white border border-gray-200 text-gray-600 p-2 rounded-lg hover:bg-gray-50 transition shadow-sm flex items-center justify-center"

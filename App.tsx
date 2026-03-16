@@ -26,6 +26,7 @@ const VenuesManager = lazyLoad(() => import('./pages/admin/VenuesManager'), 'Ven
 const CategoriesManager = lazyLoad(() => import('./pages/admin/CategoriesManager'), 'CategoriesManager');
 const AuditLogs = lazyLoad(() => import('./pages/admin/AuditLogs'), 'AuditLogs');
 const FinanceManager = lazyLoad(() => import('./pages/admin/FinanceManager'), 'FinanceManager');
+const CommissionsManager = lazyLoad(() => import('./pages/admin/CommissionsManager'), 'CommissionsManager');
 const AdminDeliveriesPage = lazyLoad(() => import('./pages/admin/sections/AdminDeliveries'), 'AdminDeliveries');
 const AdminSalesPage = lazyLoad(() => import('./pages/admin/sections/AdminSales'), 'AdminSales');
 const AdminSettingsPage = lazyLoad(() => import('./pages/admin/sections/AdminSettings'), 'AdminSettings');
@@ -281,8 +282,8 @@ const AppRoutes: React.FC = () => {
                     <Route path="users" element={<UsersManager />} />
                     <Route path="venues" element={<BackofficeVenuesManager />} />
                     <Route path="audit" element={<AuditLogs />} />
-                    <Route path="orders" element={<OrderManagement />} />
                     <Route path="finance" element={<FinanceManager />} />
+                    <Route path="commissions" element={<CommissionsManager />} />
                     <Route path="subscriptions" element={<AdminSubscriptionsPage />} />
                     <Route path="payment-settings" element={<AdminPaymentSettingsPage />} />
                     <Route path="settings" element={<AdminSettingsPage />} />
@@ -380,6 +381,11 @@ const AppRoutes: React.FC = () => {
                 <Route path="/admin/finance" element={
                     <ProtectedRoute allowedRoles={[UserRole.SUPER_ADMIN]}>
                         <Layout><FinanceManager /></Layout>
+                    </ProtectedRoute>
+                } />
+                <Route path="/admin/commissions" element={
+                    <ProtectedRoute allowedRoles={[UserRole.SUPER_ADMIN]}>
+                        <Layout><CommissionsManager /></Layout>
                     </ProtectedRoute>
                 } />
                 <Route path="/admin/deliveries" element={
