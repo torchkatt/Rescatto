@@ -109,7 +109,7 @@ export const Analytics: React.FC = () => {
     }
 
     return (
-        <div className="space-y-6 overflow-x-hidden">
+        <div className="space-y-6 overflow-x-hidden animate-in fade-in duration-700">
             {/* Header */}
             <div className="flex justify-between items-start">
                 <div>

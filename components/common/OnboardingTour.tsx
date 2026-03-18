@@ -3,6 +3,8 @@ import Joyride, { CallBackProps, STATUS, Step } from 'react-joyride';
 import { useAuth } from '../../context/AuthContext';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
+import { useTranslation } from 'react-i18next';
+import { logger } from '../../utils/logger';
 
 interface OnboardingTourProps {
     isBusinessOwner: boolean;
@@ -11,6 +13,7 @@ interface OnboardingTourProps {
 
 export const OnboardingTour: React.FC<OnboardingTourProps> = ({ isBusinessOwner, hasSeenOnboarding }) => {
     const { user } = useAuth();
+    const { t } = useTranslation();
 
     // Si ya vio el onboarding o no es dueño, no renderizar nada
     const [run, setRun] = useState(false);
@@ -31,10 +34,9 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ isBusinessOwner,
             placement: 'center',
             content: (
                 <div className="text-center p-4">
-                    <h2 className="text-2xl font-bold text-gray-800 mb-2">¡Bienvenido a Rescatto Business! 🎉</h2>
+                    <h2 className="text-2xl font-bold text-gray-800 mb-2">{t('tour_welcome_title')}</h2>
                     <p className="text-gray-600">
-                        Gracias por unirte a nuestra misión contra el desperdicio de alimentos.
-                        Vamos a dar un rápido paseo para que le saques el máximo provecho a tu panel.
+                        {t('tour_welcome_desc')}
                     </p>
                 </div>
             ),
@@ -42,17 +44,17 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ isBusinessOwner,
         },
         {
             target: '.tour-step-dashboard',
-            content: 'Aquí verás un resumen de tu impacto: ingresos adicionales, pedidos completados y kilos de comida salvados.',
+            content: t('tour_dashboard_desc'),
             placement: 'bottom',
         },
         {
             target: '.tour-step-products',
-            content: '¡Sube tus Packs Sorpresa aquí! Puedes gestionar precios dinámicos y stock.',
+            content: t('tour_products_desc'),
             placement: 'bottom',
         },
         {
             target: '.tour-step-orders',
-            content: 'En esta sección organizarás los pedidos en curso y marcarás cuando estén listos para entregar.',
+            content: t('tour_orders_desc'),
             placement: 'right',
         },
     ];
@@ -69,7 +71,7 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ isBusinessOwner,
                     const userRef = doc(db, 'users', user.id);
                     await updateDoc(userRef, { hasSeenOnboarding: true });
                 } catch (error) {
-                    console.error("No se pudo actualizar el estado de Onboarding:", error);
+                    logger.error("No se pudo actualizar el estado de Onboarding:", error);
                 }
             }
         }
@@ -100,11 +102,11 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({ isBusinessOwner,
                 }
             }}
             locale={{
-                back: 'Atrás',
-                close: 'Cerrar',
-                last: 'Empezar',
-                next: 'Siguiente',
-                skip: 'Saltar Tour',
+                back: t('tour_btn_back'),
+                close: t('tour_btn_close'),
+                last: t('tour_btn_last'),
+                next: t('tour_btn_next'),
+                skip: t('tour_btn_skip'),
             }}
         />
     );

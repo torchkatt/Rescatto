@@ -568,6 +568,18 @@ export const VenuesManager: React.FC = () => {
                                     </select>
                                 </div>
                                 <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Modelo de Domicilios</label>
+                                    <select
+                                        className="w-full rounded-xl border-gray-300 border p-3 text-base focus:ring-2 focus:ring-emerald-500 outline-none bg-white transition-all duration-200"
+                                        value={(formData as any).deliveryModel || 'none'}
+                                        onChange={e => setFormData({ ...formData, deliveryModel: e.target.value as any })}
+                                    >
+                                        <option value="none">Sin domicilios</option>
+                                        <option value="own_drivers">Domiciliarios propios</option>
+                                        <option value="platform_drivers">Domiciliarios de la plataforma</option>
+                                    </select>
+                                </div>
+                                <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Etiquetas / Especialidades</label>
                                     {categories.length > 0 ? (
                                         <select

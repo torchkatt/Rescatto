@@ -1,7 +1,7 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { MapPin, Search, Tag, Clock, ShoppingBag, Filter, ArrowLeft, X, LayoutGrid, RefreshCw } from 'lucide-react';
+import { MapPin, Search, ArrowLeft, LayoutGrid, RefreshCw } from 'lucide-react';
 import { useLocation } from '../../context/LocationContext';
 import { venueService } from '../../services/venueService';
 import { productService } from '../../services/productService';
@@ -11,6 +11,9 @@ import { isVenueOpen } from '../../utils/venueAvailability';
 import { calculateDistance } from '../../services/locationService';
 import { logger } from '../../utils/logger';
 import { SEO } from '../../components/common/SEO';
+import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
+
+const PAGE_SIZE = 20;
 
 const computeExploreScore = (
     product: Product,
@@ -33,7 +36,6 @@ const computeExploreScore = (
         return 0.45 * discountScore + 0.35 * expiryScore + 0.20 * distanceScore;
     }
 
-    // Sin ubicación: redistribuir pesos
     return 0.55 * discountScore + 0.45 * expiryScore;
 };
 
@@ -46,6 +48,9 @@ const Explore: React.FC = () => {
     const [venues, setVenues] = useState<Venue[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [productsLastDoc, setProductsLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+    const [hasMoreProducts, setHasMoreProducts] = useState(true);
 
     const activeSort = searchParams.get('sort') || 'recommended';
     const activeType = searchParams.get('type') || 'all';
@@ -57,12 +62,14 @@ const Explore: React.FC = () => {
         const loadData = async () => {
             try {
                 setLoading(true);
-                const [allVenues, allProducts] = await Promise.all([
+                const [allVenues, productsPage] = await Promise.all([
                     venueService.getAllVenues(),
-                    productService.getAllActiveProducts()
+                    productService.getAllActiveProductsPage(undefined, null, PAGE_SIZE)
                 ]);
                 setVenues(allVenues);
-                setProducts(allProducts);
+                setProducts(productsPage.products);
+                setProductsLastDoc(productsPage.lastDoc);
+                setHasMoreProducts(productsPage.hasMore);
             } catch (err) {
                 logger.error('Explore: Load failed', err);
             } finally {
@@ -71,6 +78,21 @@ const Explore: React.FC = () => {
         };
         loadData();
     }, []);
+
+    const loadMore = useCallback(async () => {
+        if (!hasMoreProducts || loadingMore) return;
+        setLoadingMore(true);
+        try {
+            const nextPage = await productService.getAllActiveProductsPage(undefined, productsLastDoc, PAGE_SIZE);
+            setProducts(prev => [...prev, ...nextPage.products]);
+            setProductsLastDoc(nextPage.lastDoc);
+            setHasMoreProducts(nextPage.hasMore);
+        } catch (err) {
+            logger.error('Explore: Load more failed', err);
+        } finally {
+            setLoadingMore(false);
+        }
+    }, [hasMoreProducts, loadingMore, productsLastDoc]);
 
     const venuesById = useMemo(() => {
         const map = new Map<string, Venue>();
@@ -83,21 +105,17 @@ const Explore: React.FC = () => {
             const venue = venuesById.get(p.venueId);
             if (!venue || !isVenueOpen(venue)) return false;
 
-            // Type Filter
             if (activeType !== 'all' && p.type !== activeType) return false;
 
-            // Discount Filter
             const price = p.dynamicDiscountedPrice || p.discountedPrice;
             const discountPct = (p.originalPrice - price) / p.originalPrice;
             if (activeDiscount > 0 && discountPct < activeDiscount / 100) return false;
 
-            // Distance Filter
             if (activeDistance > 0 && latitude != null && longitude != null) {
                 const dist = calculateDistance(latitude, longitude, venue.latitude, venue.longitude);
                 if (dist == null || dist > activeDistance) return false;
             }
 
-            // Expiry Filter
             if (activeExpires > 0) {
                 const hoursLeft = (new Date(p.availableUntil).getTime() - Date.now()) / (1000 * 60 * 60);
                 if (hoursLeft > activeExpires) return false;
@@ -106,7 +124,6 @@ const Explore: React.FC = () => {
             return true;
         });
 
-        // Sorting
         if (activeSort === 'distance' && latitude != null && longitude != null) {
             result.sort((a, b) => {
                 const venueA = venuesById.get(a.venueId)!;
@@ -126,7 +143,6 @@ const Explore: React.FC = () => {
         } else if (activeSort === 'endingSoon') {
             result.sort((a, b) => new Date(a.availableUntil).getTime() - new Date(b.availableUntil).getTime());
         } else {
-            // Default: recommended
             result.sort((a, b) => {
                 const scoreA = computeExploreScore(a, venuesById.get(a.venueId)!, latitude || undefined, longitude || undefined);
                 const scoreB = computeExploreScore(b, venuesById.get(b.venueId)!, latitude || undefined, longitude || undefined);
@@ -162,8 +178,8 @@ const Explore: React.FC = () => {
 
     return (
         <div className="pb-32 bg-brand-bg min-h-screen">
-             <SEO 
-                title={t('explore_title')} 
+             <SEO
+                title={t('explore_title')}
                 description={t('explore_desc') || 'Encuentra los mejores productos cerca de ti'}
             />
             {/* Header Sticky */}
@@ -180,7 +196,7 @@ const Explore: React.FC = () => {
                     <div className="flex gap-2 overflow-x-auto no-scrollbar pb-3 mb-3 border-b border-gray-50">
                         <div className="flex items-center gap-2 pr-3 border-r border-gray-100">
                              <LayoutGrid size={16} className="text-gray-400" />
-                             <select 
+                             <select
                                 value={activeSort}
                                 onChange={(e) => setFilter('sort', e.target.value)}
                                 className="bg-transparent text-sm font-black text-gray-900 focus:outline-none cursor-pointer"
@@ -203,7 +219,7 @@ const Explore: React.FC = () => {
                                     key={type.id}
                                     onClick={() => setFilter('type', type.id)}
                                     className={`px-4 py-1.5 rounded-full text-xs font-black transition-all border ${
-                                        activeType === type.id 
+                                        activeType === type.id
                                         ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-500/20'
                                         : 'bg-white border-gray-100 text-gray-500 hover:border-emerald-200'
                                     }`}
@@ -295,7 +311,7 @@ const Explore: React.FC = () => {
                         <span className="text-sm font-bold text-gray-500">
                            {filteredAndSortedProducts.length} {t('results_found') || 'resultados encontrados'}
                         </span>
-                        <button 
+                        <button
                             onClick={clearFilters}
                             className="flex items-center gap-1.5 text-xs font-black text-emerald-600 hover:text-emerald-700 transition-colors"
                         >
@@ -306,15 +322,28 @@ const Explore: React.FC = () => {
                 )}
 
                 {filteredAndSortedProducts.length > 0 ? (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {filteredAndSortedProducts.map(product => (
-                            <ProductSmallCard
-                                key={product.id}
-                                product={product}
-                                venueName={venuesById.get(product.venueId)?.name || ''}
-                            />
-                        ))}
-                    </div>
+                    <>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                            {filteredAndSortedProducts.map(product => (
+                                <ProductSmallCard
+                                    key={product.id}
+                                    product={product}
+                                    venueName={venuesById.get(product.venueId)?.name || ''}
+                                />
+                            ))}
+                        </div>
+                        {hasMoreProducts && (
+                            <div className="mt-8 flex justify-center pb-8">
+                                <button
+                                    onClick={loadMore}
+                                    disabled={loadingMore}
+                                    className="px-6 py-3 rounded-full text-sm font-black bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-60 active:scale-95 transition-all"
+                                >
+                                    {loadingMore ? t('loading') : t('load_more_products')}
+                                </button>
+                            </div>
+                        )}
+                    </>
                 ) : (
                     <div className="text-center py-24 px-6">
                         <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -322,8 +351,8 @@ const Explore: React.FC = () => {
                         </div>
                         <h3 className="text-xl font-black text-gray-900 mb-2">{t('no_results')}</h3>
                         <p className="text-gray-500 mb-8 max-w-xs mx-auto">{t('try_adjusting_filters')}</p>
-                        <button 
-                            onClick={clearFilters} 
+                        <button
+                            onClick={clearFilters}
                             className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-2xl font-black shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
                         >
                             {t('clear_filters')}

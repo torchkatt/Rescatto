@@ -18,8 +18,8 @@ const Settings: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
 
-    // Estado de Configuración - Sincronizado con el Comercio o valores por defecto locales
-    const [dynamicPricingEnabled, setDynamicPricingEnabled] = useState(true);
+    // Estado de Configuración de Precios Dinámicos - sincronizado con Firestore
+    const [dynamicPricingEnabled, setDynamicPricingEnabled] = useState(false);
     const [discountRate, setDiscountRate] = useState(30);
     const [triggerTime, setTriggerTime] = useState(30);
 
@@ -28,6 +28,7 @@ const Settings: React.FC = () => {
         name: '',
         address: '',
         city: '',
+        openingTime: '',
         closingTime: '',
         phone: ''
     });
@@ -81,6 +82,7 @@ const Settings: React.FC = () => {
                     name: data.name,
                     address: data.address,
                     city: data.city || '',
+                    openingTime: data.openingTime || '',
                     closingTime: data.closingTime,
                     phone: data.phone || ''
                 });
@@ -94,6 +96,12 @@ const Settings: React.FC = () => {
                         freeDeliveryThreshold: data.deliveryConfig.freeDeliveryThreshold ?? 0,
                         minOrderAmount: data.deliveryConfig.minOrderAmount ?? 0,
                     });
+                }
+                // Cargar configuración de precios dinámicos si existe
+                if (data.dynamicPricingSettings) {
+                    setDynamicPricingEnabled(data.dynamicPricingSettings.enabled ?? false);
+                    setDiscountRate(data.dynamicPricingSettings.aggressiveDiscountRate ?? 30);
+                    setTriggerTime(data.dynamicPricingSettings.triggerMinutesBeforeClose ?? 30);
                 }
             }
         } catch (error) {
@@ -114,6 +122,7 @@ const Settings: React.FC = () => {
                 name: formData.name,
                 address: formData.address,
                 city: formData.city,
+                openingTime: formData.openingTime || undefined,
                 closingTime: formData.closingTime,
                 phone: formData.phone,
                 ownerId: user?.id,
@@ -124,6 +133,11 @@ const Settings: React.FC = () => {
                     maxDistance: deliveryConfig.maxDistance,
                     freeDeliveryThreshold: deliveryConfig.freeDeliveryThreshold || undefined,
                     minOrderAmount: deliveryConfig.minOrderAmount || undefined,
+                },
+                dynamicPricingSettings: {
+                    enabled: dynamicPricingEnabled,
+                    aggressiveDiscountRate: discountRate,
+                    triggerMinutesBeforeClose: triggerTime,
                 },
             });
             showToast('success', 'Configuración guardada correctamente');
@@ -156,7 +170,7 @@ const Settings: React.FC = () => {
     }
 
     return (
-        <div className="max-w-4xl mx-auto space-y-8 pb-12">
+        <div className="max-w-4xl mx-auto space-y-8 pb-12 animate-in fade-in duration-700">
             <div>
                 <h1 className="text-2xl font-bold text-gray-900">{t('settings_title')}</h1>
                 <p className="text-gray-500">Gestiona tus preferencias de venta y automatización.</p>
@@ -196,7 +210,7 @@ const Settings: React.FC = () => {
                         <div className="bg-white/20 p-2 rounded-lg">
                             <Zap size={24} className="text-yellow-300" />
                         </div>
-                        <h2 className="text-xl font-bold">Dynamic Pricing Engine (IA)</h2>
+                        <h2 className="text-xl font-bold">Motor de Precios Dinámicos (IA)</h2>
                     </div>
                     <p className="text-purple-100 text-sm max-w-2xl">
                         Nuestro algoritmo ajusta automáticamente los precios de tus productos excedentes basándose en la hora de cierre para maximizar la venta y reducir el desperdicio a cero.
@@ -248,7 +262,15 @@ const Settings: React.FC = () => {
                             <div className="flex items-start gap-2 text-xs text-purple-800 bg-white p-3 rounded border border-purple-100">
                                 <Clock size={14} className="mt-0.5" />
                                 <p>
-                                    <strong>Simulación:</strong> Si cierras a las {formData.closingTime}, a las <strong>{new Date(new Date().setHours(21, 30)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong> tus productos bajarán un {discountRate}% adicional.
+                                    <strong>Simulación:</strong> Si cierras a las {formData.closingTime || '--:--'}, el descuento agresivo de {discountRate}% se activará a las{' '}
+                                    <strong>
+                                        {formData.closingTime ? (() => {
+                                            const [h, m] = formData.closingTime.split(':').map(Number);
+                                            const trigger = new Date();
+                                            trigger.setHours(h, m - triggerTime, 0, 0);
+                                            return trigger.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                                        })() : '--:--'}
+                                    </strong>.
                                 </p>
                             </div>
                         </div>
@@ -289,6 +311,15 @@ const Settings: React.FC = () => {
                             onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                             className="w-full border border-gray-100 bg-gray-50 rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all outline-none font-medium"
                             placeholder="Ej. Bogotá"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Hora de Apertura</label>
+                        <input
+                            type="time"
+                            value={formData.openingTime}
+                            onChange={(e) => setFormData({ ...formData, openingTime: e.target.value })}
+                            className="w-full border border-gray-100 bg-gray-50 appearance-none rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all outline-none font-medium"
                         />
                     </div>
                     <div>

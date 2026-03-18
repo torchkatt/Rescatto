@@ -12,11 +12,108 @@ const { CONFIG } = require("../utils/config");
 const { writeAuditLog } = require("../utils/audit");
 const { publishMessage } = require("../utils/pubsub");
 
+// ─── Helpers internos ────────────────────────────────────────────────────────
+
 /**
- * Creates an order securely on the backend.
+ * Envía FCM a un usuario por su userId.
+ * Retorna silenciosamente si no tiene token.
+ */
+async function sendFcmToUser(userId, title, body, data = {}) {
+    try {
+        const userDoc = await db.collection("users").doc(userId).get();
+        if (!userDoc.exists) return;
+        const token = userDoc.data().fcmToken;
+        if (!token) return;
+        await messaging.send({ notification: { title, body }, token, data });
+    } catch (e) {
+        logError(`sendFcmToUser(${userId}) error`, e);
+    }
+}
+
+/**
+ * Envía FCM a todo el personal de un venue (VENUE_OWNER + KITCHEN_STAFF).
+ * Retorna los tokens encontrados para usos posteriores.
+ */
+async function sendFcmToVenueStaff(venueId, title, body, data = {}) {
+    try {
+        const [ownersByArr, ownersByStr, staffByArr, staffByStr] = await Promise.all([
+            db.collection("users").where("role", "==", "VENUE_OWNER").where("venueIds", "array-contains", venueId).get(),
+            db.collection("users").where("role", "==", "VENUE_OWNER").where("venueId", "==", venueId).get(),
+            db.collection("users").where("role", "==", "KITCHEN_STAFF").where("venueIds", "array-contains", venueId).get(),
+            db.collection("users").where("role", "==", "KITCHEN_STAFF").where("venueId", "==", venueId).get(),
+        ]);
+        const userMap = new Map();
+        [...ownersByArr.docs, ...ownersByStr.docs, ...staffByArr.docs, ...staffByStr.docs]
+            .forEach(doc => userMap.set(doc.id, doc.data()));
+
+        const tokens = [];
+        userMap.forEach(userData => { if (userData.fcmToken) tokens.push(userData.fcmToken); });
+        if (tokens.length > 0) {
+            await messaging.sendEachForMulticast({ tokens, notification: { title, body }, data });
+        }
+        return { userMap, tokens };
+    } catch (e) {
+        logError(`sendFcmToVenueStaff(${venueId}) error`, e);
+        return { userMap: new Map(), tokens: [] };
+    }
+}
+
+/**
+ * Envía FCM solo al VENUE_OWNER de un venue.
+ */
+async function sendFcmToVenueOwner(venueId, title, body, data = {}) {
+    try {
+        const [ownersByArr, ownersByStr] = await Promise.all([
+            db.collection("users").where("role", "==", "VENUE_OWNER").where("venueIds", "array-contains", venueId).get(),
+            db.collection("users").where("role", "==", "VENUE_OWNER").where("venueId", "==", venueId).get(),
+        ]);
+        const ownerMap = new Map();
+        [...ownersByArr.docs, ...ownersByStr.docs].forEach(doc => ownerMap.set(doc.id, doc.data()));
+        const tokens = [];
+        ownerMap.forEach(ud => { if (ud.fcmToken) tokens.push(ud.fcmToken); });
+        if (tokens.length > 0) {
+            await messaging.sendEachForMulticast({ tokens, notification: { title, body }, data });
+        }
+    } catch (e) {
+        logError(`sendFcmToVenueOwner(${venueId}) error`, e);
+    }
+}
+
+/**
+ * Envía FCM a todos los drivers de una ciudad con una orden disponible.
+ */
+async function notifyDriversInCity(city, orderId, venueName, venueNeighborhood, deliveryAddress) {
+    try {
+        const driversSnap = await db.collection("users")
+            .where("role", "==", "DRIVER")
+            .where("city", "==", city)
+            .where("isActive", "==", true)
+            .get();
+        if (driversSnap.empty) return;
+
+        const tokens = [];
+        driversSnap.forEach(doc => { if (doc.data().fcmToken) tokens.push(doc.data().fcmToken); });
+        if (tokens.length === 0) return;
+
+        const title = "¡Nuevo domicilio disponible! 🏍️";
+        const body = `${venueName} (${venueNeighborhood || "centro"}) → ${deliveryAddress}`;
+        await messaging.sendEachForMulticast({
+            tokens,
+            notification: { title, body },
+            data: { orderId, type: "NEW_DELIVERY_AVAILABLE", city },
+        });
+    } catch (e) {
+        logError("notifyDriversInCity error", e);
+    }
+}
+
+// ─── createOrder ─────────────────────────────────────────────────────────────
+
+/**
+ * Crea un pedido de forma segura en el backend.
  */
 const createOrder = onCall(
-    { 
+    {
         secrets: ["WOMPI_INTEGRITY_SECRET", "WOMPI_PUBLIC_KEY"],
         timeoutSeconds: 30,
         memory: "256MiB"
@@ -63,22 +160,29 @@ const createOrder = onCall(
             }
         }
 
-        // Logic continues... (simplified for brevity here, but I will include full logic in the real write)
-        // [FULL LOGIC FROM index.js 640-875]
-        
         let venueOwnerIdForMeta = null;
         let venueNameForMeta = null;
+        let venueNeighborhoodForMeta = null;
+        let venueDeliveryModel = "none";
         try {
             const venueSnap = await db.collection("venues").doc(venueId).get();
-            if (venueSnap.exists) venueNameForMeta = venueSnap.data().name || null;
+            if (venueSnap.exists) {
+                const vd = venueSnap.data();
+                venueNameForMeta = vd.name || null;
+                venueNeighborhoodForMeta = vd.neighborhood || null;
+                venueDeliveryModel = vd.deliveryModel || "none";
+            }
             const [byVenueIds, byVenueId] = await Promise.all([
                 db.collection("users").where("role", "==", "VENUE_OWNER").where("venueIds", "array-contains", venueId).limit(1).get(),
                 db.collection("users").where("role", "==", "VENUE_OWNER").where("venueId", "==", venueId).limit(1).get(),
             ]);
             const ownerDocPre = byVenueIds.docs[0] || byVenueId.docs[0];
             if (ownerDocPre) venueOwnerIdForMeta = ownerDocPre.id;
-            else if (venueSnap.exists && venueSnap.data().ownerId) venueOwnerIdForMeta = venueSnap.data().ownerId;
-        } catch (_) { /* Ignore error */ }
+            else {
+                const vs = await db.collection("venues").doc(venueId).get();
+                if (vs.exists && vs.data().ownerId) venueOwnerIdForMeta = vs.data().ownerId;
+            }
+        } catch (_) { /* Ignorar error */ }
 
         const settingsSnap = await db.collection("settings").doc("platform").get();
         const settingsData = settingsSnap.exists ? settingsSnap.data() || {} : {};
@@ -163,38 +267,61 @@ const createOrder = onCall(
                 if (rd.status !== "PENDING" || rd.usedAt) throw new HttpsError("failed-precondition", "Canje ya utilizado.");
                 const expiresAtMs = Date.parse(rd.expiresAt || "");
                 if (expiresAtMs <= Date.now()) throw new HttpsError("failed-precondition", "Canje expirado.");
-                
+
                 const discountAmount = Math.max(0, Math.min(Number(rd.discountAmount) || 0, 15000));
                 effectiveDiscount = Math.min(discountAmount, subtotal + effectiveDeliveryFee);
                 validatedRedemptionId = redemptionId;
             }
 
             const totalAmount = Math.max(0, subtotal + effectiveDeliveryFee - effectiveDiscount);
+            const nowIso = new Date().toISOString();
+            const acceptanceDeadline = new Date(nowMs + 5 * 60000).toISOString(); // 5 minutos para aceptar
 
             const orderRef = db.collection("orders").doc();
             transaction.set(orderRef, {
-                customerId: userId, customerName: userName, customerEmail: userEmail,
-                venueId, products: orderProducts, totalAmount, subtotal, platformFee,
-                deliveryFee: effectiveDeliveryFee, venueEarnings,
+                customerId: userId,
+                customerName: userName,
+                customerEmail: userEmail,
+                venueId,
+                products: orderProducts,
+                totalAmount,
+                subtotal,
+                platformFee,
+                deliveryFee: effectiveDeliveryFee,
+                venueEarnings,
                 status: (normalizedPaymentMethod === "card" && cardApprovedBeforeOrder) ? "PAID" : "PENDING",
                 paymentMethod: normalizedPaymentMethod,
                 paymentStatus: (normalizedPaymentMethod === "card" && cardApprovedBeforeOrder) ? "paid" : "pending",
                 transactionId: normalizedPaymentMethod === "card" ? transactionId : null,
-                paidAt: (normalizedPaymentMethod === "card" && cardApprovedBeforeOrder) ? new Date().toISOString() : null,
-                totalOriginalPrice, moneySaved: totalOriginalPrice - subtotal,
+                paidAt: (normalizedPaymentMethod === "card" && cardApprovedBeforeOrder) ? nowIso : null,
+                totalOriginalPrice,
+                moneySaved: totalOriginalPrice - subtotal,
                 commissionRate,
                 deliveryMethod: normalizedDeliveryMethod,
                 deliveryAddress: isDonation ? `DONACIÓN: ${donationCenterName}` : (normalizedDeliveryMethod === "delivery" ? address : "RECOGER EN TIENDA"),
-                city: city || "Bogotá", phone: phone || "", isDonation: Boolean(isDonation), donationCenterId, donationCenterName,
-                estimatedCo2: estimatedCo2 || 0, redemptionId: validatedRedemptionId, discountApplied: effectiveDiscount,
-                createdAt: new Date().toISOString(),
-                pickupDeadline: new Date(Date.now() + 30 * 60000).toISOString(),
+                city: city || "Bogotá",
+                phone: phone || "",
+                isDonation: Boolean(isDonation),
+                donationCenterId,
+                donationCenterName,
+                estimatedCo2: estimatedCo2 || 0,
+                redemptionId: validatedRedemptionId,
+                discountApplied: effectiveDiscount,
+                createdAt: nowIso,
+                pickupDeadline: new Date(nowMs + 20 * 60000).toISOString(), // 20 min para recoger
+                // Campos de aceptación
+                acceptanceDeadline,
+                lastKitchenNotifiedAt: nowIso,
+                // Campos denormalizados para drivers
+                venueName: venueNameForMeta || venueDoc.data().name || "",
+                venueNeighborhood: venueNeighborhoodForMeta || "",
+                deliveryModel: venueDeliveryModel,
                 metadata: { venueOwnerId: venueOwnerIdForMeta, venueName: venueNameForMeta || venueDoc.data().name },
             });
 
             for (const update of productUpdates) transaction.update(update.ref, { quantity: update.newQuantity });
             if (validatedRedemptionId && redemptionDocRef) {
-                const usedAt = new Date().toISOString();
+                const usedAt = nowIso;
                 const userRef2 = db.collection("users").doc(userId);
                 const userDoc2 = await transaction.get(userRef2);
                 if (userDoc2.exists) {
@@ -217,14 +344,514 @@ const createOrder = onCall(
     })
 );
 
+// ─── acceptOrder ─────────────────────────────────────────────────────────────
+
 /**
- * Trigger: handles status updates, FCM, and streaks.
+ * El negocio acepta un pedido PENDING → ACCEPTED.
+ * Solo VENUE_OWNER o KITCHEN_STAFF del venue pueden llamar esto.
+ */
+const acceptOrder = onCall(
+    withErrorHandling("acceptOrder", async (request) => {
+        if (!request.auth) throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+        const { orderId } = request.data || {};
+        if (!orderId) throw new HttpsError("invalid-argument", "orderId requerido.");
+
+        const orderRef = db.collection("orders").doc(orderId);
+        const orderSnap = await orderRef.get();
+        if (!orderSnap.exists) throw new HttpsError("not-found", "Pedido no encontrado.");
+        const order = orderSnap.data();
+
+        if (order.status !== "PENDING") {
+            throw new HttpsError("failed-precondition", `No se puede aceptar un pedido en estado ${order.status}.`);
+        }
+
+        // Verificar que el caller pertenece al venue
+        const callerSnap = await db.collection("users").doc(request.auth.uid).get();
+        if (!callerSnap.exists) throw new HttpsError("not-found", "Usuario no encontrado.");
+        const callerData = callerSnap.data();
+        const callerVenueIds = callerData.venueIds || (callerData.venueId ? [callerData.venueId] : []);
+        const hasAccess = ["VENUE_OWNER", "KITCHEN_STAFF"].includes(callerData.role) &&
+            callerVenueIds.includes(order.venueId);
+        if (!hasAccess && !["ADMIN", "SUPER_ADMIN"].includes(callerData.role)) {
+            throw new HttpsError("permission-denied", "No tienes permiso para aceptar este pedido.");
+        }
+
+        await orderRef.update({
+            status: "ACCEPTED",
+            acceptedAt: new Date().toISOString(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        const venueName = order.venueName || order.metadata?.venueName || "el restaurante";
+        await sendFcmToUser(
+            order.customerId,
+            "¡Pedido aceptado! 🎉",
+            `${venueName} aceptó tu pedido y lo está alistando.`,
+            { orderId, status: "ACCEPTED" }
+        );
+
+        log("acceptOrder: Pedido aceptado", { orderId, by: request.auth.uid });
+        return { success: true };
+    })
+);
+
+// ─── rejectOrder ─────────────────────────────────────────────────────────────
+
+/**
+ * El staff de cocina rechaza un pedido PENDING → CANCELLED.
+ * Notifica al dueño del negocio con los detalles del pedido.
+ */
+const rejectOrder = onCall(
+    withErrorHandling("rejectOrder", async (request) => {
+        if (!request.auth) throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+        const { orderId, reason } = request.data || {};
+        if (!orderId) throw new HttpsError("invalid-argument", "orderId requerido.");
+
+        const orderRef = db.collection("orders").doc(orderId);
+        const orderSnap = await orderRef.get();
+        if (!orderSnap.exists) throw new HttpsError("not-found", "Pedido no encontrado.");
+        const order = orderSnap.data();
+
+        if (order.status !== "PENDING") {
+            throw new HttpsError("failed-precondition", `No se puede rechazar un pedido en estado ${order.status}.`);
+        }
+
+        const callerSnap = await db.collection("users").doc(request.auth.uid).get();
+        if (!callerSnap.exists) throw new HttpsError("not-found", "Usuario no encontrado.");
+        const callerData = callerSnap.data();
+        const callerVenueIds = callerData.venueIds || (callerData.venueId ? [callerData.venueId] : []);
+        const hasAccess = ["VENUE_OWNER", "KITCHEN_STAFF"].includes(callerData.role) &&
+            callerVenueIds.includes(order.venueId);
+        if (!hasAccess && !["ADMIN", "SUPER_ADMIN"].includes(callerData.role)) {
+            throw new HttpsError("permission-denied", "No tienes permiso para rechazar este pedido.");
+        }
+
+        await orderRef.update({
+            status: "CANCELLED",
+            cancellationReason: "REJECTED_BY_STAFF",
+            rejectedBy: request.auth.uid,
+            cancelledAt: new Date().toISOString(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        // Notificar al cliente
+        await sendFcmToUser(
+            order.customerId,
+            "Pedido rechazado 😔",
+            `Lo sentimos, el negocio no pudo atender tu pedido en este momento.${reason ? ` Motivo: ${reason}` : ""}`,
+            { orderId, status: "CANCELLED" }
+        );
+
+        // Notificar al dueño con detalles del pedido
+        const productsList = (order.products || []).map(p => `${p.name} x${p.quantity}`).join(", ");
+        const amount = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(order.totalAmount || 0);
+        await sendFcmToVenueOwner(
+            order.venueId,
+            "⚠️ Pedido rechazado por tu equipo",
+            `${callerData.fullName || "Un colaborador"} rechazó un pedido de ${order.customerName}: ${productsList} — ${amount}${reason ? `. Motivo: ${reason}` : ""}`,
+            { orderId, type: "ORDER_REJECTED_BY_STAFF" }
+        );
+
+        log("rejectOrder: Pedido rechazado", { orderId, by: request.auth.uid });
+        return { success: true };
+    })
+);
+
+// ─── cancelOrderByClient ──────────────────────────────────────────────────────
+
+/**
+ * El cliente cancela su propio pedido.
+ * Solo permitido mientras el pedido está en estado PENDING.
+ */
+const cancelOrderByClient = onCall(
+    withErrorHandling("cancelOrderByClient", async (request) => {
+        if (!request.auth) throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+        const { orderId } = request.data || {};
+        if (!orderId) throw new HttpsError("invalid-argument", "orderId requerido.");
+
+        const orderRef = db.collection("orders").doc(orderId);
+        const orderSnap = await orderRef.get();
+        if (!orderSnap.exists) throw new HttpsError("not-found", "Pedido no encontrado.");
+        const order = orderSnap.data();
+
+        if (order.customerId !== request.auth.uid) {
+            throw new HttpsError("permission-denied", "Solo puedes cancelar tus propios pedidos.");
+        }
+        if (order.status !== "PENDING") {
+            throw new HttpsError("failed-precondition", "Solo puedes cancelar un pedido antes de que sea aceptado por el negocio.");
+        }
+
+        await orderRef.update({
+            status: "CANCELLED",
+            cancellationReason: "CLIENT_CANCELLED",
+            cancelledAt: new Date().toISOString(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        // Notificar al negocio
+        const venueName = order.venueName || order.metadata?.venueName || "el restaurante";
+        await sendFcmToVenueStaff(
+            order.venueId,
+            "Pedido cancelado por el cliente",
+            `${order.customerName || "Un cliente"} canceló su pedido en ${venueName}.`,
+            { orderId, type: "ORDER_CANCELLED_BY_CLIENT" }
+        );
+
+        log("cancelOrderByClient", { orderId, customerId: request.auth.uid });
+        return { success: true };
+    })
+);
+
+// ─── releaseToDriverPool ──────────────────────────────────────────────────────
+
+/**
+ * El negocio libera un pedido READY al pool de domiciliarios de la app.
+ * READY → AWAITING_DRIVER. Notifica a todos los drivers de la ciudad.
+ */
+const releaseToDriverPool = onCall(
+    withErrorHandling("releaseToDriverPool", async (request) => {
+        if (!request.auth) throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+        const { orderId } = request.data || {};
+        if (!orderId) throw new HttpsError("invalid-argument", "orderId requerido.");
+
+        const orderRef = db.collection("orders").doc(orderId);
+        const orderSnap = await orderRef.get();
+        if (!orderSnap.exists) throw new HttpsError("not-found", "Pedido no encontrado.");
+        const order = orderSnap.data();
+
+        if (order.status !== "READY") {
+            throw new HttpsError("failed-precondition", `El pedido debe estar en estado READY para liberarlo. Estado actual: ${order.status}`);
+        }
+        if (order.deliveryMethod !== "delivery") {
+            throw new HttpsError("failed-precondition", "Solo pedidos de delivery pueden ser asignados a drivers.");
+        }
+
+        const callerSnap = await db.collection("users").doc(request.auth.uid).get();
+        if (!callerSnap.exists) throw new HttpsError("not-found", "Usuario no encontrado.");
+        const callerData = callerSnap.data();
+        const callerVenueIds = callerData.venueIds || (callerData.venueId ? [callerData.venueId] : []);
+        const hasAccess = ["VENUE_OWNER", "KITCHEN_STAFF"].includes(callerData.role) && callerVenueIds.includes(order.venueId);
+        if (!hasAccess && !["ADMIN", "SUPER_ADMIN"].includes(callerData.role)) {
+            throw new HttpsError("permission-denied", "No tienes permiso para liberar este pedido.");
+        }
+
+        await orderRef.update({
+            status: "AWAITING_DRIVER",
+            releasedAt: new Date().toISOString(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        // Notificar al cliente
+        await sendFcmToUser(
+            order.customerId,
+            "Buscando repartidor 🔍",
+            "Tu pedido está listo. Estamos buscando un repartidor para ti.",
+            { orderId, status: "AWAITING_DRIVER" }
+        );
+
+        // Notificar a todos los drivers de la ciudad
+        await notifyDriversInCity(
+            order.city || "Bogotá",
+            orderId,
+            order.venueName || order.metadata?.venueName || "Restaurante",
+            order.venueNeighborhood || "",
+            order.deliveryAddress || ""
+        );
+
+        log("releaseToDriverPool", { orderId });
+        return { success: true };
+    })
+);
+
+// ─── assignDriver ─────────────────────────────────────────────────────────────
+
+/**
+ * El negocio/admin asigna un driver específico a un pedido READY.
+ * READY → DRIVER_ASSIGNED.
+ */
+const assignDriver = onCall(
+    withErrorHandling("assignDriver", async (request) => {
+        if (!request.auth) throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+        const { orderId, driverId } = request.data || {};
+        if (!orderId || !driverId) throw new HttpsError("invalid-argument", "orderId y driverId requeridos.");
+
+        const orderRef = db.collection("orders").doc(orderId);
+        const orderSnap = await orderRef.get();
+        if (!orderSnap.exists) throw new HttpsError("not-found", "Pedido no encontrado.");
+        const order = orderSnap.data();
+
+        if (order.status !== "READY" && order.status !== "AWAITING_DRIVER") {
+            throw new HttpsError("failed-precondition", `El pedido debe estar en READY o AWAITING_DRIVER. Estado actual: ${order.status}`);
+        }
+
+        // Validar que el driver existe y tiene rol DRIVER
+        const driverSnap = await db.collection("users").doc(driverId).get();
+        if (!driverSnap.exists || driverSnap.data().role !== "DRIVER") {
+            throw new HttpsError("not-found", "Driver no encontrado o sin rol DRIVER.");
+        }
+        const driverData = driverSnap.data();
+
+        const callerSnap = await db.collection("users").doc(request.auth.uid).get();
+        if (!callerSnap.exists) throw new HttpsError("not-found", "Usuario no encontrado.");
+        const callerData = callerSnap.data();
+        const callerVenueIds = callerData.venueIds || (callerData.venueId ? [callerData.venueId] : []);
+        const hasAccess = ["VENUE_OWNER"].includes(callerData.role) && callerVenueIds.includes(order.venueId);
+        if (!hasAccess && !["ADMIN", "SUPER_ADMIN"].includes(callerData.role)) {
+            throw new HttpsError("permission-denied", "No tienes permiso para asignar drivers.");
+        }
+
+        await orderRef.update({
+            status: "DRIVER_ASSIGNED",
+            driverId,
+            driverName: driverData.fullName || "Driver",
+            acceptedAt: new Date().toISOString(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        const venueName = order.venueName || order.metadata?.venueName || "el restaurante";
+
+        // Notificar al driver asignado
+        await sendFcmToUser(
+            driverId,
+            "¡Te asignaron un domicilio! 📦",
+            `Tienes un nuevo domicilio en ${venueName}. Recógelo y entrega en ${order.deliveryAddress}.`,
+            { orderId, status: "DRIVER_ASSIGNED" }
+        );
+
+        // Notificar al cliente
+        await sendFcmToUser(
+            order.customerId,
+            "¡Repartidor asignado! 🏍️",
+            `Un repartidor está en camino a ${venueName} para recoger tu pedido.`,
+            { orderId, status: "DRIVER_ASSIGNED" }
+        );
+
+        log("assignDriver", { orderId, driverId });
+        return { success: true };
+    })
+);
+
+// ─── takeDelivery ─────────────────────────────────────────────────────────────
+
+/**
+ * Un driver toma un pedido del pool AWAITING_DRIVER.
+ * Usa transacción atómica para evitar que dos drivers tomen el mismo pedido.
+ */
+const takeDelivery = onCall(
+    withErrorHandling("takeDelivery", async (request) => {
+        if (!request.auth) throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+        const { orderId } = request.data || {};
+        if (!orderId) throw new HttpsError("invalid-argument", "orderId requerido.");
+
+        // Verificar que el caller es un DRIVER
+        const callerSnap = await db.collection("users").doc(request.auth.uid).get();
+        if (!callerSnap.exists) throw new HttpsError("not-found", "Usuario no encontrado.");
+        const callerData = callerSnap.data();
+        if (callerData.role !== "DRIVER") {
+            throw new HttpsError("permission-denied", "Solo los domiciliarios pueden tomar pedidos.");
+        }
+
+        const orderRef = db.collection("orders").doc(orderId);
+
+        // Transacción atómica: solo el primero en llegar lo toma
+        await db.runTransaction(async (transaction) => {
+            const orderSnap = await transaction.get(orderRef);
+            if (!orderSnap.exists) throw new HttpsError("not-found", "Pedido no encontrado.");
+            const order = orderSnap.data();
+
+            if (order.status !== "AWAITING_DRIVER" || order.driverId) {
+                throw new HttpsError("failed-precondition", "Este pedido ya fue tomado por otro repartidor.");
+            }
+
+            // Validar que el pedido es de la ciudad del driver
+            if (order.city && callerData.city && order.city !== callerData.city) {
+                throw new HttpsError("failed-precondition", "Este pedido no corresponde a tu ciudad.");
+            }
+
+            transaction.update(orderRef, {
+                status: "DRIVER_ASSIGNED",
+                driverId: request.auth.uid,
+                driverName: callerData.fullName || "Driver",
+                acceptedAt: new Date().toISOString(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+        });
+
+        // Obtener datos actualizados para notificaciones
+        const updatedSnap = await orderRef.get();
+        const order = updatedSnap.data();
+        const venueName = order.venueName || order.metadata?.venueName || "el restaurante";
+
+        // Notificar al cliente
+        await sendFcmToUser(
+            order.customerId,
+            "¡Repartidor en camino! 🏍️",
+            `${callerData.fullName || "Un repartidor"} tomó tu pedido y está yendo a ${venueName}.`,
+            { orderId, status: "DRIVER_ASSIGNED" }
+        );
+
+        log("takeDelivery", { orderId, driverId: request.auth.uid });
+        return { success: true };
+    })
+);
+
+// ─── markDeliveredByDriver ────────────────────────────────────────────────────
+
+/**
+ * El driver marca el pedido como entregado.
+ * No cambia el status — activa awaitingClientConfirmation.
+ * El cliente tiene 15 min para confirmar o disputar; si no responde, el cron completa automáticamente.
+ */
+const markDeliveredByDriver = onCall(
+    withErrorHandling("markDeliveredByDriver", async (request) => {
+        if (!request.auth) throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+        const { orderId } = request.data || {};
+        if (!orderId) throw new HttpsError("invalid-argument", "orderId requerido.");
+
+        const orderRef = db.collection("orders").doc(orderId);
+        const orderSnap = await orderRef.get();
+        if (!orderSnap.exists) throw new HttpsError("not-found", "Pedido no encontrado.");
+        const order = orderSnap.data();
+
+        if (order.driverId !== request.auth.uid) {
+            throw new HttpsError("permission-denied", "Este pedido no te fue asignado.");
+        }
+        if (order.status !== "IN_TRANSIT") {
+            throw new HttpsError("failed-precondition", `El pedido debe estar IN_TRANSIT para marcarlo como entregado. Estado: ${order.status}`);
+        }
+
+        const nowIso = new Date().toISOString();
+        await orderRef.update({
+            awaitingClientConfirmation: true,
+            driverMarkedCompletedAt: nowIso,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        // Notificar al cliente con opción de disputar
+        await sendFcmToUser(
+            order.customerId,
+            "Pedido marcado como entregado 📦",
+            "El repartidor marcó tu pedido como entregado. ¿No lo recibiste? Tienes 15 minutos para reportarlo.",
+            { orderId, type: "DELIVERY_CONFIRMATION_NEEDED", status: "IN_TRANSIT" }
+        );
+
+        log("markDeliveredByDriver", { orderId, driverId: request.auth.uid });
+        return { success: true };
+    })
+);
+
+// ─── confirmDelivery ──────────────────────────────────────────────────────────
+
+/**
+ * El cliente confirma que recibió el pedido → COMPLETED.
+ * También usado por el cron de auto-confirmación tras 15 minutos.
+ */
+const confirmDelivery = onCall(
+    withErrorHandling("confirmDelivery", async (request) => {
+        if (!request.auth) throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+        const { orderId } = request.data || {};
+        if (!orderId) throw new HttpsError("invalid-argument", "orderId requerido.");
+
+        const orderRef = db.collection("orders").doc(orderId);
+        const orderSnap = await orderRef.get();
+        if (!orderSnap.exists) throw new HttpsError("not-found", "Pedido no encontrado.");
+        const order = orderSnap.data();
+
+        // Puede ser llamado por el cliente o por el cron (como admin SDK)
+        const isCustomer = order.customerId === request.auth.uid;
+        const callerSnap = await db.collection("users").doc(request.auth.uid).get();
+        const isAdminCaller = callerSnap.exists && ["ADMIN", "SUPER_ADMIN"].includes(callerSnap.data().role);
+
+        if (!isCustomer && !isAdminCaller) {
+            throw new HttpsError("permission-denied", "No tienes permiso para confirmar esta entrega.");
+        }
+        if (!order.awaitingClientConfirmation && order.status !== "IN_TRANSIT") {
+            throw new HttpsError("failed-precondition", "Este pedido no está esperando confirmación de entrega.");
+        }
+
+        const nowIso = new Date().toISOString();
+        await orderRef.update({
+            status: "COMPLETED",
+            awaitingClientConfirmation: false,
+            deliveredAt: nowIso,
+            receivedAt: nowIso,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        log("confirmDelivery", { orderId, confirmedBy: request.auth.uid });
+        return { success: true };
+    })
+);
+
+// ─── disputeDelivery ──────────────────────────────────────────────────────────
+
+/**
+ * El cliente disputa una entrega marcada por el driver.
+ * IN_TRANSIT (awaitingClientConfirmation=true) → DISPUTED.
+ */
+const disputeDelivery = onCall(
+    withErrorHandling("disputeDelivery", async (request) => {
+        if (!request.auth) throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+        const { orderId, reason } = request.data || {};
+        if (!orderId) throw new HttpsError("invalid-argument", "orderId requerido.");
+
+        const orderRef = db.collection("orders").doc(orderId);
+        const orderSnap = await orderRef.get();
+        if (!orderSnap.exists) throw new HttpsError("not-found", "Pedido no encontrado.");
+        const order = orderSnap.data();
+
+        if (order.customerId !== request.auth.uid) {
+            throw new HttpsError("permission-denied", "Solo el cliente del pedido puede abrir una disputa.");
+        }
+        if (!order.awaitingClientConfirmation) {
+            throw new HttpsError("failed-precondition", "Solo puedes disputar un pedido que el repartidor marcó como entregado.");
+        }
+
+        const nowIso = new Date().toISOString();
+        await orderRef.update({
+            status: "DISPUTED",
+            awaitingClientConfirmation: false,
+            disputedAt: nowIso,
+            disputeReason: reason || "El cliente reporta que no recibió el pedido.",
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        // Notificar a admins
+        try {
+            const adminsSnap = await db.collection("users")
+                .where("role", "in", ["ADMIN", "SUPER_ADMIN"])
+                .where("fcmToken", "!=", null)
+                .limit(10)
+                .get();
+            const tokens = adminsSnap.docs.map(d => d.data().fcmToken).filter(Boolean);
+            if (tokens.length > 0) {
+                await messaging.sendEachForMulticast({
+                    tokens,
+                    notification: {
+                        title: "⚠️ Disputa abierta",
+                        body: `Pedido ${orderId} — ${order.customerName} reporta no haber recibido su pedido.`,
+                    },
+                    data: { orderId, type: "ORDER_DISPUTED" },
+                });
+            }
+        } catch (e) { logError("disputeDelivery admin notify error", e); }
+
+        log("disputeDelivery", { orderId, customerId: request.auth.uid });
+        return { success: true };
+    })
+);
+
+// ─── onOrderUpdated ───────────────────────────────────────────────────────────
+
+/**
+ * Trigger: maneja cambios de estado, FCM al cliente, wallet settlement y gamificación.
  */
 const onOrderUpdated = onDocumentUpdated("orders/{orderId}", async (event) => {
     const newData = event.data.after.data();
     const oldData = event.data.before.data();
     const orderId = event.params.orderId;
 
+    // ─── FCM al cliente cuando cambia el estado ───────────────────────────────
     if (newData.status !== oldData.status && newData.customerId) {
         try {
             const userDoc = await db.collection("users").doc(newData.customerId).get();
@@ -237,37 +864,89 @@ const onOrderUpdated = onDocumentUpdated("orders/{orderId}", async (event) => {
                         const venueDoc = await db.collection("venues").doc(newData.venueId).get();
                         if (venueDoc.exists) venueName = venueDoc.data().name || venueName;
                     }
-                } catch (_) { /* Ignore error */ }
+                } catch (_) { /* Ignorar */ }
 
                 if (fcmToken) {
-                    let title = "Actualización de tu pedido", body = `El estado es ahora: ${newData.status}`;
+                    let title = "Actualización de tu pedido";
+                    let body = `El estado es ahora: ${newData.status}`;
                     const currentStreak = (userData.streak && userData.streak.current) || 0;
+
                     switch (newData.status) {
-                        case "IN_PREPARATION": title = "¡Manos a la obra! 👨‍🍳"; body = `${venueName} ya está preparando tu rescate.`; break;
-                        case "READY_PICKUP": title = "¡Tu rescate está listo! 🛍️"; body = newData.deliveryMethod === "pickup" ? `Acércate a ${venueName} a recogerlo.` : `Entregado al repartidor.`; break;
-                        case "DRIVER_ACCEPTED": title = "¡Repartidor en camino! 🏍️"; body = `Un repartidor aceptó tu pedido en ${venueName}.`; break;
-                        case "IN_TRANSIT": title = "¡Tu pedido va en camino! 🚚"; body = "El repartidor ya lleva tu rescate."; break;
-                        case "COMPLETED": title = "¡Rescate Exitoso! 🌍"; body = currentStreak >= 3 ? `¡${currentStreak} días de racha! 🔥` : "Gracias por salvar comida."; break;
+                        case "ACCEPTED":
+                            title = "¡Pedido aceptado! 🎉";
+                            body = `${venueName} aceptó tu pedido y lo está alistando.`;
+                            break;
+                        case "IN_PREPARATION":
+                            title = "¡Manos a la obra! 👨‍🍳";
+                            body = `${venueName} está preparando tu pedido.`;
+                            break;
+                        case "READY":
+                            title = "¡Tu pedido está listo! 🛍️";
+                            body = newData.deliveryMethod === "pickup"
+                                ? `Acércate a ${venueName} a recogerlo. Tienes 20 minutos.`
+                                : `El pedido está listo para despachar.`;
+                            break;
+                        case "AWAITING_DRIVER":
+                            title = "Buscando repartidor 🔍";
+                            body = "Tu pedido está listo. Estamos buscando un repartidor para ti.";
+                            break;
+                        case "DRIVER_ASSIGNED":
+                            title = "¡Repartidor asignado! 🏍️";
+                            body = `Un repartidor está en camino a ${venueName} a recoger tu pedido.`;
+                            break;
+                        case "IN_TRANSIT":
+                            title = "¡Tu pedido va en camino! 🚚";
+                            body = "El repartidor ya lleva tu rescate.";
+                            break;
+                        case "COMPLETED":
+                            title = "¡Rescate Exitoso! 🌍";
+                            body = currentStreak >= 3
+                                ? `¡${currentStreak} días de racha! 🔥 Gracias por salvar comida.`
+                                : "Gracias por salvar comida. 🌱";
+                            break;
+                        case "CANCELLED":
+                            title = "Pedido cancelado";
+                            body = newData.cancellationReason === "ACCEPTANCE_TIMEOUT"
+                                ? "El negocio no respondió a tiempo. Tu pedido fue cancelado."
+                                : "Tu pedido fue cancelado.";
+                            break;
+                        case "MISSED":
+                            title = "Pedido no recogido ⏰";
+                            body = "El tiempo límite de recogida pasó. Tu pedido fue marcado como no recogido.";
+                            break;
                     }
+
                     await messaging.send({
-                        notification: { title, body }, token: fcmToken,
+                        notification: { title, body },
+                        token: fcmToken,
                         webpush: { fcmOptions: { link: `/#/app/orders?highlight=${orderId}` } },
                         data: { orderId, status: newData.status },
                     });
                 }
             }
-        } catch (e) { logError("FCM Error", e); }
+        } catch (e) { logError("FCM Error onOrderUpdated", e); }
     }
 
+    // ─── Notificar a drivers cuando el pedido pasa a AWAITING_DRIVER ─────────
+    if (newData.status === "AWAITING_DRIVER" && oldData.status !== "AWAITING_DRIVER") {
+        try {
+            await notifyDriversInCity(
+                newData.city || "Bogotá",
+                orderId,
+                newData.venueName || newData.metadata?.venueName || "Restaurante",
+                newData.venueNeighborhood || "",
+                newData.deliveryAddress || ""
+            );
+        } catch (e) { logError("AWAITING_DRIVER notify drivers error", e); }
+    }
+
+    // ─── Wallet settlement al COMPLETAR ──────────────────────────────────────
     if (newData.status === "COMPLETED" && oldData.status !== "COMPLETED") {
         try {
             const existingTxSnap = await db.collection("wallet_transactions")
-                .where("orderId", "==", orderId)
-                .limit(1)
-                .get();
-            if (!existingTxSnap.empty) {
-                return;
-            }
+                .where("orderId", "==", orderId).limit(1).get();
+            if (!existingTxSnap.empty) return;
+
             await db.runTransaction(async (transaction) => {
                 const orderRef = db.collection("orders").doc(orderId);
                 const orderSnap = await transaction.get(orderRef);
@@ -278,8 +957,7 @@ const onOrderUpdated = onDocumentUpdated("orders/{orderId}", async (event) => {
                 const paymentMethod = order.paymentMethod || "cash";
                 const subtotal = Number(order.subtotal) || 0;
                 const commissionRate = Number.isFinite(Number(order.commissionRate))
-                    ? Number(order.commissionRate)
-                    : CONFIG.platformCommissionRate;
+                    ? Number(order.commissionRate) : CONFIG.platformCommissionRate;
                 const platformFee = Number(order.platformFee) || Math.round((subtotal * commissionRate) * 100) / 100;
                 const venueEarnings = Number(order.venueEarnings) || Math.round((subtotal - platformFee) * 100) / 100;
                 const walletAdjustment = paymentMethod === "cash" ? -platformFee : venueEarnings;
@@ -298,8 +976,7 @@ const onOrderUpdated = onDocumentUpdated("orders/{orderId}", async (event) => {
                     : `order_${orderId}_online_credit`;
                 const walletTxRef = db.collection("wallet_transactions").doc(txId);
                 transaction.set(walletTxRef, {
-                    venueId: order.venueId,
-                    orderId,
+                    venueId: order.venueId, orderId,
                     type: paymentMethod === "cash" ? "DEBIT" : "CREDIT",
                     amount: Math.abs(walletAdjustment),
                     description: paymentMethod === "cash" ? "Comisión pedido efectivo (confirmado)" : "Ganancia pedido online (confirmado)",
@@ -313,37 +990,34 @@ const onOrderUpdated = onDocumentUpdated("orders/{orderId}", async (event) => {
                     commissionTxId: txId,
                 });
             });
-        } catch (e) {
-            logError("Commission booking error", e);
-        }
+        } catch (e) { logError("Commission booking error", e); }
     }
 
-    // Gamification... (simplified for logic refactor, but keeping original logic intended)
+    // ─── Gamificación al COMPLETAR ────────────────────────────────────────────
     if (newData.status === "COMPLETED" && oldData.status !== "COMPLETED") {
         const userId = newData.customerId;
         const moneySaved = newData.moneySaved || 0;
         const co2Saved = newData.estimatedCo2 || 0.5;
         const pointsEarned = Math.floor(moneySaved / 1000) + Math.floor(co2Saved * 10);
         const userRef = db.collection("users").doc(userId);
-        
+
         try {
             const userSnap = await userRef.get();
             const userData = userSnap.data() || {};
             const currentRescues = (userData.impact?.totalRescues || 0) + 1;
             let newLevel = "NOVICE";
-            if (currentRescues >= 21) newLevel = "GUARDIAN"; else if (currentRescues >= 6) newLevel = "HERO";
+            if (currentRescues >= 21) newLevel = "GUARDIAN";
+            else if (currentRescues >= 6) newLevel = "HERO";
 
-            const today = new Date().toISOString().split("T")[0], yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+            const today = new Date().toISOString().split("T")[0];
+            const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
             const streak = userData.streak || { current: 0, longest: 0, lastOrderDate: "", multiplier: 1.0 };
             let newStreakCurrent = (streak.lastOrderDate === today) ? streak.current : (streak.lastOrderDate === yesterday ? streak.current + 1 : 1);
             let multiplier = newStreakCurrent >= 30 ? 3.0 : (newStreakCurrent >= 14 ? 2.5 : (newStreakCurrent >= 7 ? 2.0 : (newStreakCurrent >= 3 ? 1.5 : 1.0)));
-
             const bonusPoints = Math.round(pointsEarned * multiplier);
-            
-            // Calculate new periodic stats
-            const currentMonth = new Date().toISOString().substring(0, 7); // YYYY-MM
-            const currentWeek = `${new Date().getFullYear()}-W${Math.ceil((new Date() - new Date(new Date().getFullYear(), 0, 1)) / (86400000 * 7))}`; // YYYY-WW
 
+            const currentMonth = new Date().toISOString().substring(0, 7);
+            const currentWeek = `${new Date().getFullYear()}-W${Math.ceil((new Date() - new Date(new Date().getFullYear(), 0, 1)) / (86400000 * 7))}`;
             const monthlyRescues = (userData.impact?.monthlyRescues?.[currentMonth] || 0) + 1;
             const weeklyRescues = (userData.impact?.weeklyRescues?.[currentWeek] || 0) + 1;
 
@@ -355,74 +1029,55 @@ const onOrderUpdated = onDocumentUpdated("orders/{orderId}", async (event) => {
                 "impact.level": newLevel,
                 [`impact.monthlyRescues.${currentMonth}`]: monthlyRescues,
                 [`impact.weeklyRescues.${currentWeek}`]: weeklyRescues,
-                "streak.current": newStreakCurrent, "streak.longest": Math.max(streak.longest, newStreakCurrent), "streak.lastOrderDate": today, "streak.multiplier": multiplier,
+                "streak.current": newStreakCurrent,
+                "streak.longest": Math.max(streak.longest, newStreakCurrent),
+                "streak.lastOrderDate": today,
+                "streak.multiplier": multiplier,
                 "updatedAt": admin.firestore.FieldValue.serverTimestamp(),
             });
 
+            // Referidos (primer pedido)
             if (currentRescues === 1 && userData.invitedBy) {
                 const referrers = await db.collection("users").where("referralCode", "==", userData.invitedBy).limit(1).get();
                 if (!referrers.empty) {
-                    const referrerRef = referrers.docs[0].ref;
-                    await referrerRef.update({
-                        "impact.points": admin.firestore.FieldValue.increment(50),
-                        "updatedAt": admin.firestore.FieldValue.serverTimestamp(),
-                    });
-                    await userRef.update({
-                        "impact.points": admin.firestore.FieldValue.increment(50),
-                    });
+                    await referrers.docs[0].ref.update({ "impact.points": admin.firestore.FieldValue.increment(50), "updatedAt": admin.firestore.FieldValue.serverTimestamp() });
+                    await userRef.update({ "impact.points": admin.firestore.FieldValue.increment(50) });
                 }
             }
 
-            // --- Capa 7: Insignias (Badges) Dinámicas ---
+            // Insignias
             const newBadges = [];
-            
-            // 1. EARLY_BIRD: Pedidos antes de las 9:00 AM (local COT = UTC-5)
             const orderDate = new Date(newData.createdAt || Date.now());
-            const orderHour = orderDate.getUTCHours() - 5; 
-            if (orderHour >= 5 && orderHour < 9) {
-                newBadges.push({ id: "early_bird", name: "Madrugador", icon: "🌅", date: today });
-            }
-
-            // 2. PLANET_SAVER: Más de 50kg de CO2 (acumulado)
+            const orderHour = orderDate.getUTCHours() - 5;
+            if (orderHour >= 5 && orderHour < 9) newBadges.push({ id: "early_bird", name: "Madrugador", icon: "🌅", date: today });
             const totalCo2 = (userData.impact?.co2Saved || 0) + co2Saved;
             if (totalCo2 >= 50 && (!userData.impact?.badges || !userData.impact.badges.find(b => b.id === "planet_saver"))) {
                 newBadges.push({ id: "planet_saver", name: "Planet Saver", icon: "🌍", date: today });
             }
-
-            // 3. WEEKEND_WARRIOR: Pedido en Sábado o Domingo
-            const dayOfWeek = new Date().getUTCDay(); // 0 = Sunday, 6 = Saturday
-            if (dayOfWeek === 0 || dayOfWeek === 6) {
-                newBadges.push({ id: "weekend_warrior", name: "Guerrero de Finde", icon: "🛡️", date: today });
-            }
+            const dayOfWeek = new Date().getUTCDay();
+            if (dayOfWeek === 0 || dayOfWeek === 6) newBadges.push({ id: "weekend_warrior", name: "Guerrero de Finde", icon: "🛡️", date: today });
 
             if (newBadges.length > 0) {
                 const currentBadges = userData.impact?.badges || [];
                 const filteredNewBadges = newBadges.filter(nb => !currentBadges.find(cb => cb.id === nb.id));
-                
                 if (filteredNewBadges.length > 0) {
-                    await userRef.update({
-                        "impact.badges": admin.firestore.FieldValue.arrayUnion(...filteredNewBadges)
-                    });
-                    
+                    await userRef.update({ "impact.badges": admin.firestore.FieldValue.arrayUnion(...filteredNewBadges) });
                     if (userData.fcmToken) {
-                        try {
-                            await messaging.send({
-                                notification: { 
-                                    title: "¡Nuevo Logro Desbloqueado! 🏆", 
-                                    body: `Has ganado la insignia: ${filteredNewBadges[0].name}` 
-                                },
-                                token: userData.fcmToken
-                            });
-                        } catch (e) { logError("Badge Notification Error", e); }
+                        await messaging.send({
+                            notification: { title: "¡Nuevo Logro Desbloqueado! 🏆", body: `Has ganado la insignia: ${filteredNewBadges[0].name}` },
+                            token: userData.fcmToken,
+                        }).catch(e => logError("Badge notification error", e));
                     }
                 }
             }
-        } catch (e) { logError("Impact Error", e); }
+        } catch (e) { logError("Impact/Gamification Error", e); }
     }
 });
 
+// ─── onOrderCreated ───────────────────────────────────────────────────────────
+
 /**
- * Trigger: sends notifications to venue staff on new order.
+ * Trigger: publica el evento ORDER_CREATED en pubsub para notificar al staff del venue.
  */
 const onOrderCreated = onDocumentCreated("orders/{orderId}", async (event) => {
     const orderData = event.data.data();
@@ -436,9 +1091,22 @@ const onOrderCreated = onDocumentCreated("orders/{orderId}", async (event) => {
             venueId: orderData.venueId,
             customerName: orderData.customerName || "Un cliente",
             totalAmount: orderData.totalAmount || 0,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
         });
     } catch (e) { logError("onOrderCreated PubSub Error", e); }
 });
 
-module.exports = { createOrder, onOrderUpdated, onOrderCreated };
+module.exports = {
+    createOrder,
+    onOrderUpdated,
+    onOrderCreated,
+    acceptOrder,
+    rejectOrder,
+    cancelOrderByClient,
+    releaseToDriverPool,
+    assignDriver,
+    takeDelivery,
+    markDeliveredByDriver,
+    confirmDelivery,
+    disputeDelivery,
+};

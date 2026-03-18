@@ -417,6 +417,70 @@
                     "order": "DESCENDING"
                 }
             ]
+        },
+        {
+            "collectionGroup": "orders",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "city",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "status",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "createdAt",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "orders",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "status",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "acceptanceDeadline",
+                    "order": "ASCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "orders",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "awaitingClientConfirmation",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "driverMarkedCompletedAt",
+                    "order": "ASCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "orders",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "venueId",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "status",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "lastKitchenNotifiedAt",
+                    "order": "ASCENDING"
+                }
+            ]
         }
     ],
     "fieldOverrides": []

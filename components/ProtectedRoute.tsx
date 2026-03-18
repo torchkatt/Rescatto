@@ -10,9 +10,10 @@ interface ProtectedRouteProps {
   children: React.ReactElement;
   allowedRoles?: UserRole[];
   disallowGuests?: boolean;
+  guestRedirect?: string;
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles, disallowGuests }) => {
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles, disallowGuests, guestRedirect }) => {
   const { isAuthenticated, isLoading, hasRole, user, isEmailVerified, isAccountVerified } = useAuth();
 
   if (isLoading) {
@@ -31,7 +32,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles,
       userRole: user.role,
       details: { reason: 'GUEST_FORBIDDEN', path: window.location.pathname }
     });
-    return <Navigate to="/login" replace />;
+    return <Navigate to={guestRedirect ?? '/login'} replace />;
   }
 
   // Forzar la verificación de la cuenta (Email + isVerified en Firestore)

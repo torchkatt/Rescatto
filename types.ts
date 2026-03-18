@@ -15,16 +15,18 @@ export enum BusinessType {
 export const BUSINESS_TYPES_LIST = Object.values(BusinessType);
 
 export enum OrderStatus {
-  PENDING = 'PENDING',
-  PAID = 'PAID',
-  IN_PREPARATION = 'IN_PREPARATION', // [NUEVO] Cocina
-  READY_PICKUP = 'READY_PICKUP',
-  DRIVER_ACCEPTED = 'DRIVER_ACCEPTED', // [NUEVO] Domiciliario acepta
-  IN_TRANSIT = 'IN_TRANSIT',
-  COMPLETED = 'COMPLETED',
-  CANCELLED = 'CANCELLED',
-  MISSED = 'MISSED',
-  DISPUTED = 'DISPUTED',
+  PENDING = 'PENDING',           // Pedido creado, esperando aceptación del negocio
+  PAID = 'PAID',                 // Reservado para pagos online futuros (actualmente inactivo)
+  ACCEPTED = 'ACCEPTED',         // Negocio aceptó — está alistando/empacando
+  IN_PREPARATION = 'IN_PREPARATION', // Negocio está preparando (opcional, para negocios que cocinan)
+  READY = 'READY',               // Listo para recoger o despachar
+  AWAITING_DRIVER = 'AWAITING_DRIVER', // Liberado al pool — cualquier driver puede tomarlo
+  DRIVER_ASSIGNED = 'DRIVER_ASSIGNED', // Driver específico asignado
+  IN_TRANSIT = 'IN_TRANSIT',     // Driver en camino
+  COMPLETED = 'COMPLETED',       // Entregado / recogido exitosamente
+  CANCELLED = 'CANCELLED',       // Cancelado (por cliente, negocio, staff o timeout)
+  MISSED = 'MISSED',             // No recogido en tiempo límite
+  DISPUTED = 'DISPUTED',         // Disputa abierta
 }
 
 // --- TIPOS DE AUTENTICACIÓN ---
@@ -174,6 +176,7 @@ export interface Venue {
   city?: string; // [NUEVO] Ciudad del establecimiento
   latitude: number;
   longitude: number;
+  openingTime?: string; // Formato HH:mm
   closingTime: string; // Formato HH:mm
   phone?: string; // Contacto para conductores/clientes
   rating: number;
@@ -187,6 +190,11 @@ export interface Venue {
   coverImageUrl?: string; // Imagen de portada/banner
   dietaryTags?: string[]; // ej., ['VEGAN', 'GLUTEN_FREE']
 
+  neighborhood?: string; // Barrio del negocio (para mostrar a drivers)
+
+  // Modelo de entrega del negocio
+  deliveryModel?: 'none' | 'own_drivers' | 'platform_drivers';
+
   // Configuración de Domicilio [NUEVO]
   deliveryConfig?: {
     isEnabled: boolean;
@@ -198,6 +206,13 @@ export interface Venue {
   };
 
   ownerId?: string;
+
+  // Configuración de Precios Dinámicos (por sede)
+  dynamicPricingSettings?: {
+    enabled: boolean;
+    aggressiveDiscountRate: number; // % extra de descuento al llegar al triggerTime
+    triggerMinutesBeforeClose: number; // Minutos antes del cierre para activar descuento agresivo
+  };
 
   // Contadores del Dashboard [NUEVO v2]
   stats?: {
@@ -297,6 +312,22 @@ export interface Order {
   estimatedCo2?: number;
   moneySaved?: number; // [NUEVO]
   pointsEarned?: number;
+
+  // Flujo de aceptación por negocio
+  acceptanceDeadline?: string;      // createdAt + 5 min — si no acepta → CANCELLED
+  lastKitchenNotifiedAt?: string;   // para los recordatorios FCM cada 60s
+  cancellationReason?: 'REJECTED_BY_STAFF' | 'CLIENT_CANCELLED' | 'ACCEPTANCE_TIMEOUT' | 'ADMIN';
+  rejectedBy?: string;              // userId del staff que rechazó
+
+  // Campos denormalizados del venue (para mostrar a drivers sin join)
+  venueName?: string;
+  venueNeighborhood?: string;
+  clientNeighborhood?: string;
+  deliveryModel?: 'own_drivers' | 'platform_drivers' | 'none';
+
+  // Confirmación de entrega por driver
+  awaitingClientConfirmation?: boolean; // true cuando driver marca como completado
+  driverMarkedCompletedAt?: string;     // para el cron de auto-confirmación (15min)
 }
 
 export interface DonationCenter {

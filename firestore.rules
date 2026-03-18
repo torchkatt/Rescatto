@@ -254,17 +254,21 @@ service cloud.firestore {
     // ─── ORDERS ──────────────────────────────────────────────────────────
 
     match /orders/{orderId} {
+
+      // Driver puede leer un pedido AWAITING_DRIVER de su misma ciudad
       function isDriverAvailableOrder(data) {
         return data.deliveryMethod == 'delivery' &&
-          data.driverId == null &&
-          data.status in ['READY_PICKUP'];
+          (data.driverId == null || data.driverId == request.auth.uid) &&
+          data.status == 'AWAITING_DRIVER';
       }
 
+      // Driver toma un pedido del pool (AWAITING_DRIVER → DRIVER_ASSIGNED, atómico)
       function canDriverTakeOrder() {
         return hasRole('DRIVER') &&
-          isDriverAvailableOrder(resource.data) &&
+          resource.data.status == 'AWAITING_DRIVER' &&
+          resource.data.driverId == null &&
           request.resource.data.driverId == request.auth.uid &&
-          request.resource.data.status == 'DRIVER_ACCEPTED' &&
+          request.resource.data.status == 'DRIVER_ASSIGNED' &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'driverId',
             'driverName',
@@ -274,11 +278,12 @@ service cloud.firestore {
           ]);
       }
 
+      // Driver inicia tránsito (DRIVER_ASSIGNED → IN_TRANSIT)
       function canDriverStartTransit() {
         return hasRole('DRIVER') &&
           resource.data.driverId == request.auth.uid &&
           request.resource.data.driverId == request.auth.uid &&
-          resource.data.status == 'DRIVER_ACCEPTED' &&
+          resource.data.status == 'DRIVER_ASSIGNED' &&
           request.resource.data.status == 'IN_TRANSIT' &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'status',
@@ -287,6 +292,22 @@ service cloud.firestore {
           ]);
       }
 
+      // Driver marca como entregado (IN_TRANSIT → awaitingClientConfirmation)
+      function canDriverMarkDelivered() {
+        return hasRole('DRIVER') &&
+          resource.data.driverId == request.auth.uid &&
+          request.resource.data.driverId == request.auth.uid &&
+          resource.data.status == 'IN_TRANSIT' &&
+          request.resource.data.status == 'IN_TRANSIT' &&
+          request.resource.data.awaitingClientConfirmation == true &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'awaitingClientConfirmation',
+            'driverMarkedCompletedAt',
+            'updatedAt'
+          ]);
+      }
+
+      // Driver completa el pedido directamente (IN_TRANSIT → COMPLETED, fallback sin confirmación cliente)
       function canDriverCompleteOrder() {
         return hasRole('DRIVER') &&
           resource.data.driverId == request.auth.uid &&
@@ -297,15 +318,17 @@ service cloud.firestore {
             'status',
             'deliveredAt',
             'deliveryNotes',
+            'awaitingClientConfirmation',
             'updatedAt'
           ]);
       }
 
+      // Cliente confirma recogida en local (READY → COMPLETED)
       function canCustomerConfirmPickup() {
         return isAuthenticated() &&
           resource.data.customerId == request.auth.uid &&
           resource.data.deliveryMethod != 'delivery' &&
-          resource.data.status == 'READY_PICKUP' &&
+          resource.data.status == 'READY' &&
           request.resource.data.status == 'COMPLETED' &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'status',
@@ -314,7 +337,83 @@ service cloud.firestore {
           ]);
       }
 
-      // Customers read their own; venue staff read their venue's; drivers read assigned
+      // Cliente confirma entrega por domicilio (awaitingClientConfirmation → COMPLETED)
+      function canCustomerConfirmDelivery() {
+        return isAuthenticated() &&
+          resource.data.customerId == request.auth.uid &&
+          resource.data.awaitingClientConfirmation == true &&
+          request.resource.data.status == 'COMPLETED' &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status',
+            'awaitingClientConfirmation',
+            'receivedAt',
+            'updatedAt'
+          ]);
+      }
+
+      // Cliente disputa una entrega marcada por driver
+      function canCustomerDisputeDelivery() {
+        return isAuthenticated() &&
+          resource.data.customerId == request.auth.uid &&
+          resource.data.awaitingClientConfirmation == true &&
+          request.resource.data.status == 'DISPUTED' &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status',
+            'awaitingClientConfirmation',
+            'disputedAt',
+            'disputeReason',
+            'updatedAt'
+          ]);
+      }
+
+      // Cliente cancela su pedido (solo cuando está en PENDING, antes de ser aceptado)
+      function canCustomerCancelOrder() {
+        return isAuthenticated() &&
+          resource.data.customerId == request.auth.uid &&
+          resource.data.status == 'PENDING' &&
+          request.resource.data.status == 'CANCELLED' &&
+          request.resource.data.cancellationReason == 'CLIENT_CANCELLED' &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status',
+            'cancellationReason',
+            'cancelledAt',
+            'updatedAt'
+          ]);
+      }
+
+      // Venue/Kitchen actualizan el estado del pedido
+      function isValidVenueStatusTransition(current, next, deliveryMethod, deliveryModel) {
+        return
+          // PENDING → ACCEPTED (negocio acepta el pedido)
+          (current == 'PENDING' && next == 'ACCEPTED') ||
+          // ACCEPTED → IN_PREPARATION (opcional, para negocios que cocinan)
+          (current == 'ACCEPTED' && next == 'IN_PREPARATION') ||
+          // ACCEPTED / IN_PREPARATION → READY
+          ((current == 'ACCEPTED' || current == 'IN_PREPARATION') && next == 'READY') ||
+          // READY → IN_TRANSIT (domiciliarios propios, venue despacha directamente)
+          (current == 'READY' && next == 'IN_TRANSIT' && deliveryModel == 'own_drivers') ||
+          // READY → AWAITING_DRIVER (liberar al pool de la app)
+          (current == 'READY' && next == 'AWAITING_DRIVER' && deliveryModel == 'platform_drivers') ||
+          // READY → COMPLETED (pickup directo)
+          (deliveryMethod != 'delivery' && current == 'READY' && next == 'COMPLETED') ||
+          // PENDING → CANCELLED (staff rechaza)
+          (current == 'PENDING' && next == 'CANCELLED');
+      }
+
+      function canVenueUpdateOrder() {
+        return (isVenueOwnerOf(resource.data.venueId) || isKitchenStaffOf(resource.data.venueId)) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status', 'driverId', 'rejectedBy', 'cancellationReason', 'cancelledAt', 'updatedAt'
+          ]) &&
+          isValidVenueStatusTransition(
+            resource.data.status,
+            request.resource.data.status,
+            resource.data.deliveryMethod,
+            resource.data.deliveryModel
+          );
+      }
+
+      // Customers read their own; venue staff read their venue's; drivers read assigned + pool
       allow read: if isAdmin() ||
         (isAuthenticated() && resource.data.customerId == request.auth.uid) ||
         (isAuthenticated() && belongsToVenue(resource.data.venueId)) ||
@@ -325,32 +424,18 @@ service cloud.firestore {
         (hasRole('KITCHEN_STAFF') && belongsToVenue(resource.data.venueId));
 
       // Creación bloqueada desde cliente: Todos los pedidos deben pasar por la Cloud Function "createOrder"
-      // para asegurar lógica transaccional, descuentos y control de fraude.
       allow create: if false;
-
-      // Status updates by authorized roles
-      function isValidVenueStatusTransition(current, next, deliveryMethod) {
-        // Venue/Kitchen can only advance the order, never cancel or dispute.
-        // Delivery orders: venue stops at READY_PICKUP.
-        // Pickup orders: venue can complete.
-        return
-          ((current == 'PENDING' || current == 'PAID') && next == 'IN_PREPARATION') ||
-          (current == 'IN_PREPARATION' && next == 'READY_PICKUP') ||
-          (deliveryMethod != 'delivery' && current == 'READY_PICKUP' && next == 'COMPLETED');
-      }
-
-      function canVenueUpdateOrder() {
-        return (isVenueOwnerOf(resource.data.venueId) || isKitchenStaffOf(resource.data.venueId)) &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']) &&
-          isValidVenueStatusTransition(resource.data.status, request.resource.data.status, resource.data.deliveryMethod);
-      }
 
       allow update: if isAdmin() ||
         canVenueUpdateOrder() ||
         canDriverTakeOrder() ||
         canDriverStartTransit() ||
+        canDriverMarkDelivered() ||
         canDriverCompleteOrder() ||
-        canCustomerConfirmPickup();
+        canCustomerConfirmPickup() ||
+        canCustomerConfirmDelivery() ||
+        canCustomerDisputeDelivery() ||
+        canCustomerCancelOrder();
 
       allow delete: if isSuperAdmin();
     }

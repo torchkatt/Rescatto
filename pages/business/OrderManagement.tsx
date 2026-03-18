@@ -1,14 +1,15 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { doc, updateDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
-import { db } from '../../services/firebase';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
 import { useToast } from '../../context/ToastContext';
 import { Order, OrderStatus, Permission, UserRole } from '../../types';
 import { PermissionGate } from '../../components/PermissionGate';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
-import { Package, Clock, CheckCircle, ChefHat, MessageSquare, Search, RotateCw, Heart, MapPin, Truck, X, User, ChevronDown } from 'lucide-react';
+import { Package, Clock, CheckCircle, ChefHat, MessageSquare, Search, RotateCw, Heart, MapPin, Truck, X, User, ChevronDown, ThumbsUp, ThumbsDown, Send, Users } from 'lucide-react';
 import { formatCOP, formatKgCO2 } from '../../utils/formatters';
 import { useNotifications } from '../../context/NotificationContext';
 import { Leaf, Gift } from 'lucide-react';
@@ -143,12 +144,12 @@ export const OrderManagement: React.FC = () => {
             // --- NOTIFICATIONS ---
             const order = flatOrders.find(o => o.id === orderId);
             if (order) {
-                if (newStatus === OrderStatus.PAID) {
-                    await sendNotification(order.customerId, '💰 Pago Confirmado', `Hemos recibido tu pago para el pedido #${order.id.slice(0, 8)}.`, 'success');
-                } else if (newStatus === OrderStatus.IN_PREPARATION) {
-                    await sendNotification(order.customerId, '👨‍🍳 Pedido en Preparación', `Tu pedido se está preparando en el restaurante.`, 'info');
-                } else if (newStatus === OrderStatus.READY_PICKUP) {
-                    await sendNotification(order.customerId, '✅ Pedido Listo', `Tu pedido está listo para ser recogido o enviado.`, 'success');
+                if (newStatus === OrderStatus.IN_PREPARATION) {
+                    await sendNotification(order.customerId, '👨‍🍳 Pedido en Preparación', `Tu pedido se está preparando en ${order.venueName || 'el restaurante'}.`, 'info');
+                } else if (newStatus === OrderStatus.READY) {
+                    await sendNotification(order.customerId, '✅ Pedido Listo', `Tu pedido está listo para ${order.deliveryMethod === 'pickup' ? 'recoger' : 'despachar'}.`, 'success');
+                } else if (newStatus === OrderStatus.IN_TRANSIT) {
+                    await sendNotification(order.customerId, '🚚 Pedido Despachado', `Tu pedido está en camino.`, 'success');
                 }
             }
         } catch (err) {
@@ -216,23 +217,25 @@ export const OrderManagement: React.FC = () => {
         }
     };
 
-    const assignDriver = async (driverId: string) => {
+    const handleAssignDriver = async (driverId: string) => {
         if (!assigningOrder) return;
         try {
-            await updateDoc(doc(db, 'orders', assigningOrder.id), { driverId });
-            
-            // Optimistic cache update
+            const assignDriverFn = httpsCallable(functions, 'assignDriver');
+            await assignDriverFn({ orderId: assigningOrder.id, driverId });
+
             queryClient.setQueryData(['ordersPaginated', targetVenues, filter, searchTerm], (oldData: any) => {
                 if (!oldData) return oldData;
                 return {
                     ...oldData,
                     pages: oldData.pages.map((page: any) => ({
                         ...page,
-                        data: page.data.map((o: Order) => o.id === assigningOrder.id ? { ...o, driverId } : o)
+                        data: page.data.map((o: Order) =>
+                            o.id === assigningOrder.id ? { ...o, driverId, status: OrderStatus.DRIVER_ASSIGNED } : o
+                        )
                     }))
                 };
             });
-            
+
             success('Conductor asignado correctamente');
             setAssigningOrder(null);
         } catch (err) {
@@ -241,15 +244,87 @@ export const OrderManagement: React.FC = () => {
         }
     };
 
+    const handleAcceptOrder = async (orderId: string) => {
+        try {
+            const acceptOrderFn = httpsCallable(functions, 'acceptOrder');
+            await acceptOrderFn({ orderId });
+            queryClient.setQueryData(['ordersPaginated', targetVenues, filter, searchTerm], (oldData: any) => {
+                if (!oldData) return oldData;
+                return {
+                    ...oldData,
+                    pages: oldData.pages.map((page: any) => ({
+                        ...page,
+                        data: page.data.map((o: Order) =>
+                            o.id === orderId ? { ...o, status: OrderStatus.ACCEPTED } : o
+                        )
+                    }))
+                };
+            });
+            success('Pedido aceptado');
+        } catch (err) {
+            logger.error('Error accepting order:', err);
+            showError('Error al aceptar el pedido');
+        }
+    };
+
+    const handleRejectOrder = async (orderId: string) => {
+        try {
+            const rejectOrderFn = httpsCallable(functions, 'rejectOrder');
+            await rejectOrderFn({ orderId });
+            queryClient.setQueryData(['ordersPaginated', targetVenues, filter, searchTerm], (oldData: any) => {
+                if (!oldData) return oldData;
+                return {
+                    ...oldData,
+                    pages: oldData.pages.map((page: any) => ({
+                        ...page,
+                        data: page.data.map((o: Order) =>
+                            o.id === orderId ? { ...o, status: OrderStatus.CANCELLED } : o
+                        )
+                    }))
+                };
+            });
+            success('Pedido rechazado');
+        } catch (err) {
+            logger.error('Error rejecting order:', err);
+            showError('Error al rechazar el pedido');
+        }
+    };
+
+    const handleReleaseToPool = async (orderId: string) => {
+        try {
+            const releaseToDriverPoolFn = httpsCallable(functions, 'releaseToDriverPool');
+            await releaseToDriverPoolFn({ orderId });
+            queryClient.setQueryData(['ordersPaginated', targetVenues, filter, searchTerm], (oldData: any) => {
+                if (!oldData) return oldData;
+                return {
+                    ...oldData,
+                    pages: oldData.pages.map((page: any) => ({
+                        ...page,
+                        data: page.data.map((o: Order) =>
+                            o.id === orderId ? { ...o, status: OrderStatus.AWAITING_DRIVER } : o
+                        )
+                    }))
+                };
+            });
+            success('Pedido liberado al pool de repartidores');
+        } catch (err) {
+            logger.error('Error releasing order:', err);
+            showError('Error al liberar el pedido');
+        }
+    };
+
     const getStatusLabel = (status: OrderStatus): string => {
         const labels: Record<string, string> = {
             [OrderStatus.PENDING]: 'Pendiente',
             [OrderStatus.PAID]: 'Pagado',
+            [OrderStatus.ACCEPTED]: 'Aceptado',
             [OrderStatus.IN_PREPARATION]: 'En Preparación',
-            [OrderStatus.READY_PICKUP]: 'Listo para Recoger',
-            [OrderStatus.DRIVER_ACCEPTED]: 'Conductor Asignado',
+            [OrderStatus.READY]: 'Listo',
+            [OrderStatus.AWAITING_DRIVER]: 'Buscando Repartidor',
+            [OrderStatus.DRIVER_ASSIGNED]: 'Repartidor Asignado',
             [OrderStatus.IN_TRANSIT]: 'En Camino',
             [OrderStatus.COMPLETED]: 'Completado',
+            [OrderStatus.CANCELLED]: 'Cancelado',
             [OrderStatus.MISSED]: 'Perdido',
             [OrderStatus.DISPUTED]: 'Disputado',
         };
@@ -260,11 +335,14 @@ export const OrderManagement: React.FC = () => {
         const badges: Record<string, string> = {
             [OrderStatus.PENDING]: 'bg-yellow-100 text-yellow-800 border-yellow-300',
             [OrderStatus.PAID]: 'bg-blue-100 text-blue-800 border-blue-300',
+            [OrderStatus.ACCEPTED]: 'bg-sky-100 text-sky-800 border-sky-300',
             [OrderStatus.IN_PREPARATION]: 'bg-amber-100 text-amber-800 border-amber-300',
-            [OrderStatus.READY_PICKUP]: 'bg-green-100 text-green-800 border-green-300',
-            [OrderStatus.DRIVER_ACCEPTED]: 'bg-indigo-100 text-indigo-800 border-indigo-300',
+            [OrderStatus.READY]: 'bg-green-100 text-green-800 border-green-300',
+            [OrderStatus.AWAITING_DRIVER]: 'bg-orange-100 text-orange-800 border-orange-300',
+            [OrderStatus.DRIVER_ASSIGNED]: 'bg-indigo-100 text-indigo-800 border-indigo-300',
             [OrderStatus.IN_TRANSIT]: 'bg-indigo-100 text-indigo-800 border-indigo-300',
             [OrderStatus.COMPLETED]: 'bg-gray-100 text-gray-800 border-gray-300',
+            [OrderStatus.CANCELLED]: 'bg-red-100 text-red-800 border-red-300',
             [OrderStatus.MISSED]: 'bg-red-100 text-red-800 border-red-300',
             [OrderStatus.DISPUTED]: 'bg-purple-100 text-purple-800 border-purple-300',
         };
@@ -292,16 +370,19 @@ export const OrderManagement: React.FC = () => {
     const activeOrders = flatOrders.filter(o =>
         o.status === OrderStatus.PENDING ||
         o.status === OrderStatus.PAID ||
+        o.status === OrderStatus.ACCEPTED ||
         o.status === OrderStatus.IN_PREPARATION ||
-        o.status === OrderStatus.READY_PICKUP ||
-        o.status === OrderStatus.DRIVER_ACCEPTED
+        o.status === OrderStatus.READY ||
+        o.status === OrderStatus.AWAITING_DRIVER ||
+        o.status === OrderStatus.DRIVER_ASSIGNED ||
+        o.status === OrderStatus.IN_TRANSIT
     );
 
     if (loading) return <LoadingSpinner fullPage />;
 
     return (
         <>
-        <div className="space-y-6 overflow-x-hidden">
+        <div className="space-y-6 overflow-x-hidden animate-in fade-in duration-700">
             {/* Fila 1: título + contador + botón refresh */}
             <div className="flex justify-between items-start">
                 <div>
@@ -330,51 +411,25 @@ export const OrderManagement: React.FC = () => {
 
             {/* Fila 2: filtros — scroll horizontal propio, ancho completo */}
             <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-                <button
-                    onClick={() => setFilter('all')}
-                    className={`whitespace-nowrap px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95 ${filter === 'all'
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                >
-                    Todos
-                </button>
-                <button
-                    onClick={() => setFilter(OrderStatus.PENDING)}
-                    className={`whitespace-nowrap px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95 ${filter === OrderStatus.PENDING
-                        ? 'bg-yellow-500 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                >
-                    Pendientes
-                </button>
-                <button
-                    onClick={() => setFilter(OrderStatus.PAID)}
-                    className={`whitespace-nowrap px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95 ${filter === OrderStatus.PAID
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                >
-                    Pagados
-                </button>
-                <button
-                    onClick={() => setFilter(OrderStatus.IN_PREPARATION)}
-                    className={`whitespace-nowrap px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95 ${filter === OrderStatus.IN_PREPARATION
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                >
-                    En Cocina
-                </button>
-                <button
-                    onClick={() => setFilter(OrderStatus.READY_PICKUP)}
-                    className={`whitespace-nowrap px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95 ${filter === OrderStatus.READY_PICKUP
-                        ? 'bg-green-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                >
-                    Listos
-                </button>
+                {([
+                    { value: 'all', label: 'Todos', color: 'bg-emerald-600' },
+                    { value: OrderStatus.PENDING, label: 'Pendientes', color: 'bg-yellow-500' },
+                    { value: OrderStatus.ACCEPTED, label: 'Aceptados', color: 'bg-sky-500' },
+                    { value: OrderStatus.IN_PREPARATION, label: 'En Cocina', color: 'bg-amber-500' },
+                    { value: OrderStatus.READY, label: 'Listos', color: 'bg-green-600' },
+                    { value: OrderStatus.AWAITING_DRIVER, label: 'Sin Repartidor', color: 'bg-orange-500' },
+                    { value: OrderStatus.DRIVER_ASSIGNED, label: 'Asignado', color: 'bg-indigo-600' },
+                    { value: OrderStatus.IN_TRANSIT, label: 'En Camino', color: 'bg-indigo-600' },
+                    { value: OrderStatus.COMPLETED, label: 'Completados', color: 'bg-gray-600' },
+                ] as const).map(({ value, label, color }) => (
+                    <button
+                        key={value}
+                        onClick={() => setFilter(value as 'all' | OrderStatus)}
+                        className={`whitespace-nowrap px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95 ${filter === value ? `${color} text-white` : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                    >
+                        {label}
+                    </button>
+                ))}
             </div>
 
             {/* Search Bar */}
@@ -559,58 +614,128 @@ export const OrderManagement: React.FC = () => {
                                 <PermissionGate requires={Permission.MANAGE_ORDERS}>
                                     <div className="flex flex-col gap-3">
                                         <div className="flex flex-col sm:flex-row gap-2">
-                                            {order.status === OrderStatus.PENDING && order.paymentMethod === 'card' && (
-                                                <div className="w-full text-center text-sm text-indigo-600 font-bold py-3 bg-indigo-50 rounded-xl border border-indigo-200 shadow-sm animate-pulse">
-                                                    Esperando confirmación del pago online
-                                                </div>
+
+                                            {/* PENDING: Aceptar / Rechazar */}
+                                            {order.status === OrderStatus.PENDING && (
+                                                <>
+                                                    <button
+                                                        onClick={() => handleAcceptOrder(order.id)}
+                                                        className="flex-1 px-4 py-3 bg-emerald-600 text-white rounded-xl shadow-sm hover:bg-emerald-700 active:scale-95 transition-all text-sm font-bold flex items-center justify-center gap-2"
+                                                    >
+                                                        <CheckCircle size={18} />
+                                                        Aceptar Pedido
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleRejectOrder(order.id)}
+                                                        className="flex-1 px-4 py-3 bg-red-50 text-red-600 border border-red-200 rounded-xl hover:bg-red-100 active:scale-95 transition-all text-sm font-bold flex items-center justify-center gap-2"
+                                                    >
+                                                        <X size={18} />
+                                                        Rechazar
+                                                    </button>
+                                                </>
                                             )}
 
-                                            {(order.status === OrderStatus.PAID || (order.status === OrderStatus.PENDING && order.paymentMethod === 'cash')) && (
-                                                <button
-                                                    onClick={() => updateOrderStatus(order.id, OrderStatus.IN_PREPARATION)}
-                                                    className="w-full px-4 py-3 bg-amber-500 text-white rounded-xl shadow-sm hover:bg-amber-600 active:scale-95 transition-all duration-200 text-sm font-bold flex items-center justify-center gap-2"
-                                                >
-                                                    <ChefHat size={18} />
-                                                    Cocinar
-                                                </button>
+                                            {/* ACCEPTED: Iniciar Preparación o Marcar Listo directo */}
+                                            {order.status === OrderStatus.ACCEPTED && (
+                                                <>
+                                                    <button
+                                                        onClick={() => updateOrderStatus(order.id, OrderStatus.IN_PREPARATION)}
+                                                        className="flex-1 px-4 py-3 bg-amber-500 text-white rounded-xl shadow-sm hover:bg-amber-600 active:scale-95 transition-all text-sm font-bold flex items-center justify-center gap-2"
+                                                    >
+                                                        <ChefHat size={18} />
+                                                        Iniciar Preparación
+                                                    </button>
+                                                    <button
+                                                        onClick={() => updateOrderStatus(order.id, OrderStatus.READY)}
+                                                        className="flex-1 px-4 py-3 bg-emerald-600 text-white rounded-xl shadow-sm hover:bg-emerald-700 active:scale-95 transition-all text-sm font-bold flex items-center justify-center gap-2"
+                                                    >
+                                                        <CheckCircle size={18} />
+                                                        Ya Está Listo
+                                                    </button>
+                                                </>
                                             )}
 
+                                            {/* IN_PREPARATION: Marcar Listo */}
                                             {order.status === OrderStatus.IN_PREPARATION && (
                                                 <button
-                                                    onClick={() => updateOrderStatus(order.id, OrderStatus.READY_PICKUP)}
-                                                    className="w-full px-4 py-3 bg-emerald-600 text-white rounded-xl shadow-sm hover:bg-emerald-700 active:scale-95 transition-all duration-200 text-sm font-bold flex items-center justify-center gap-2"
+                                                    onClick={() => updateOrderStatus(order.id, OrderStatus.READY)}
+                                                    className="w-full px-4 py-3 bg-emerald-600 text-white rounded-xl shadow-sm hover:bg-emerald-700 active:scale-95 transition-all text-sm font-bold flex items-center justify-center gap-2"
                                                 >
                                                     <CheckCircle size={18} />
                                                     Marcar Listo
                                                 </button>
                                             )}
 
-                                            {order.status === OrderStatus.READY_PICKUP && (
+                                            {/* READY: bifurcación por deliveryMethod + deliveryModel */}
+                                            {order.status === OrderStatus.READY && (
                                                 <div className="flex flex-col gap-2 w-full">
-                                                    <div className="w-full text-center text-sm text-gray-500 font-bold py-3 bg-gray-50 rounded-xl border border-gray-200 shadow-sm">
-                                                        Esperando recogida
-                                                    </div>
-                                                    {order.deliveryAddress && (
+                                                    {order.deliveryMethod === 'pickup' || !order.deliveryMethod ? (
+                                                        <div className="w-full text-center text-sm text-green-700 font-bold py-3 bg-green-50 rounded-xl border border-green-200">
+                                                            Listo para recoger — esperando al cliente
+                                                        </div>
+                                                    ) : order.deliveryModel === 'own_drivers' ? (
                                                         <button
-                                                            onClick={() => openAssignDriver(order)}
-                                                            className="w-full px-4 py-2.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-xl hover:bg-indigo-100 active:scale-95 transition-all text-sm font-bold flex items-center justify-center gap-2"
+                                                            onClick={() => updateOrderStatus(order.id, OrderStatus.IN_TRANSIT)}
+                                                            className="w-full px-4 py-3 bg-indigo-600 text-white rounded-xl shadow-sm hover:bg-indigo-700 active:scale-95 transition-all text-sm font-bold flex items-center justify-center gap-2"
                                                         >
-                                                            <Truck size={16} />
-                                                            {order.driverId ? 'Reasignar Conductor' : 'Asignar Conductor'}
+                                                            <Truck size={18} />
+                                                            Despachar (domiciliario propio)
                                                         </button>
+                                                    ) : (
+                                                        <>
+                                                            <button
+                                                                onClick={() => handleReleaseToPool(order.id)}
+                                                                className="w-full px-4 py-3 bg-orange-500 text-white rounded-xl shadow-sm hover:bg-orange-600 active:scale-95 transition-all text-sm font-bold flex items-center justify-center gap-2"
+                                                            >
+                                                                <Users size={18} />
+                                                                Liberar al Pool de Repartidores
+                                                            </button>
+                                                            <button
+                                                                onClick={() => openAssignDriver(order)}
+                                                                className="w-full px-4 py-2.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-xl hover:bg-indigo-100 active:scale-95 transition-all text-sm font-bold flex items-center justify-center gap-2"
+                                                            >
+                                                                <User size={16} />
+                                                                Asignar Repartidor Específico
+                                                            </button>
+                                                        </>
                                                     )}
                                                 </div>
                                             )}
 
-                                            {order.status === OrderStatus.DRIVER_ACCEPTED && (
-                                                <div className="w-full text-center text-sm text-blue-600 font-bold py-3 bg-blue-50 rounded-xl border border-blue-200 shadow-sm animate-pulse">
-                                                    Conductor en camino
+                                            {/* AWAITING_DRIVER: asignación manual disponible */}
+                                            {order.status === OrderStatus.AWAITING_DRIVER && (
+                                                <div className="flex flex-col gap-2 w-full">
+                                                    <div className="w-full text-center text-sm text-orange-700 font-bold py-3 bg-orange-50 rounded-xl border border-orange-200 animate-pulse">
+                                                        Buscando repartidor disponible...
+                                                    </div>
+                                                    <button
+                                                        onClick={() => openAssignDriver(order)}
+                                                        className="w-full px-4 py-2.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-xl hover:bg-indigo-100 active:scale-95 transition-all text-sm font-bold flex items-center justify-center gap-2"
+                                                    >
+                                                        <User size={16} />
+                                                        Asignar Manualmente
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                            {order.status === OrderStatus.DRIVER_ASSIGNED && (
+                                                <div className="w-full text-center text-sm text-indigo-700 font-bold py-3 bg-indigo-50 rounded-xl border border-indigo-200 animate-pulse">
+                                                    Repartidor asignado — en camino al local
                                                 </div>
                                             )}
 
                                             {order.status === OrderStatus.IN_TRANSIT && (
-                                                <div className="w-full text-center text-sm text-purple-600 font-bold py-3 bg-purple-50 rounded-xl border border-purple-200 shadow-sm">
-                                                    En reparto
+                                                <div className="w-full text-center text-sm text-purple-600 font-bold py-3 bg-purple-50 rounded-xl border border-purple-200">
+                                                    En reparto 🚚
+                                                </div>
+                                            )}
+
+                                            {order.status === OrderStatus.CANCELLED && (
+                                                <div className="w-full text-center text-sm text-red-600 font-bold py-3 bg-red-50 rounded-xl border border-red-200">
+                                                    Cancelado
+                                                    {order.cancellationReason === 'ACCEPTANCE_TIMEOUT' && ' (sin respuesta)'}
+                                                    {order.cancellationReason === 'REJECTED_BY_STAFF' && ' (rechazado por el equipo)'}
+                                                    {order.cancellationReason === 'CLIENT_CANCELLED' && ' (cancelado por el cliente)'}
                                                 </div>
                                             )}
                                         </div>
@@ -701,7 +826,7 @@ export const OrderManagement: React.FC = () => {
                                     {drivers.map(driver => (
                                         <button
                                             key={driver.id}
-                                            onClick={() => assignDriver(driver.id)}
+                                            onClick={() => handleAssignDriver(driver.id)}
                                             className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all hover:bg-indigo-50 hover:border-indigo-200 ${assigningOrder.driverId === driver.id ? 'bg-indigo-50 border-indigo-300' : 'border-gray-100'}`}
                                         >
                                             <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center text-white text-sm font-bold shrink-0">

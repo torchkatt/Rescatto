@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -14,19 +14,14 @@ import { HeroDealCard } from '../../components/customer/home/HeroDealCard';
 import { useTranslation } from 'react-i18next';
 import { isVenueOpen } from '../../utils/venueAvailability';
 import {
-    Search, MapPin, User, ShoppingBag, LogOut, ChevronDown, Tag, ChevronRight,
-    Heart, Leaf, Flame, TrendingUp, Zap, RefreshCw, Bell, Clock, Star, MessageCircle
+    Search, MapPin, ShoppingBag, ChevronDown,
+    Flame, Clock
 } from 'lucide-react';
-import { ProductType } from '../../types';
-import { Logo } from '../../components/common/Logo';
 import { useLocation } from '../../context/LocationContext';
-import { LocationSelector } from '../../components/customer/home/LocationSelector';
 import { OnboardingTour } from '../../components/customer/OnboardingTour';
-import { FlashDealsSection } from '../../components/customer/home/FlashDealBanner';
 import { calculateDistance } from '../../services/locationService';
 import { productService } from '../../services/productService';
 import { logger } from '../../utils/logger';
-import { ChatWindow } from '../../components/chat/ChatWindow';
 import { SEO } from '../../components/common/SEO';
 import { NotificationDisplay } from '../../components/common/NotificationDisplay';
 import { DesktopActiveVenues } from '../../components/customer/home/DesktopActiveVenues';
@@ -35,10 +30,10 @@ import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 
 const CustomerHome: React.FC = () => {
     const { t } = useTranslation();
-    const { user, logout } = useAuth();
-    const { info } = useToast();
+    const { user } = useAuth();
+    useToast();
     const navigate = useNavigate();
-    const { address, city, latitude, longitude } = useLocation();
+    const { city, latitude, longitude } = useLocation();
     const [venues, setVenues] = useState<Venue[]>([]);
     const [loading, setLoading] = useState(true);
     const [venueExpiryMap, setVenueExpiryMap] = useState<Map<string, string>>(new Map());
@@ -53,7 +48,7 @@ const CustomerHome: React.FC = () => {
     const [hasMoreProducts, setHasMoreProducts] = useState(true);
     const [loadingMoreVenues, setLoadingMoreVenues] = useState(false);
     const [loadingMoreProducts, setLoadingMoreProducts] = useState(false);
-    const { openImpact, onOpenLocation, onOpenSearch } = useOutletContext<{ 
+    const { onOpenLocation, onOpenSearch } = useOutletContext<{
         openImpact: () => void;
         onOpenLocation: () => void;
         onOpenSearch: () => void;
@@ -158,8 +153,6 @@ const CustomerHome: React.FC = () => {
             return (distA || 999) - (distB || 999);
         });
     }, [venues, hasUserLocation, latitude, longitude]);
-
-    const filteredVenues = sortedVenues;
 
     // Todos los venues: abiertos primero (por distancia), cerrados después (por distancia)
     const allVenuesSorted = useMemo(() => {
@@ -536,10 +529,6 @@ const CustomerHome: React.FC = () => {
                         </section>
                     </div>
 
-                    {/* Sidebar hidden for now until we have more content to fill the 1600px space effectively */}
-                    <aside className="hidden">
-                        {/* Empty aside for now, as per user request */}
-                    </aside>
                 </div>
             </main>
 

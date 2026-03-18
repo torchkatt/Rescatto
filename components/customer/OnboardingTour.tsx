@@ -2,36 +2,23 @@ import React, { useState } from 'react';
 import { Button } from './common/Button';
 import { Package, Leaf, Users, ChevronRight, X, Sparkles } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { authService } from '../../services/authService';
 import { logger } from '../../utils/logger';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
+import { useTranslation } from 'react-i18next';
 
-const slides = [
-    {
-        icon: <Sparkles size={48} className="text-emerald-500 mb-6 mx-auto animate-pulse" />,
-        title: "¡Bienvenido a Rescatto! 🚀",
-        description: "Únete al movimiento que está revolucionando la forma en que consumimos. Salva comida deliciosa de tus lugares favoritos antes de que sea desperdiciada.",
-        image: "https://images.unsplash.com/photo-1606787366850-de6330128bfc?q=80&w=2070&auto=format&fit=crop"
-    },
-    {
-        icon: <Package size={48} className="text-amber-500 mb-6 mx-auto animate-bounce-slow" />,
-        title: "La Magia de la Sorpresa 🎁",
-        description: "Reserva 'Packs Sorpresa' con excedentes frescos del día a una fracción de su precio original. ¡No sabrás exactamente qué hay dentro hasta que lo abras!",
-        image: "https://images.unsplash.com/photo-1542838132-92c53300491e?q=80&w=1974&auto=format&fit=crop"
-    },
-    {
-        icon: <Leaf size={48} className="text-green-500 mb-6 mx-auto animate-spin-slow" />,
-        title: "Tu Impacto es Real 🌱",
-        description: "Cada rescate que haces evita emisiones de CO₂. Gana puntos, sube de nivel y canjea increíbles recompensas mientras salvas al planeta.",
-        image: "https://images.unsplash.com/photo-1497436072909-60f360e1d4b1?q=80&w=2056&auto=format&fit=crop"
-    },
-    {
-        icon: <Users size={48} className="text-indigo-500 mb-6 mx-auto animate-bounce-slow" />,
-        title: "Invita y Gana 🔥",
-        description: "Comparte tu código único desde tu Perfil. ¡Gana 50 puntos por cada amigo que se una y realice su primer rescate! ¿Listo para empezar?",
-        image: "https://images.unsplash.com/photo-1511895426328-dc8714191300?q=80&w=2070&auto=format&fit=crop"
-    }
+const slideImages = [
+    "https://images.unsplash.com/photo-1606787366850-de6330128bfc?q=80&w=2070&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1542838132-92c53300491e?q=80&w=1974&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1497436072909-60f360e1d4b1?q=80&w=2056&auto=format&fit=crop",
+    "https://images.unsplash.com/photo-1511895426328-dc8714191300?q=80&w=2070&auto=format&fit=crop"
+];
+
+const slideIcons = [
+    <Sparkles size={48} className="text-emerald-500 mb-6 mx-auto animate-pulse" />,
+    <Package size={48} className="text-amber-500 mb-6 mx-auto animate-bounce-slow" />,
+    <Leaf size={48} className="text-green-500 mb-6 mx-auto animate-spin-slow" />,
+    <Users size={48} className="text-indigo-500 mb-6 mx-auto animate-bounce-slow" />
 ];
 
 interface Props {
@@ -41,7 +28,15 @@ interface Props {
 export const OnboardingTour: React.FC<Props> = ({ onComplete }) => {
     const [currentSlide, setCurrentSlide] = useState(0);
     const { user } = useAuth();
+    const { t } = useTranslation();
     const [finishing, setFinishing] = useState(false);
+
+    const slides = [
+        { icon: slideIcons[0], title: t('onboarding_slide1_title'), description: t('onboarding_slide1_desc'), image: slideImages[0] },
+        { icon: slideIcons[1], title: t('onboarding_slide2_title'), description: t('onboarding_slide2_desc'), image: slideImages[1] },
+        { icon: slideIcons[2], title: t('onboarding_slide3_title'), description: t('onboarding_slide3_desc'), image: slideImages[2] },
+        { icon: slideIcons[3], title: t('onboarding_slide4_title'), description: t('onboarding_slide4_desc'), image: slideImages[3] },
+    ];
 
     const handleNext = async () => {
         if (currentSlide < slides.length - 1) {
@@ -63,7 +58,7 @@ export const OnboardingTour: React.FC<Props> = ({ onComplete }) => {
             onComplete();
         } catch (err) {
             logger.error('Error saving onboarding state:', err);
-            onComplete(); // Always dismiss even on error
+            onComplete();
         } finally {
             setFinishing(false);
         }
@@ -120,7 +115,7 @@ export const OnboardingTour: React.FC<Props> = ({ onComplete }) => {
                         onClick={handleNext}
                         className="w-full bg-gray-900 text-white hover:bg-black py-4 rounded-xl text-lg font-bold shadow-xl shadow-gray-200 flex items-center justify-center gap-2 group"
                     >
-                        {currentSlide === slides.length - 1 ? '¡Comenzar a Rescatar!' : 'Siguiente'}
+                        {currentSlide === slides.length - 1 ? t('onboarding_btn_start') : t('onboarding_btn_next')}
                         {currentSlide < slides.length - 1 && <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />}
                     </Button>
                 </div>

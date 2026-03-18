@@ -72,7 +72,7 @@ describe('CartItemSchema', () => {
     id: 'prod1',
     venueId: 'venue1',
     name: 'Pack Sorpresa',
-    price: 12000,
+    discountedPrice: 12000,
     originalPrice: 20000,
     quantity: 2,
   };
@@ -85,8 +85,8 @@ describe('CartItemSchema', () => {
     expect(CartItemSchema.safeParse({ ...validItem, quantity: 0 }).success).toBe(false);
   });
 
-  it('rejects cart item without price', () => {
-    const { price, ...noPriceItem } = validItem;
+  it('rejects cart item without discountedPrice', () => {
+    const { discountedPrice, ...noPriceItem } = validItem;
     expect(CartItemSchema.safeParse(noPriceItem).success).toBe(false);
   });
 

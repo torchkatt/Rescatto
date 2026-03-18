@@ -1,13 +1,22 @@
 import React from 'react';
 import { Home, Compass, Heart, ShoppingBag, Leaf, User, LogOut } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 
 export const DesktopSidebar: React.FC<{ onOpenImpact: () => void }> = ({ onOpenImpact }) => {
   const { t } = useTranslation();
   const location = useLocation();
-  const { logout } = useAuth();
+  const navigate = useNavigate();
+  const { logout, user } = useAuth();
+
+  const handleImpactClick = () => {
+    if (user?.isGuest) {
+      navigate('/app/profile');
+    } else {
+      onOpenImpact();
+    }
+  };
 
   const menuItems = [
     { icon: Home, label: t('nav_home'), path: '/app' },
@@ -51,9 +60,9 @@ export const DesktopSidebar: React.FC<{ onOpenImpact: () => void }> = ({ onOpenI
 
           if ((item as any).isAction) {
              return (
-               <button 
-                 key={item.label} 
-                 onClick={onOpenImpact}
+               <button
+                 key={item.label}
+                 onClick={handleImpactClick}
                  className={className}
                >
                  {content}
@@ -74,15 +83,17 @@ export const DesktopSidebar: React.FC<{ onOpenImpact: () => void }> = ({ onOpenI
       </nav>
 
       {/* Footer Info or Logout */}
-      <div className="border-t border-gray-50 pt-6 px-4">
-        <button
-          onClick={() => logout()}
-          className="w-full flex items-center gap-3 py-3 text-gray-400 hover:text-red-500 transition-all group"
-        >
-          <LogOut size={20} />
-          <span className="text-sm font-bold">{t('nav_logout')}</span>
-        </button>
-      </div>
+      {!user?.isGuest && (
+        <div className="border-t border-gray-50 pt-6 px-4">
+          <button
+            onClick={() => logout()}
+            className="w-full flex items-center gap-3 py-3 text-gray-400 hover:text-red-500 transition-all group"
+          >
+            <LogOut size={20} />
+            <span className="text-sm font-bold">{t('nav_logout')}</span>
+          </button>
+        </div>
+      )}
     </aside>
   );
 };

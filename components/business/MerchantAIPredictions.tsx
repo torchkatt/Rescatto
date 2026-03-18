@@ -19,6 +19,7 @@ export const MerchantAIPredictions: React.FC<Props> = ({ venue }) => {
   }, [venue.id]);
 
   const fetchPrediction = async () => {
+    if (!venue?.id) return;
     setLoading(true);
     try {
       // 1. Obtener historial real de los últimos 7 días

@@ -3,7 +3,8 @@ import { useAuth } from '../../context/AuthContext';
 import { UserRole } from '../../types';
 import { walletService, VenueWallet, WalletTransaction } from '../../services/walletService';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
-import { DollarSign, ArrowUpRight, ArrowDownLeft, AlertCircle, Mail, Info } from 'lucide-react';
+import { DollarSign, ArrowUpRight, ArrowDownLeft, AlertCircle, Mail, Info, Download } from 'lucide-react';
+import { useToast } from '../../context/ToastContext';
 import { logger } from '../../utils/logger';
 import { formatCOP } from '../../utils/formatters';
 import { adminService } from '../../services/adminService';
@@ -13,6 +14,8 @@ import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 
 export const VenueFinance: React.FC = () => {
     const { user } = useAuth();
+    const { showToast } = useToast();
+    const venueId = user?.venueIds?.[0] ?? user?.venueId;
     const [wallet, setWallet] = useState<VenueWallet | null>(null);
     const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
     const [loading, setLoading] = useState(true);
@@ -20,19 +23,20 @@ export const VenueFinance: React.FC = () => {
     const [hasMore, setHasMore] = useState(true);
     const [lastTxDoc, setLastTxDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
     const [generatingReport, setGeneratingReport] = useState(false);
-    const [selectedDate, setSelectedDate] = useState({ 
-        month: new Date().getMonth(), 
-        year: new Date().getFullYear() 
+    const [txTypeFilter, setTxTypeFilter] = useState<'ALL' | 'CREDIT' | 'DEBIT'>('ALL');
+    const [selectedDate, setSelectedDate] = useState({
+        month: new Date().getMonth(),
+        year: new Date().getFullYear()
     });
 
     useEffect(() => {
         const fetchFinanceData = async () => {
-            if (!user?.venueId) return;
+            if (!venueId) return;
             try {
                 setLoading(true);
                 const [walletData, txPage] = await Promise.all([
-                    walletService.getWalletBalance(user.venueId),
-                    walletService.getTransactionsPage(user.venueId, null, 20)
+                    walletService.getWalletBalance(venueId),
+                    walletService.getTransactionsPage(venueId, null, 20)
                 ]);
                 setWallet(walletData);
                 setTransactions(txPage.data);
@@ -46,9 +50,9 @@ export const VenueFinance: React.FC = () => {
         };
 
         fetchFinanceData();
-    }, [user?.venueId]);
+    }, [venueId]);
 
-    if (!user?.venueId) {
+    if (!venueId) {
         return (
             <div className="p-12 flex flex-col items-center justify-center text-center space-y-6 bg-white rounded-3xl shadow-sm border border-gray-100">
                 <div className="bg-amber-50 p-6 rounded-3xl text-amber-500 animate-pulse">
@@ -71,10 +75,10 @@ export const VenueFinance: React.FC = () => {
     if (loading) return <div className="flex justify-center p-24"><LoadingSpinner size="lg" /></div>;
 
     const loadMoreTransactions = async () => {
-        if (!user?.venueId || !hasMore || loadingMore) return;
+        if (!venueId || !hasMore || loadingMore) return;
         setLoadingMore(true);
         try {
-            const next = await walletService.getTransactionsPage(user.venueId, lastTxDoc, 20);
+            const next = await walletService.getTransactionsPage(venueId, lastTxDoc, 20);
             setTransactions(prev => [...prev, ...next.data]);
             setLastTxDoc(next.lastDoc);
             setHasMore(next.hasMore);
@@ -115,13 +119,13 @@ export const VenueFinance: React.FC = () => {
                     </div>
                     <button 
                         onClick={async () => {
-                            if (!user?.venueId) return;
+                            if (!venueId) return;
                             setGeneratingReport(true);
                             try {
-                                const venue = await venueService.getVenueById(user.venueId);
+                                const venue = await venueService.getVenueById(venueId);
                                 const reportData = await adminService.getVenueFinancialReportData(
-                                    user.venueId, 
-                                    selectedDate.month, 
+                                    venueId,
+                                    selectedDate.month,
                                     selectedDate.year
                                 );
                                 reportService.generateVenueFinancialPDF(reportData, venue?.name || 'Sede');
@@ -160,15 +164,20 @@ export const VenueFinance: React.FC = () => {
                         <div className="mt-12 flex items-center justify-between">
                             <div className="flex gap-4">
                                 <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/10">
-                                    <p className="text-[10px] text-white/60 font-black uppercase mb-1">Cortes Realizados</p>
-                                    <p className="text-xl font-bold text-white">12</p>
+                                    <p className="text-[10px] text-white/60 font-black uppercase mb-1">Liquidaciones</p>
+                                    <p className="text-xl font-bold text-white">{transactions.filter(t => t.type === 'DEBIT').length}</p>
                                 </div>
                                 <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/10">
                                     <p className="text-[10px] text-white/60 font-black uppercase mb-1">Pendiente</p>
                                     <p className="text-xl font-bold text-white">{formatCOP(balance > 0 ? balance : 0)}</p>
                                 </div>
                             </div>
-                            <button className="px-8 py-4 bg-white text-slate-900 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 transition-all shadow-xl active:scale-95">
+                            <button
+                                onClick={() => {
+                                    window.location.href = 'mailto:finanzas@rescatto.com?subject=Solicitud%20de%20retiro&body=Hola%2C%20solicito%20el%20retiro%20de%20mi%20saldo%20disponible.%20ID%20de%20sede%3A%20' + venueId;
+                                }}
+                                className="px-8 py-4 bg-white text-slate-900 rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 transition-all shadow-xl active:scale-95"
+                            >
                                 Solicitar Retiro
                             </button>
                         </div>
@@ -196,11 +205,44 @@ export const VenueFinance: React.FC = () => {
 
             {/* Transactions Table Section */}
             <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-50 overflow-hidden">
-                <div className="p-8 border-b border-slate-50 flex justify-between items-center">
+                <div className="p-8 border-b border-slate-50 flex justify-between items-center flex-wrap gap-3">
                     <h3 className="text-xl font-black text-slate-800">Historial de Movimientos</h3>
                     <div className="flex gap-2">
-                        <button className="px-4 py-2 bg-slate-50 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-100">Filtros</button>
-                        <button className="px-4 py-2 bg-slate-50 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-100">Exportar</button>
+                        {(['ALL', 'CREDIT', 'DEBIT'] as const).map(f => (
+                            <button
+                                key={f}
+                                onClick={() => setTxTypeFilter(f)}
+                                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${txTypeFilter === f ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
+                            >
+                                {f === 'ALL' ? 'Todos' : f === 'CREDIT' ? '↑ Ingresos' : '↓ Débitos'}
+                            </button>
+                        ))}
+                        <button
+                            onClick={() => {
+                                const rows = [['Fecha', 'Concepto', 'Tipo', 'Valor Neto']];
+                                const filtered = txTypeFilter === 'ALL' ? transactions : transactions.filter(t => t.type === txTypeFilter);
+                                filtered.forEach(tx => {
+                                    rows.push([
+                                        new Date(tx.createdAt).toLocaleDateString('es-CO'),
+                                        tx.description,
+                                        tx.type === 'CREDIT' ? 'Ingreso' : 'Débito',
+                                        (tx.type === 'CREDIT' ? '+' : '-') + tx.amount,
+                                    ]);
+                                });
+                                const csv = rows.map(r => r.join(',')).join('\n');
+                                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = `movimientos-${selectedDate.year}-${selectedDate.month + 1}.csv`;
+                                a.click();
+                                URL.revokeObjectURL(url);
+                                showToast('success', 'CSV descargado correctamente');
+                            }}
+                            className="px-4 py-2 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold hover:bg-emerald-100 flex items-center gap-1.5 transition-all"
+                        >
+                            <Download size={13} /> Exportar CSV
+                        </button>
                     </div>
                 </div>
 
@@ -217,17 +259,19 @@ export const VenueFinance: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
-                            {transactions.length === 0 ? (
-                                <tr>
-                                    <td colSpan={6} className="px-8 py-16 text-center">
-                                        <div className="flex flex-col items-center opacity-30">
-                                            <ArrowUpRight size={48} />
-                                            <p className="mt-4 font-bold text-slate-900">No hay movimientos registrados</p>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ) : (
-                                transactions.map((tx, idx) => (
+                            {(() => {
+                                const filtered = txTypeFilter === 'ALL' ? transactions : transactions.filter(t => t.type === txTypeFilter);
+                                if (filtered.length === 0) return (
+                                    <tr>
+                                        <td colSpan={6} className="px-8 py-16 text-center">
+                                            <div className="flex flex-col items-center opacity-30">
+                                                <ArrowUpRight size={48} />
+                                                <p className="mt-4 font-bold text-slate-900">No hay movimientos registrados</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                                return filtered.map((tx, idx) => (
                                     <tr key={tx.id || idx} className="hover:bg-slate-50/50 transition-colors group">
                                         <td className="px-8 py-5">
                                             <p className="text-sm font-bold text-slate-800">{new Date(tx.createdAt).toLocaleDateString(undefined, { day: '2-digit', month: 'short' })}</p>
@@ -252,8 +296,8 @@ export const VenueFinance: React.FC = () => {
                                             {tx.type === 'CREDIT' ? '+' : '-'}{formatCOP(tx.amount)}
                                         </td>
                                     </tr>
-                                ))
-                            )}
+                                ));
+                            })()}
                         </tbody>
                     </table>
                 </div>

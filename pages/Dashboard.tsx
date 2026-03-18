@@ -1,13 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { TrendingUp, Leaf, DollarSign, Plus, ClipboardList, Settings as SettingsIcon, ArrowUpRight, ArrowDownRight, BarChart as BarChartIcon } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { TrendingUp, Leaf, DollarSign, Plus, ClipboardList, Settings as SettingsIcon, ArrowUpRight, BarChart as BarChartIcon } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { dataService } from '../services/dataService';
+import { getDailyRevenueTrends } from '../services/analyticsService';
 import { useAuth } from '../context/AuthContext';
 import { AnalyticsData, UserRole } from '../types';
-import { format } from 'date-fns';
+import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { logger } from '../utils/logger';
 import { formatCOP } from '../utils/formatters';
 
 const MetricCard: React.FC<{ title: string; value: string; icon: React.ReactNode; color: string; trend?: string }> = ({ title, value, icon, color, trend }) => (
@@ -53,12 +53,12 @@ const ActionCard: React.FC<{ to: string; title: string; subtitle: string; icon: 
 import { useDashboardStats } from '../hooks/useDashboardStats';
 import { useQuery } from '@tanstack/react-query';
 import { MerchantAIPredictions } from '../components/business/MerchantAIPredictions';
-import { Zap as ZapIcon } from 'lucide-react';
-
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [activeVenueId, setActiveVenueId] = useState(user?.venueIds?.[0] ?? user?.venueId);
-  
+  const [chartPeriod, setChartPeriod] = useState<'7d' | '30d'>('7d');
+
   // Listado de sedes para el selector (si tiene múltiples)
   const { data: myVenues } = useQuery({
     queryKey: ['myVenues', user?.venueIds],
@@ -67,26 +67,37 @@ const Dashboard: React.FC = () => {
   });
 
   const venueId = activeVenueId;
-  
-  // Usamos el nuevo hook cacheado de React Query para estadísticas en vivo ricas
+
+  // Estadísticas en vivo (totales, top products)
   const { data: stats } = useDashboardStats(venueId);
 
-  // Mantenemos la lógica de la gráfica, pero la CACHEAMOS con React Query
-  // para evitar sobrecostos en Firebase al cambiar de pestaña.
-  const { data: metrics = { revenue: 0, wasteSavedKg: 0, mealsSaved: 0, chartData: [] }, isLoading: isChartLoading } = useQuery({
-    queryKey: ['analyticsChart', venueId],
-    queryFn: () => dataService.getAnalytics(venueId!),
+  // Gráfica de tendencia real — usa getDailyRevenueTrends con el período seleccionado
+  const { data: chartData = [], isLoading: isChartLoading } = useQuery({
+    queryKey: ['dashboardChart', venueId, chartPeriod],
+    queryFn: async () => {
+      if (!venueId) return [];
+      const days = chartPeriod === '7d' ? 7 : 30;
+      const now = new Date();
+      const trends = await getDailyRevenueTrends(venueId, {
+        start: startOfDay(subDays(now, days - 1)),
+        end: endOfDay(now),
+      });
+      return trends.map(d => ({
+        name: format(new Date(d.date), chartPeriod === '7d' ? 'EEE' : 'd/M', { locale: es }),
+        sales: d.revenue,
+        waste: Math.round(d.orders * 0.5),
+      }));
+    },
     enabled: !!venueId,
-    staleTime: 5 * 60 * 1000 // 5 minutes cache
+    staleTime: 5 * 60 * 1000,
   });
 
-  // Sobrescribimos las métricas rápidas con los datos precisos de "stats" si existen,
-  // pero mantenemos "metrics.chartData" para no romper la UI.
+  // Métricas brutas desde stats (en vivo) con fallback a 0
   const displayMetrics: AnalyticsData = {
-    revenue: stats?.totalRevenue ?? metrics.revenue,
-    wasteSavedKg: stats ? Math.round((stats.totalOrders || 0) * 0.5) : metrics.wasteSavedKg,
-    mealsSaved: stats?.totalOrders ?? metrics.mealsSaved,
-    chartData: metrics.chartData
+    revenue: stats?.totalRevenue ?? 0,
+    wasteSavedKg: stats ? Math.round((stats.totalOrders || 0) * 0.5) : 0,
+    mealsSaved: stats?.totalOrders ?? 0,
+    chartData: [],
   };
 
   const today = format(new Date(), "EEEE, d 'de' MMMM", { locale: es });
@@ -127,14 +138,12 @@ const Dashboard: React.FC = () => {
               value={formatCOP(displayMetrics.revenue)}
               icon={<DollarSign size={24} className="text-blue-600" />}
               color="bg-blue-500"
-              trend="+12%"
             />
             <MetricCard
               title="Ganancias Netas"
               value={formatCOP(stats?.venueEarnings ?? displayMetrics.revenue * 0.9)}
               icon={<DollarSign size={24} className="text-emerald-600" />}
               color="bg-emerald-500"
-              trend="+12%"
             />
           </>
         )}
@@ -143,14 +152,12 @@ const Dashboard: React.FC = () => {
           value={`${displayMetrics.wasteSavedKg} kg`}
           icon={<Leaf size={24} className="text-emerald-600" />}
           color="bg-emerald-500"
-          trend="+5%"
         />
         <MetricCard
           title="Platos Rescatados"
           value={`${displayMetrics.mealsSaved}`}
           icon={<TrendingUp size={24} className="text-purple-600" />}
           color="bg-purple-500"
-          trend="+8%"
         />
         {user?.role === UserRole.KITCHEN_STAFF && (
           <MetricCard
@@ -166,20 +173,28 @@ const Dashboard: React.FC = () => {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-6">
             {/* [NUEVO] IA Predictiva - Capa 13 */}
-            {venueId && <MerchantAIPredictions venue={stats as any || { id: venueId, name: user?.fullName } as any} />}
+            {venueId && <MerchantAIPredictions venue={{ id: venueId, ...(stats as any) } as any} />}
 
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-lg font-bold text-slate-800">Tendencia de Impacto</h2>
-              <select className="bg-slate-50 border border-slate-200 text-slate-600 text-base rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none block p-2 transition-all duration-200 cursor-pointer">
-                <option>Últimos 7 días</option>
-                <option>Este mes</option>
+              <select
+                value={chartPeriod}
+                onChange={(e) => setChartPeriod(e.target.value as '7d' | '30d')}
+                className="bg-slate-50 border border-slate-200 text-slate-600 text-sm rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none block p-2 transition-all duration-200 cursor-pointer"
+              >
+                <option value="7d">Últimos 7 días</option>
+                <option value="30d">Este mes</option>
               </select>
             </div>
             <div className="h-72 w-full">
-              {displayMetrics.chartData.length > 0 ? (
+              {isChartLoading ? (
+                <div className="h-full flex items-center justify-center">
+                  <div className="w-8 h-8 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
+                </div>
+              ) : chartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={displayMetrics.chartData}>
+                  <AreaChart data={chartData}>
                     <defs>
                       <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.1} />
@@ -204,7 +219,7 @@ const Dashboard: React.FC = () => {
               ) : (
                 <div className="h-full flex flex-col items-center justify-center text-slate-400">
                   <BarChartIcon size={48} className="mb-2 opacity-50" />
-                  <p>Sin datos suficientes aún</p>
+                  <p className="text-sm">Sin datos suficientes aún</p>
                 </div>
               )}
             </div>
@@ -232,8 +247,11 @@ const Dashboard: React.FC = () => {
                   <p className="text-xs text-slate-400 italic">No hay datos de ventas recientes.</p>
                 )}
               </div>
-              <button className="w-full mt-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black rounded-xl transition-all active:scale-[0.98]">
-                ANALIZAR CON RESCATTO AI
+              <button
+                onClick={() => navigate('/analytics')}
+                className="w-full mt-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black rounded-xl transition-all active:scale-[0.98]"
+              >
+                VER ANÁLISIS COMPLETO →
               </button>
             </div>
 

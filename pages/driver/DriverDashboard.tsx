@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, query, where, getDocs, orderBy, updateDoc, doc, getDoc, limit, startAfter, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
-import { db } from '../../services/firebase';
+import { collection, query, where, getDocs, orderBy, doc, getDoc, limit, startAfter, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from '../../services/firebase';
 import { dataService } from '../../services/dataService';
 import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../context/ChatContext';
@@ -13,7 +14,7 @@ import { formatCOP } from '../../utils/formatters';
 import { getRatingStats } from '../../services/ratingService';
 import { RatingDisplay } from '../../components/rating/RatingDisplay';
 import { RatingStats } from '../../types';
-import { useNotifications } from '../../context/NotificationContext';
+
 import { logger } from '../../utils/logger';
 
 const PAGE_SIZE = 20;
@@ -29,12 +30,16 @@ interface DeliveryOrder {
     status: OrderStatus;
     createdAt: string;
     customerId: string;
+    city?: string;
     venueName?: string;
+    venueNeighborhood?: string;
     venueAddress?: string;
     venuePhone?: string;
+    clientNeighborhood?: string;
     products: Array<{
         name: string;
         quantity: number;
+        price?: number;
     }>;
 }
 
@@ -47,7 +52,6 @@ export const DriverDashboard: React.FC = () => {
     const navigate = useNavigate();
     const { createChat, openChat } = useChat();
     const { showToast } = useToast();
-    const { sendNotification } = useNotifications();
     const [availableOrders, setAvailableOrders] = useState<DeliveryOrder[]>([]);
     const [myDeliveries, setMyDeliveries] = useState<DeliveryOrder[]>([]);
     const [completedOrders, setCompletedOrders] = useState<DeliveryOrder[]>([]);
@@ -66,7 +70,7 @@ export const DriverDashboard: React.FC = () => {
     // Search & Filter State
     const [searchQuery, setSearchQuery] = useState('');
     const [sortBy, setSortBy] = useState<'recent' | 'amount'>('recent');
-    const [statusFilter, setStatusFilter] = useState<'all' | OrderStatus.DRIVER_ACCEPTED | OrderStatus.IN_TRANSIT>('all');
+    const [statusFilter, setStatusFilter] = useState<'all' | OrderStatus.DRIVER_ASSIGNED | OrderStatus.IN_TRANSIT>('all');
 
     useEffect(() => {
         if (!user || user.role !== UserRole.DRIVER) return;
@@ -112,34 +116,36 @@ export const DriverDashboard: React.FC = () => {
         }
         try {
             const constraints: any[] = [
-                where('deliveryMethod', '==', 'delivery'),
-                where('driverId', '==', null),
+                where('status', '==', OrderStatus.AWAITING_DRIVER),
                 orderBy('createdAt', 'desc'),
             ];
+            // Filtrar por ciudad del driver si está disponible
+            if (user?.city) {
+                constraints.unshift(where('city', '==', user.city));
+            }
             if (!initial && availableLastDoc) constraints.push(startAfter(availableLastDoc));
             const q = query(collection(db, 'orders'), ...constraints, limit(PAGE_SIZE));
             const snapshot = await getDocs(q);
-            const allowedStatuses = new Set<OrderStatus>([
-                OrderStatus.READY_PICKUP,
-            ]);
-            const orders = snapshot.docs.map(doc => {
-                const data = doc.data();
+            const orders = snapshot.docs.map(d => {
+                const data = d.data();
                 return {
-                    id: doc.id,
+                    id: d.id,
                     ...data,
                     customerName: data.customerName || 'Cliente',
                     products: data.products || [],
                     totalAmount: data.totalAmount,
                     status: data.status as OrderStatus,
                     createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt || new Date().toISOString(),
-                    pickupDeadline: data.pickupDeadline,
                     venueId: data.venueId || '',
                     customerId: data.customerId || 'unknown',
                     deliveryAddress: data.deliveryAddress || '',
                     phone: data.phone || '',
-                    paymentMethod: data.paymentMethod || 'cash',
+                    city: data.city || '',
+                    venueName: data.venueName || '',
+                    venueNeighborhood: data.venueNeighborhood || '',
+                    clientNeighborhood: data.clientNeighborhood || '',
                 } as DeliveryOrder;
-            }).filter(order => allowedStatuses.has(order.status as OrderStatus));
+            });
 
             setAvailableOrders(prev => initial ? orders : [...prev, ...orders]);
             setAvailableLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
@@ -189,7 +195,7 @@ export const DriverDashboard: React.FC = () => {
             });
 
             const active = orders.filter(o =>
-                o.status === OrderStatus.DRIVER_ACCEPTED ||
+                o.status === OrderStatus.DRIVER_ASSIGNED ||
                 o.status === OrderStatus.IN_TRANSIT
             );
             const completed = orders.filter(o => o.status === OrderStatus.COMPLETED);
@@ -205,105 +211,56 @@ export const DriverDashboard: React.FC = () => {
         }
     };
 
-    const handleAcceptOrder = async (orderId: string) => {
+    const handleTakeDelivery = async (orderId: string) => {
         if (!user?.id) {
             showToast('error', 'Error: Usuario no autenticado');
             return;
         }
-
         try {
-            const orderRef = doc(db, 'orders', orderId);
-
-            // Transacción atómica: verifica que el pedido aún esté sin driver antes de asignarlo
-            // Esto previene la condición de carrera donde dos drivers intentan el mismo pedido
-            const { runTransaction } = await import('firebase/firestore');
-            await runTransaction(db, async (transaction) => {
-                const orderSnap = await transaction.get(orderRef);
-                if (!orderSnap.exists()) {
-                    throw new Error('El pedido ya no existe.');
-                }
-
-                const orderData = orderSnap.data();
-                // Si ya tiene un driverId, alguien se adelantó
-                if (orderData.driverId) {
-                    throw new Error('Este pedido ya fue tomado por otro repartidor.');
-                }
-                // Si el estado ya cambió a algo más allá de READY_PICKUP, no aplica
-                const pickupableStatuses = [OrderStatus.READY_PICKUP];
-                if (!pickupableStatuses.includes(orderData.status)) {
-                    throw new Error('Este pedido ya no está disponible para entrega.');
-                }
-
-                transaction.update(orderRef, {
-                    driverId: user.id,
-                    driverName: user.fullName,
-                    status: OrderStatus.DRIVER_ACCEPTED,
-                    acceptedAt: new Date().toISOString()
-                });
-            });
-
-            showToast('success', '¡Pedido aceptado! Ve al restaurante. 🛵');
-
-            const order = availableOrders.find(o => o.id === orderId);
-            if (order) {
-                await sendNotification(
-                    order.customerId,
-                    '🛵 Repartidor Asignado',
-                    `${user.fullName} ha aceptado tu pedido y va camino al restaurante.`,
-                    'info'
-                );
-            }
-
+            const takeDelivery = httpsCallable(functions, 'takeDelivery');
+            await takeDelivery({ orderId });
+            showToast('success', '¡Pedido tomado! Ve al restaurante. 🛵');
             setAvailableOrders(prev => prev.filter(o => o.id !== orderId));
+            await loadMine(true);
             setView('mine');
         } catch (error: any) {
-            logger.error('Error accepting order:', error);
-            // Mensaje específico para errores de concurrencia vs errores genéricos
-            const isRaceCondition = error?.message?.includes('ya fue tomado') || error?.message?.includes('ya no está disponible');
-            showToast('error', isRaceCondition
-                ? error.message
-                : 'Error al aceptar pedido. Intenta de nuevo.'
+            logger.error('Error taking order:', error);
+            const msg = error?.message || '';
+            showToast('error', msg.includes('ya fue tomado') || msg.includes('ya no está')
+                ? msg
+                : 'Error al tomar el pedido. Intenta de nuevo.'
             );
+            // Refrescar disponibles por si el pedido ya no está
+            await loadAvailable(true);
         }
     };
 
     const handleConfirmPickup = async (orderId: string) => {
         try {
+            const { updateDoc } = await import('firebase/firestore');
             const orderRef = doc(db, 'orders', orderId);
             await updateDoc(orderRef, {
                 status: OrderStatus.IN_TRANSIT,
                 pickedUpAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
             });
+            setMyDeliveries(prev => prev.map(o => o.id === orderId ? { ...o, status: OrderStatus.IN_TRANSIT } : o));
             showToast('success', 'Pedido recogido. ¡Buen viaje!');
-
-            const order = myDeliveries.find(o => o.id === orderId);
-            if (order) {
-                await sendNotification(order.customerId, '🚀 Pedido en Camino', `Tu pedido ya fue recogido y va hacia tu dirección.`, 'info');
-            }
         } catch (error) {
             logger.error('Error confirming pickup:', error);
             showToast('error', 'Error al actualizar estado.');
         }
     };
 
-    const handleConfirmDelivery = async (orderId: string) => {
+    const handleMarkDelivered = async (orderId: string) => {
         try {
-            const orderRef = doc(db, 'orders', orderId);
-            await updateDoc(orderRef, {
-                status: OrderStatus.COMPLETED,
-                deliveredAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-            });
-            showToast('success', '¡Pedido entregado con éxito!');
-
-            const order = myDeliveries.find(o => o.id === orderId);
-            if (order) {
-                await sendNotification(order.customerId, '🎉 Pedido Entregado', `¡Buen provecho! Tu pedido ha sido entregado.`, 'success');
-            }
-        } catch (error) {
-            logger.error('Error confirming delivery:', error);
-            showToast('error', 'Error al finalizar entrega.');
+            const markDeliveredByDriver = httpsCallable(functions, 'markDeliveredByDriver');
+            await markDeliveredByDriver({ orderId });
+            setMyDeliveries(prev => prev.map(o => o.id === orderId ? { ...o, status: OrderStatus.IN_TRANSIT } : o));
+            showToast('success', '¡Marcado como entregado! Esperando confirmación del cliente.');
+        } catch (error: any) {
+            logger.error('Error marking delivered:', error);
+            showToast('error', error?.message || 'Error al marcar entrega.');
         }
     };
 
@@ -446,6 +403,16 @@ export const DriverDashboard: React.FC = () => {
             }
         }, [order.venueId]);
 
+        const statusLabel: Record<string, { text: string; cls: string }> = {
+            [OrderStatus.AWAITING_DRIVER]: { text: 'Disponible', cls: 'bg-orange-100 text-orange-600' },
+            [OrderStatus.DRIVER_ASSIGNED]: { text: 'Asignado a ti', cls: 'bg-indigo-100 text-indigo-600' },
+            [OrderStatus.IN_TRANSIT]: { text: 'En tránsito', cls: 'bg-emerald-100 text-emerald-600' },
+        };
+        const badge = statusLabel[order.status] ?? { text: order.status, cls: 'bg-gray-100 text-gray-600' };
+
+        const venueName = order.venueName || venue?.name || 'Restaurante';
+        const venueAddress = venue?.address || '';
+
         return (
             <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex flex-col hover:shadow-lg transition-all duration-300">
                 <div className="p-5 bg-gradient-to-r from-gray-50 to-white border-b border-gray-100">
@@ -453,17 +420,8 @@ export const DriverDashboard: React.FC = () => {
                         <span className="text-[10px] font-bold tracking-wider text-gray-400 uppercase">
                             Pedido #{order.id.slice(-6)}
                         </span>
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${order.status === OrderStatus.READY_PICKUP ? 'bg-orange-100 text-orange-600' :
-                            order.status === OrderStatus.PAID ? 'bg-blue-100 text-blue-600' :
-                                order.status === OrderStatus.IN_PREPARATION ? 'bg-amber-100 text-amber-600' :
-                                    order.status === OrderStatus.DRIVER_ACCEPTED ? 'bg-indigo-100 text-indigo-600' :
-                                        'bg-emerald-100 text-emerald-600'
-                            }`}>
-                            {order.status === OrderStatus.READY_PICKUP ? 'Listo para Recoger' :
-                                order.status === OrderStatus.PAID ? 'Pagado (Nuevo)' :
-                                    order.status === OrderStatus.IN_PREPARATION ? 'En Preparación' :
-                                        order.status === OrderStatus.DRIVER_ACCEPTED ? 'Aceptado' :
-                                            'En Tránsito'}
+                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${badge.cls}`}>
+                            {badge.text}
                         </span>
                     </div>
                     <h3 className="font-extrabold text-lg text-gray-800 leading-tight">
@@ -472,14 +430,20 @@ export const DriverDashboard: React.FC = () => {
                 </div>
 
                 <div className="p-5 flex-1 space-y-4">
+                    {/* Restaurante */}
                     <div className="space-y-2">
                         <div className="flex items-center gap-2 text-[10px] font-bold text-emerald-600 uppercase">
                             <Package size={14} className="flex-shrink-0" /> Restaurante
                         </div>
-                        <p className="font-bold text-gray-700">{venue?.name || 'Cargando restaurante...'}</p>
+                        <div>
+                            <p className="font-bold text-gray-800">{venueName}</p>
+                            {order.venueNeighborhood && (
+                                <p className="text-xs text-gray-500">Barrio: {order.venueNeighborhood}</p>
+                            )}
+                        </div>
                         <div className="flex items-center gap-3">
                             <button
-                                onClick={() => venue && openGoogleMaps(venue.address)}
+                                onClick={() => openGoogleMaps(venueAddress || venueName)}
                                 className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 bg-gray-50 text-gray-600 rounded-xl text-xs font-bold hover:bg-emerald-50 hover:text-emerald-700 transition-all active:scale-95 border border-transparent hover:border-emerald-100"
                             >
                                 <Navigation size={14} /> Cómo llegar
@@ -502,11 +466,17 @@ export const DriverDashboard: React.FC = () => {
 
                     <hr className="border-gray-50" />
 
+                    {/* Cliente */}
                     <div className="space-y-2">
                         <div className="flex items-center gap-2 text-[10px] font-bold text-blue-600 uppercase">
                             <MapPin size={14} className="flex-shrink-0" /> Cliente
                         </div>
-                        <p className="text-sm font-medium text-gray-600">{order.deliveryAddress}</p>
+                        <div>
+                            <p className="text-sm font-medium text-gray-700">{order.deliveryAddress}</p>
+                            {order.clientNeighborhood && (
+                                <p className="text-xs text-gray-500">Barrio: {order.clientNeighborhood}</p>
+                            )}
+                        </div>
                         <div className="flex items-center gap-3">
                             <button
                                 onClick={() => openGoogleMaps(order.deliveryAddress)}
@@ -530,8 +500,24 @@ export const DriverDashboard: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="mt-4 pt-4 border-t border-gray-50">
-                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
+                    {/* Productos */}
+                    {order.products.length > 0 && (
+                        <>
+                            <hr className="border-gray-50" />
+                            <div className="space-y-1">
+                                <p className="text-[10px] font-bold text-gray-400 uppercase">Productos</p>
+                                {order.products.map((p, i) => (
+                                    <div key={i} className="flex justify-between text-sm text-gray-700">
+                                        <span>{p.quantity}x {p.name}</span>
+                                        {p.price && <span className="text-gray-500">{formatCOP(p.price * p.quantity)}</span>}
+                                    </div>
+                                ))}
+                            </div>
+                        </>
+                    )}
+
+                    <div className="pt-4 border-t border-gray-50">
+                        <div className="grid grid-cols-2 gap-2">
                             <div>
                                 <p className="text-[10px] font-bold text-gray-400 uppercase">Tu Ganancia</p>
                                 <p className="text-xl font-black text-emerald-600">
@@ -544,12 +530,6 @@ export const DriverDashboard: React.FC = () => {
                                     {formatCOP(order.totalAmount)}
                                 </p>
                             </div>
-                            <div className="text-right hidden lg:block">
-                                <p className="text-[10px] font-bold text-gray-400 uppercase">Artículos</p>
-                                <p className="text-sm font-bold text-gray-600">
-                                    {order.products.reduce((acc, p) => acc + p.quantity, 0)} items
-                                </p>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -557,14 +537,14 @@ export const DriverDashboard: React.FC = () => {
                 <div className="p-5 bg-gray-50/50">
                     {!isMyDelivery ? (
                         <button
-                            onClick={() => handleAcceptOrder(order.id)}
+                            onClick={() => handleTakeDelivery(order.id)}
                             className="w-full py-3.5 bg-emerald-600 text-white rounded-xl font-black text-sm uppercase tracking-wider hover:bg-emerald-700 hover:scale-[1.02] active:scale-95 transition-all shadow-md shadow-emerald-100"
                         >
-                            Aceptar Entrega
+                            Tomar Entrega
                         </button>
                     ) : (
                         <div className="space-y-3">
-                            {order.status === OrderStatus.DRIVER_ACCEPTED && (
+                            {order.status === OrderStatus.DRIVER_ASSIGNED && (
                                 <button
                                     onClick={() => handleConfirmPickup(order.id)}
                                     className="w-full py-3.5 bg-blue-600 text-white rounded-xl font-black text-sm uppercase tracking-wider hover:bg-blue-700 hover:scale-[1.02] active:scale-95 transition-all shadow-md shadow-blue-100"
@@ -574,10 +554,10 @@ export const DriverDashboard: React.FC = () => {
                             )}
                             {order.status === OrderStatus.IN_TRANSIT && (
                                 <button
-                                    onClick={() => handleConfirmDelivery(order.id)}
+                                    onClick={() => handleMarkDelivered(order.id)}
                                     className="w-full py-3.5 bg-emerald-600 text-white rounded-xl font-black text-sm uppercase tracking-wider hover:bg-emerald-700 hover:scale-[1.02] active:scale-95 transition-all shadow-md shadow-emerald-100"
                                 >
-                                    Confirmar Entrega
+                                    Marcar como Entregado
                                 </button>
                             )}
                         </div>
@@ -680,7 +660,7 @@ export const DriverDashboard: React.FC = () => {
                                 className="w-full md:w-48 pl-10 pr-4 py-3.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-emerald-500 font-bold text-sm text-gray-700 appearance-none transition-all cursor-pointer outline-none"
                             >
                                 <option value="all">Todos los estados</option>
-                                <option value={OrderStatus.DRIVER_ACCEPTED}>Hacia Restaurante</option>
+                                <option value={OrderStatus.DRIVER_ASSIGNED}>Hacia Restaurante</option>
                                 <option value={OrderStatus.IN_TRANSIT}>En Tránsito</option>
                             </select>
                             <SlidersHorizontal className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />

@@ -34,7 +34,16 @@ const {
 const {
     createOrder,
     onOrderUpdated,
-    onOrderCreated
+    onOrderCreated,
+    acceptOrder,
+    rejectOrder,
+    cancelOrderByClient,
+    releaseToDriverPool,
+    assignDriver,
+    takeDelivery,
+    markDeliveredByDriver,
+    confirmDelivery,
+    disputeDelivery,
 } = require("./src/services/orderService");
 
 // ─── Loyalty & Reward Services ───────────────────────────────────────────────
@@ -64,7 +73,9 @@ const {
     resetBrokenStreaks,
     sendStreakReminders,
     resetPeriodicStats,
-    sendRetentionNotifications
+    sendRetentionNotifications,
+    handleOrderAcceptanceTimeout,
+    handleDriverConfirmationTimeout,
 } = require("./src/services/cronService");
 
 // ─── Miscellaneous Services ───────────────────────────────────────────────────
@@ -120,6 +131,15 @@ module.exports = {
     createOrder,
     onOrderUpdated,
     onOrderCreated,
+    acceptOrder,
+    rejectOrder,
+    cancelOrderByClient,
+    releaseToDriverPool,
+    assignDriver,
+    takeDelivery,
+    markDeliveredByDriver,
+    confirmDelivery,
+    disputeDelivery,
 
     // Rewards
     redeemPoints,
@@ -142,6 +162,8 @@ module.exports = {
     sendStreakReminders,
     resetPeriodicStats,
     sendRetentionNotifications,
+    handleOrderAcceptanceTimeout,
+    handleDriverConfirmationTimeout,
 
     // Misc
     healthCheck,

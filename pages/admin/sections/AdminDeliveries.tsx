@@ -51,7 +51,7 @@ export const AdminDeliveries: React.FC = () => {
                 )),
                 getDocs(query(
                     collection(db, 'orders'),
-                    where('status', 'in', [OrderStatus.IN_TRANSIT, OrderStatus.DRIVER_ACCEPTED]),
+                    where('status', 'in', [OrderStatus.IN_TRANSIT, OrderStatus.DRIVER_ASSIGNED, OrderStatus.AWAITING_DRIVER]),
                     orderBy('__name__'),
                     limit(PAGE_SIZE)
                 )),
@@ -103,7 +103,7 @@ export const AdminDeliveries: React.FC = () => {
         setLoadingMoreActive(true);
         try {
             const constraints: any[] = [
-                where('status', 'in', [OrderStatus.IN_TRANSIT, OrderStatus.DRIVER_ACCEPTED]),
+                where('status', 'in', [OrderStatus.IN_TRANSIT, OrderStatus.DRIVER_ASSIGNED, OrderStatus.AWAITING_DRIVER]),
                 orderBy('__name__'),
             ];
             if (activeLastDoc) constraints.push(startAfter(activeLastDoc));
@@ -162,7 +162,7 @@ export const AdminDeliveries: React.FC = () => {
                         <div>
                             <p className="text-sm text-gray-500 mb-1 font-medium uppercase tracking-wide">Entregas en Curso</p>
                             <p className="text-3xl font-bold text-white">{activeDeliveries.length}</p>
-                            <p className="text-xs text-orange-600 mt-1">En tránsito o aceptadas</p>
+                            <p className="text-xs text-orange-600 mt-1">En tránsito, asignadas o buscando driver</p>
                         </div>
                         <div className="p-3 bg-orange-50 rounded-lg text-orange-600">
                             <Package size={24} />
@@ -222,9 +222,13 @@ export const AdminDeliveries: React.FC = () => {
                                 <span className={`px-2.5 py-1 rounded-full text-xs font-bold shrink-0 ${
                                     order.status === OrderStatus.IN_TRANSIT
                                         ? 'bg-orange-100 text-orange-700'
-                                        : 'bg-blue-100 text-blue-700'
+                                        : order.status === OrderStatus.AWAITING_DRIVER
+                                            ? 'bg-yellow-100 text-yellow-700'
+                                            : 'bg-indigo-100 text-indigo-700'
                                 }`}>
-                                    {order.status === OrderStatus.IN_TRANSIT ? '🛵 En camino' : '✅ Aceptado'}
+                                    {order.status === OrderStatus.IN_TRANSIT ? '🛵 En camino'
+                                        : order.status === OrderStatus.AWAITING_DRIVER ? '⏳ Buscando driver'
+                                        : '✅ Driver asignado'}
                                 </span>
                             </div>
                         ))}

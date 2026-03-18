@@ -10,7 +10,7 @@ import { Order, OrderStatus, Venue, UserRole, Product, ProductType } from '../..
 import { useCart } from '../../context/CartContext';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
 import { Sparkles } from 'lucide-react';
-import { Package, Clock, CheckCircle, XCircle, Truck, MessageSquare, Star, ArrowLeft, ShoppingCart, Share2 } from 'lucide-react';
+import { Package, Clock, CheckCircle, XCircle, Truck, MessageSquare, Star, ArrowLeft, ShoppingCart, Share2, AlertTriangle, Ban } from 'lucide-react';
 import { RatingModal } from '../../components/rating/RatingModal';
 import { ChatWindow } from '../../components/chat/ChatWindow';
 import { logger } from '../../utils/logger';
@@ -263,17 +263,68 @@ export const MyOrders: React.FC = () => {
         }
     };
 
-    const getStatusBadge = (status: OrderStatus) => {
+    const handleCancelOrder = async (orderId: string) => {
+        try {
+            const cancelOrderByClient = httpsCallable(functions, 'cancelOrderByClient');
+            await cancelOrderByClient({ orderId });
+            setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: OrderStatus.CANCELLED, cancellationReason: 'CLIENT_CANCELLED' } : o));
+            success('Pedido cancelado');
+        } catch (error: any) {
+            logger.error('Error cancelling order:', error);
+            showError(error?.message || 'No se pudo cancelar el pedido');
+        }
+    };
+
+    const handleConfirmDelivery = async (orderId: string) => {
+        try {
+            setConfirmingOrderId(orderId);
+            const confirmDelivery = httpsCallable(functions, 'confirmDelivery');
+            await confirmDelivery({ orderId });
+            setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: OrderStatus.COMPLETED, awaitingClientConfirmation: false } : o));
+            success('¡Entrega confirmada!');
+        } catch (error: any) {
+            logger.error('Error confirming delivery:', error);
+            showError(error?.message || 'Error al confirmar entrega');
+        } finally {
+            setConfirmingOrderId(null);
+        }
+    };
+
+    const handleDisputeDelivery = async (orderId: string) => {
+        try {
+            const disputeDelivery = httpsCallable(functions, 'disputeDelivery');
+            await disputeDelivery({ orderId });
+            setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: OrderStatus.DISPUTED, awaitingClientConfirmation: false } : o));
+            success('Disputa abierta. Te contactaremos pronto.');
+        } catch (error: any) {
+            logger.error('Error disputing delivery:', error);
+            showError(error?.message || 'Error al abrir disputa');
+        }
+    };
+
+    const getStatusBadge = (status: OrderStatus, order?: Order) => {
+        if (status === OrderStatus.IN_TRANSIT && order?.awaitingClientConfirmation) {
+            return (
+                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 animate-pulse">
+                    <AlertTriangle size={14} />
+                    Confirmar entrega
+                </span>
+            );
+        }
+
         const badges: Record<string, { color: string; icon: React.ElementType; label: string }> = {
             [OrderStatus.PENDING]: { color: 'bg-yellow-100 text-yellow-800', icon: Clock, label: t('status_pending') },
             [OrderStatus.PAID]: { color: 'bg-blue-100 text-blue-800', icon: CheckCircle, label: t('status_paid') },
+            [OrderStatus.ACCEPTED]: { color: 'bg-sky-100 text-sky-800', icon: CheckCircle, label: 'Aceptado' },
             [OrderStatus.IN_PREPARATION]: { color: 'bg-amber-100 text-amber-800', icon: Clock, label: t('status_prep') },
-            [OrderStatus.READY_PICKUP]: { color: 'bg-purple-100 text-purple-800', icon: Package, label: t('status_ready') },
-            [OrderStatus.DRIVER_ACCEPTED]: { color: 'bg-indigo-100 text-indigo-800', icon: Truck, label: t('status_driver') },
+            [OrderStatus.READY]: { color: 'bg-purple-100 text-purple-800', icon: Package, label: t('status_ready') },
+            [OrderStatus.AWAITING_DRIVER]: { color: 'bg-orange-100 text-orange-800', icon: Truck, label: 'Buscando domiciliario' },
+            [OrderStatus.DRIVER_ASSIGNED]: { color: 'bg-indigo-100 text-indigo-800', icon: Truck, label: 'Domiciliario asignado' },
             [OrderStatus.IN_TRANSIT]: { color: 'bg-indigo-100 text-indigo-800', icon: Truck, label: t('status_transit') },
             [OrderStatus.COMPLETED]: { color: 'bg-green-100 text-green-800', icon: CheckCircle, label: t('status_completed') },
+            [OrderStatus.CANCELLED]: { color: 'bg-red-100 text-red-800', icon: Ban, label: 'Cancelado' },
             [OrderStatus.MISSED]: { color: 'bg-red-100 text-red-800', icon: XCircle, label: t('status_missed') },
-            [OrderStatus.DISPUTED]: { color: 'bg-purple-100 text-purple-800', icon: XCircle, label: t('status_disputed') },
+            [OrderStatus.DISPUTED]: { color: 'bg-purple-100 text-purple-800', icon: AlertTriangle, label: 'En disputa' },
         };
 
         const badge = badges[status] ?? { color: 'bg-gray-100 text-gray-700', icon: Clock, label: status };
@@ -456,7 +507,7 @@ export const MyOrders: React.FC = () => {
                                                 })}
                                             </p>
                                         </div>
-                                        {getStatusBadge(order.status)}
+                                        {getStatusBadge(order.status, order)}
                                     </div>
 
                                     <div className="border-t border-gray-100 pt-4 mb-4">
@@ -498,7 +549,28 @@ export const MyOrders: React.FC = () => {
                                         </div>
                                     </div>
 
+                                    {/* Banner de confirmación de entrega por domiciliario */}
+                                    {order.awaitingClientConfirmation && (
+                                        <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded-xl flex items-start gap-2">
+                                            <AlertTriangle size={16} className="text-yellow-600 mt-0.5 shrink-0" />
+                                            <p className="text-sm text-yellow-800 font-medium">
+                                                El domiciliario marcó el pedido como entregado. ¿Lo recibiste?
+                                            </p>
+                                        </div>
+                                    )}
+
                                     <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-100">
+                                        {/* Cancelar — solo cuando está PENDING */}
+                                        {order.status === OrderStatus.PENDING && (
+                                            <button
+                                                onClick={() => handleCancelOrder(order.id)}
+                                                className="flex-1 px-4 py-3 bg-red-50 text-red-700 border border-red-100 rounded-xl hover:bg-red-100 shadow-sm active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 text-sm font-semibold"
+                                            >
+                                                <Ban size={18} />
+                                                Cancelar pedido
+                                            </button>
+                                        )}
+
                                         <button
                                             onClick={() => handleChatWithVenue(order)}
                                             disabled={chatLoadingOrderId === order.id}
@@ -521,22 +593,48 @@ export const MyOrders: React.FC = () => {
                                                     ? <span className="animate-spin text-base">⏳</span>
                                                     : <MessageSquare size={18} />
                                                 }
-                                            {t('orders_btn_driver_chat')}
-                                        </button>
-                                    )}
-                                    {order.status === OrderStatus.READY_PICKUP && order.deliveryMethod !== 'delivery' && (
-                                        <button
-                                            onClick={() => handleConfirmReceived(order)}
-                                            disabled={confirmingOrderId === order.id}
-                                            className="flex-1 px-4 py-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 shadow-sm active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
-                                        >
-                                            {confirmingOrderId === order.id
-                                                ? <span className="animate-spin text-base">⏳</span>
-                                                : <CheckCircle size={18} />
-                                            }
-                                            {t('orders_received_confirm')}
-                                        </button>
-                                    )}
+                                                {t('orders_btn_driver_chat')}
+                                            </button>
+                                        )}
+
+                                        {/* Confirmar recogida en local (pickup) */}
+                                        {order.status === OrderStatus.READY && order.deliveryMethod !== 'delivery' && (
+                                            <button
+                                                onClick={() => handleConfirmReceived(order)}
+                                                disabled={confirmingOrderId === order.id}
+                                                className="flex-1 px-4 py-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 shadow-sm active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
+                                            >
+                                                {confirmingOrderId === order.id
+                                                    ? <span className="animate-spin text-base">⏳</span>
+                                                    : <CheckCircle size={18} />
+                                                }
+                                                {t('orders_received_confirm')}
+                                            </button>
+                                        )}
+
+                                        {/* Confirmar / disputar entrega domiciliaria */}
+                                        {order.awaitingClientConfirmation && (
+                                            <>
+                                                <button
+                                                    onClick={() => handleConfirmDelivery(order.id)}
+                                                    disabled={confirmingOrderId === order.id}
+                                                    className="flex-1 px-4 py-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 shadow-sm active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
+                                                >
+                                                    {confirmingOrderId === order.id
+                                                        ? <span className="animate-spin text-base">⏳</span>
+                                                        : <CheckCircle size={18} />
+                                                    }
+                                                    Sí, lo recibí
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDisputeDelivery(order.id)}
+                                                    className="flex-1 px-4 py-3 bg-red-50 text-red-700 border border-red-100 rounded-xl hover:bg-red-100 shadow-sm active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 text-sm font-semibold"
+                                                >
+                                                    <AlertTriangle size={18} />
+                                                    No lo recibí
+                                                </button>
+                                            </>
+                                        )}
                                     </div>
 
                                     {/* Botón de Calificación para Pedidos Completados */}

@@ -336,7 +336,7 @@ export const ProductManager: React.FC = () => {
     }
 
     return (
-        <div className="space-y-6 overflow-x-hidden">
+        <div className="space-y-6 overflow-x-hidden animate-in fade-in duration-700">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h2 className="text-2xl font-bold text-white flex items-center gap-2">

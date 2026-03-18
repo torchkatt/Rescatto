@@ -118,15 +118,17 @@ const RootRedirect: React.FC = () => {
 
     // V2-Aware Redirection
     const isSuperAdminOrAdmin = hasRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]);
-    
+
     if (isSuperAdminOrAdmin) {
         return <Navigate to="/backoffice/dashboard" replace />;
     } else if (user.role === UserRole.CITY_ADMIN) {
         return <Navigate to="/regional-dashboard" replace />;
     } else if (user.role === UserRole.DRIVER) {
         return <Navigate to="/driver" replace />;
+    } else if (user.role === UserRole.VENUE_OWNER || user.role === UserRole.KITCHEN_STAFF) {
+        return <Navigate to="/dashboard" replace />;
     } else {
-        // Default to Customer App for everything else (including UserRole.CUSTOMER)
+        // Default to Customer App (CUSTOMER role or guest)
         return <Navigate to="/app" replace />;
     }
 };
@@ -226,6 +228,28 @@ const CustomerLayout: React.FC = () => {
             />
         </div>
     );
+};
+
+// Guard: redirect non-customer authenticated users away from /app
+const CustomerOnlyLayout: React.FC = () => {
+    const { user, isLoading } = useAuth();
+    if (isLoading) return <LoadingScreen />;
+
+    if (user && !user.isGuest) {
+        switch (user.role) {
+            case UserRole.VENUE_OWNER:
+            case UserRole.KITCHEN_STAFF:
+                return <Navigate to="/dashboard" replace />;
+            case UserRole.DRIVER:
+                return <Navigate to="/driver" replace />;
+            case UserRole.SUPER_ADMIN:
+            case UserRole.ADMIN:
+                return <Navigate to="/backoffice/dashboard" replace />;
+            default:
+                break; // CUSTOMER → render CustomerLayout normally
+        }
+    }
+    return <CustomerLayout />;
 };
 
 // Profile Redirect Based on Role
@@ -442,7 +466,7 @@ const AppRoutes: React.FC = () => {
                 <Route path="/profile" element={<ProfileRedirect />} />
 
                 {/* --- CUSTOMER ROUTES --- */}
-                <Route path="/app" element={<CustomerLayout />}>
+                <Route path="/app" element={<CustomerOnlyLayout />}>
                     <Route index element={
                         <CustomerHome />
                     } />
@@ -462,7 +486,7 @@ const AppRoutes: React.FC = () => {
                         <Checkout />
                     } />
                     <Route path="orders" element={
-                        <ProtectedRoute allowedRoles={[UserRole.CUSTOMER]} disallowGuests={true}>
+                        <ProtectedRoute allowedRoles={[UserRole.CUSTOMER]} disallowGuests={true} guestRedirect="/app/profile">
                             <MyOrders />
                         </ProtectedRoute>
                     } />
@@ -472,12 +496,12 @@ const AppRoutes: React.FC = () => {
                         </ProtectedRoute>
                     } />
                     <Route path="favorites" element={
-                        <ProtectedRoute allowedRoles={[UserRole.CUSTOMER]} disallowGuests={true}>
+                        <ProtectedRoute allowedRoles={[UserRole.CUSTOMER]} disallowGuests={true} guestRedirect="/app/profile">
                             <Favorites />
                         </ProtectedRoute>
                     } />
                     <Route path="impact" element={
-                        <ProtectedRoute allowedRoles={[UserRole.CUSTOMER]} disallowGuests={true}>
+                        <ProtectedRoute allowedRoles={[UserRole.CUSTOMER]} disallowGuests={true} guestRedirect="/app/profile">
                             <Impact />
                         </ProtectedRoute>
                     } />

@@ -74,36 +74,48 @@ const deactivateExpiredProducts = onSchedule("every 60 minutes", async () => {
 });
 
 /**
- * Marks READY_PICKUP orders past deadline as MISSED.
+ * Marks READY pickup orders past deadline as MISSED.
+ * (Renombrado de READY_PICKUP a READY)
  */
 const handleMissedPickups = onSchedule("every 10 minutes", async () => {
     const nowStr = new Date().toISOString();
     try {
+        // Solo pedidos de pickup (no delivery) que llevan más de 20 min listos
         const snapshot = await db.collection("orders")
-            .where("status", "==", "READY_PICKUP")
+            .where("status", "==", "READY")
             .where("pickupDeadline", "<", nowStr).get();
 
         if (snapshot.empty) return;
         const batch = db.batch();
+        // Filtrar solo los que son pickup, no delivery
+        let count = 0;
         snapshot.docs.forEach(snap => {
-            batch.update(snap.ref, { status: "MISSED", updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+            const data = snap.data();
+            if (data.deliveryMethod !== "delivery") {
+                batch.update(snap.ref, {
+                    status: "MISSED",
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                });
+                count++;
+            }
         });
-        await batch.commit();
-        log(`handleMissedPickups: marked ${snapshot.size} orders as MISSED.`);
+        if (count > 0) await batch.commit();
+        if (count > 0) log(`handleMissedPickups: marcados ${count} pedidos como MISSED.`);
     } catch (e) { logError("handleMissedPickups error", e); }
 });
 
 /**
- * Sends notification 30 mins before pickup deadline.
+ * Sends notification 10 mins before pickup deadline.
+ * (Actualizado: usa READY en lugar de READY_PICKUP)
  */
 const notifyBeforePickup = onSchedule("every 5 minutes", async () => {
     const now = new Date();
-    const thirtyMinsFromNow = new Date(now.getTime() + 30 * 60000);
+    const tenMinsFromNow = new Date(now.getTime() + 10 * 60000);
 
     try {
         const snapshot = await db.collection("orders")
-            .where("status", "in", ["PAID", "READY_PICKUP"])
-            .where("pickupDeadline", "<=", thirtyMinsFromNow.toISOString())
+            .where("status", "in", ["ACCEPTED", "IN_PREPARATION", "READY"])
+            .where("pickupDeadline", "<=", tenMinsFromNow.toISOString())
             .where("pickupDeadline", ">", now.toISOString())
             .get();
 
@@ -124,7 +136,7 @@ const notifyBeforePickup = onSchedule("every 5 minutes", async () => {
                         await admin.messaging().send({
                             notification: {
                                 title: "⚠️ ¡Tu rescate está por expirar!",
-                                body: `Te quedan menos de 30 minutos para recoger tu pedido en ${venueName}.`,
+                                body: `Te quedan menos de 10 minutos para recoger tu pedido en ${venueName}.`,
                             },
                             token: userDoc.data().fcmToken,
                         });
@@ -309,13 +321,167 @@ const sendRetentionNotifications = onSchedule("0 10 * * *", async () => {
     }
 });
 
-module.exports = { 
-    applyDynamicPricing, 
-    deactivateExpiredProducts, 
-    handleMissedPickups, 
+/**
+ * Cron: cancela pedidos PENDING que el negocio no aceptó dentro de 5 minutos.
+ * Re-envía FCM cada 60 segundos al staff hasta aceptación o timeout.
+ * Ejecuta cada minuto.
+ */
+const handleOrderAcceptanceTimeout = onSchedule("every 1 minutes", async () => {
+    const nowStr = new Date().toISOString();
+    try {
+        const snapshot = await db.collection("orders")
+            .where("status", "==", "PENDING")
+            .get();
+
+        if (snapshot.empty) return;
+
+        const batch = db.batch();
+        let cancelledCount = 0;
+        const reminderPromises = [];
+
+        for (const docSnap of snapshot.docs) {
+            const order = docSnap.data();
+            const orderId = docSnap.id;
+
+            // ¿Expiró el tiempo de aceptación?
+            if (order.acceptanceDeadline && order.acceptanceDeadline < nowStr) {
+                batch.update(docSnap.ref, {
+                    status: "CANCELLED",
+                    cancellationReason: "ACCEPTANCE_TIMEOUT",
+                    cancelledAt: nowStr,
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                });
+                cancelledCount++;
+
+                // Notificar al cliente
+                if (order.customerId) {
+                    reminderPromises.push(
+                        db.collection("users").doc(order.customerId).get().then(userDoc => {
+                            if (userDoc.exists && userDoc.data().fcmToken) {
+                                return admin.messaging().send({
+                                    notification: {
+                                        title: "Pedido cancelado automáticamente",
+                                        body: "El negocio no respondió a tiempo. Tu pedido fue cancelado.",
+                                    },
+                                    token: userDoc.data().fcmToken,
+                                    data: { orderId, type: "ACCEPTANCE_TIMEOUT" },
+                                });
+                            }
+                        }).catch(e => logError("Timeout notify client error", e))
+                    );
+                }
+
+                // Notificar al dueño del venue
+                if (order.venueId) {
+                    const productsList = (order.products || []).map(p => `${p.name} x${p.quantity}`).join(", ");
+                    reminderPromises.push(
+                        Promise.all([
+                            db.collection("users").where("role", "==", "VENUE_OWNER").where("venueIds", "array-contains", order.venueId).get(),
+                            db.collection("users").where("role", "==", "VENUE_OWNER").where("venueId", "==", order.venueId).get(),
+                        ]).then(([byArr, byStr]) => {
+                            const ownerMap = new Map();
+                            [...byArr.docs, ...byStr.docs].forEach(d => ownerMap.set(d.id, d.data()));
+                            const tokens = [];
+                            ownerMap.forEach(ud => { if (ud.fcmToken) tokens.push(ud.fcmToken); });
+                            if (tokens.length === 0) return;
+                            return admin.messaging().sendEachForMulticast({
+                                tokens,
+                                notification: {
+                                    title: "⚠️ Pedido cancelado por timeout",
+                                    body: `Un pedido fue cancelado porque tu equipo no respondió en 5 minutos. Productos: ${productsList}`,
+                                },
+                                data: { orderId, type: "ACCEPTANCE_TIMEOUT_OWNER" },
+                            });
+                        }).catch(e => logError("Timeout notify owner error", e))
+                    );
+                }
+                continue;
+            }
+
+            // ¿Debe re-notificarse? (cada 60 segundos)
+            const lastNotified = order.lastKitchenNotifiedAt;
+            const sixtySecondsAgo = new Date(Date.now() - 60 * 1000).toISOString();
+            if (!lastNotified || lastNotified < sixtySecondsAgo) {
+                batch.update(docSnap.ref, {
+                    lastKitchenNotifiedAt: nowStr,
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                });
+
+                // Re-enviar FCM al staff del venue
+                if (order.venueId) {
+                    const productsList = (order.products || []).map(p => `${p.name} x${p.quantity}`).join(", ");
+                    const amount = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(order.totalAmount || 0);
+                    reminderPromises.push(
+                        Promise.all([
+                            db.collection("users").where("role", "==", "VENUE_OWNER").where("venueIds", "array-contains", order.venueId).get(),
+                            db.collection("users").where("role", "==", "VENUE_OWNER").where("venueId", "==", order.venueId).get(),
+                            db.collection("users").where("role", "==", "KITCHEN_STAFF").where("venueIds", "array-contains", order.venueId).get(),
+                            db.collection("users").where("role", "==", "KITCHEN_STAFF").where("venueId", "==", order.venueId).get(),
+                        ]).then(([owArr, owStr, stArr, stStr]) => {
+                            const staffMap = new Map();
+                            [...owArr.docs, ...owStr.docs, ...stArr.docs, ...stStr.docs].forEach(d => staffMap.set(d.id, d.data()));
+                            const tokens = [];
+                            staffMap.forEach(ud => { if (ud.fcmToken) tokens.push(ud.fcmToken); });
+                            if (tokens.length === 0) return;
+                            return admin.messaging().sendEachForMulticast({
+                                tokens,
+                                notification: {
+                                    title: "🔔 Nuevo pedido esperando — ¡Acepta o rechaza!",
+                                    body: `${order.customerName || "Un cliente"}: ${productsList} — ${amount}`,
+                                },
+                                data: { orderId, type: "ORDER_PENDING_REMINDER" },
+                            });
+                        }).catch(e => logError("Kitchen reminder FCM error", e))
+                    );
+                }
+            }
+        }
+
+        await Promise.all([batch.commit(), ...reminderPromises]);
+        if (cancelledCount > 0) log(`handleOrderAcceptanceTimeout: cancelados ${cancelledCount} pedidos por timeout.`);
+    } catch (e) { logError("handleOrderAcceptanceTimeout error", e); }
+});
+
+/**
+ * Cron: auto-completa pedidos que el driver marcó como entregados
+ * pero el cliente no confirmó ni disputó en 15 minutos.
+ * Ejecuta cada 5 minutos.
+ */
+const handleDriverConfirmationTimeout = onSchedule("every 5 minutes", async () => {
+    const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    try {
+        const snapshot = await db.collection("orders")
+            .where("awaitingClientConfirmation", "==", true)
+            .where("driverMarkedCompletedAt", "<", fifteenMinsAgo)
+            .get();
+
+        if (snapshot.empty) return;
+
+        const batch = db.batch();
+        const nowStr = new Date().toISOString();
+        snapshot.docs.forEach(snap => {
+            batch.update(snap.ref, {
+                status: "COMPLETED",
+                awaitingClientConfirmation: false,
+                deliveredAt: nowStr,
+                autoCompletedAt: nowStr,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+        });
+        await batch.commit();
+        log(`handleDriverConfirmationTimeout: auto-completados ${snapshot.size} pedidos.`);
+    } catch (e) { logError("handleDriverConfirmationTimeout error", e); }
+});
+
+module.exports = {
+    applyDynamicPricing,
+    deactivateExpiredProducts,
+    handleMissedPickups,
     notifyBeforePickup,
     resetBrokenStreaks,
     sendStreakReminders,
     resetPeriodicStats,
-    sendRetentionNotifications
+    sendRetentionNotifications,
+    handleOrderAcceptanceTimeout,
+    handleDriverConfirmationTimeout,
 };

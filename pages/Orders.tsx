@@ -105,7 +105,7 @@ const Orders: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-700">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Gestión de Pedidos</h1>

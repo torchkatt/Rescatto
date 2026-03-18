@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate, Link } from 'react-router-dom';
-import { LayoutDashboard, ShoppingBag, FileText, Settings, UtensilsCrossed, ClipboardList, LogOut, Menu, X, Package, BarChart, MessageSquare, Users, Shield, Download, Tag, RefreshCw, MapPin, DollarSign, Zap, Moon, Sun, Truck, TrendingUp, BadgeCheck, Building2, Landmark } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, FileText, Settings, UtensilsCrossed, ClipboardList, LogOut, Menu, X, Package, BarChart, MessageSquare, Users, Shield, Download, Tag, RefreshCw, MapPin, DollarSign, Zap, Moon, Sun, Truck, TrendingUp, BadgeCheck, Building2, Landmark, UserCircle } from 'lucide-react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../context/AuthContext';
@@ -180,7 +180,7 @@ const Sidebar: React.FC = () => {
         )}
 
         {/* SECCIÓN GESTIÓN */}
-        {hasRole([UserRole.VENUE_OWNER, UserRole.ADMIN]) && user?.venueId && (
+        {hasRole([UserRole.VENUE_OWNER, UserRole.ADMIN]) && (user?.venueIds?.[0] || user?.venueId) && (
           <div className="space-y-1">
             <p className="px-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Gestión</p>
             <NavLink to="/products" className={`tour-step-products ${navClass({ isActive: window.location.hash.includes('/products') })}`} onClick={() => setIsMobileOpen(false)}>
@@ -317,14 +317,22 @@ const Sidebar: React.FC = () => {
           </div>
         )}
 
-        {/* SECCIÓN CONFIGURACIÓN */}
+        {/* SECCIÓN SISTEMA */}
         <div className="space-y-1">
           <p className="px-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Sistema</p>
+          {hasRole([UserRole.VENUE_OWNER, UserRole.SUPER_ADMIN]) && (
+            <NavLink to="/settings" className={navClass} onClick={() => setIsMobileOpen(false)}>
+              <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-white/10 transition-colors">
+                <Settings size={18} className="sidebar-icon" />
+              </div>
+              <span className="font-medium">Configuración</span>
+            </NavLink>
+          )}
           <NavLink to="/profile" className={navClass} onClick={() => setIsMobileOpen(false)}>
             <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-white/10 transition-colors">
-              <Settings size={18} className="sidebar-icon" />
+              <UserCircle size={18} className="sidebar-icon" />
             </div>
-            <span className="font-medium">Configuración</span>
+            <span className="font-medium">Mi Perfil</span>
           </NavLink>
         </div>
 
