@@ -420,12 +420,15 @@ service cloud.firestore {
       }
 
       // Customers read their own; venue staff read their venue's; drivers read assigned + pool
+      // Note: isDriverAvailableOrder's driverId==null check is intentionally omitted here
+      // because Firestore query-level auth can't guarantee it for list queries.
+      // Write protection (canDriverTakeOrder) still enforces driverId==null before assignment.
       allow read: if isAdmin() ||
         (isAuthenticated() && resource.data.customerId == request.auth.uid) ||
         (isAuthenticated() && belongsToVenue(resource.data.venueId)) ||
         (hasRole('DRIVER') && (
           resource.data.driverId == request.auth.uid ||
-          isDriverAvailableOrder(resource.data)
+          (resource.data.deliveryMethod == 'delivery' && resource.data.status == 'AWAITING_DRIVER')
         )) ||
         (hasRole('KITCHEN_STAFF') && belongsToVenue(resource.data.venueId));
 
