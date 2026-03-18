@@ -117,6 +117,7 @@ export const DriverDashboard: React.FC = () => {
         try {
             const constraints: any[] = [
                 where('status', '==', OrderStatus.AWAITING_DRIVER),
+                where('deliveryMethod', '==', 'delivery'),
                 orderBy('createdAt', 'desc'),
             ];
             // Filtrar por ciudad del driver si está disponible

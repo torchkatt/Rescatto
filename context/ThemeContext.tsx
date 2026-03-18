@@ -52,6 +52,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             if (user && user.venueId && (user.role === UserRole.VENUE_OWNER || user.role === UserRole.KITCHEN_STAFF || user.role === UserRole.DRIVER)) {
                 try {
                     const venueData = await venueService.getVenueById(user.venueId);
+                    if (!venueData) return;
                     setVenue(venueData);
 
                     // Apply CSS custom properties for theming
