@@ -367,7 +367,8 @@ const Sidebar: React.FC = () => {
   return (
     <>
       {/* Gatillo para Móvil - Fixed Header */}
-      <div className="lg:hidden fixed top-0 left-0 w-full bg-slate-900/95 backdrop-blur-md border-b border-slate-800 z-50 px-4 pt-safe-top h-header-mobile flex items-center justify-between shadow-lg shadow-black/20">
+      <div className="lg:hidden fixed top-0 left-0 w-full bg-slate-900/95 backdrop-blur-md border-b border-slate-800 z-50 pt-[env(safe-area-inset-top)]">
+      <div className="h-16 px-4 flex items-center justify-between shadow-lg shadow-black/20">
         <Link to={dashPath} className="flex items-center space-x-2">
           {logoUrl ? (
             <img src={logoUrl} alt="Logo" className="h-8 w-8 object-contain rounded-lg" />
@@ -380,6 +381,7 @@ const Sidebar: React.FC = () => {
           <Menu size={26} />
         </button>
       </div>
+      </div>
 
       {/* Sidebar para Escritorio */}
       <div className="hidden lg:flex w-[280px] bg-slate-900 border-r border-slate-800 h-screen flex-col sticky top-0 shadow-2xl z-30">
@@ -390,7 +392,7 @@ const Sidebar: React.FC = () => {
       {isMobileOpen && (
         <div className="fixed inset-0 z-[60] lg:hidden">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300" onClick={toggleMobileMenu}></div>
-          <div className="absolute top-0 left-0 w-[280px] h-full bg-slate-900 shadow-2xl flex flex-col animate-slide-in-left transform transition-transform duration-300 border-r border-slate-800">
+          <div className="absolute top-0 left-0 w-[280px] h-full bg-slate-900 shadow-2xl flex flex-col animate-slide-in-left transform transition-transform duration-300 border-r border-slate-800 pt-[env(safe-area-inset-top)]">
             <SidebarContent />
           </div>
         </div>

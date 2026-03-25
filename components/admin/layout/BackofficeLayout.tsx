@@ -122,17 +122,19 @@ const BackofficeLayout: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Top Navbar Placeholder (breadcrumbs, search) could go here */}
-        <header className="h-16 border-b border-neutral-800 bg-black/50 backdrop-blur-md flex items-center px-4 sm:px-8 z-10 sticky top-0 gap-3">
-          <button
-            onClick={() => setIsMobileOpen(true)}
-            className="lg:hidden text-white hover:text-emerald-400 transition-colors p-2 -ml-2"
-            aria-label="Abrir menú"
-          >
-            <Menu className="w-6 h-6" />
-          </button>
-          <div className="text-sm text-neutral-400">
-            Panel de Control Corporativo
+        {/* Top Navbar — pt-safe-area empuja el contenido bajo la barra de notificaciones */}
+        <header className="border-b border-neutral-800 bg-black/50 backdrop-blur-md sticky top-0 z-10 pt-[env(safe-area-inset-top)]">
+          <div className="h-16 flex items-center px-4 sm:px-8 gap-3">
+            <button
+              onClick={() => setIsMobileOpen(true)}
+              className="lg:hidden text-white hover:text-emerald-400 transition-colors p-2 -ml-2"
+              aria-label="Abrir menú"
+            >
+              <Menu className="w-6 h-6" />
+            </button>
+            <div className="text-sm text-neutral-400">
+              Panel de Control Corporativo
+            </div>
           </div>
         </header>
         
@@ -145,7 +147,7 @@ const BackofficeLayout: React.FC = () => {
       {isMobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/60" onClick={() => setIsMobileOpen(false)}></div>
-          <div className="absolute top-0 left-0 h-full w-64 bg-black border-r border-neutral-800 flex flex-col shadow-2xl">
+          <div className="absolute top-0 left-0 h-full w-64 bg-black border-r border-neutral-800 flex flex-col shadow-2xl pt-[env(safe-area-inset-top)]">
             <SidebarContent />
           </div>
         </div>

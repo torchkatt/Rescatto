@@ -197,7 +197,7 @@ const CustomerLayout: React.FC = () => {
                 />
 
                 {/* Único contenedor de scroll de la app */}
-                <main className="flex-1 overflow-y-auto overscroll-y-contain">
+                <main className="flex-1 overflow-y-auto overscroll-y-contain pt-[env(safe-area-inset-top)] lg:pt-0">
                     <div className="pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-8">
                         <Outlet context={{
                             openImpact: () => setIsImpactModalOpen(true),
