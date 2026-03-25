@@ -2,8 +2,6 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
   signOut as firebaseSignOut,
   updatePassword as firebaseUpdatePassword,
   GoogleAuthProvider,
@@ -220,30 +218,22 @@ export const authService = {
   },
 
   loginWithGoogle: async (): Promise<void> => {
-    logger.log('authService: loginWithGoogle iniciando (redirect)...');
-    const provider = new GoogleAuthProvider();
-    await signInWithRedirect(auth, provider);
-    // El navegador redirige a Google. El código después de esta línea no se ejecuta.
-  },
-
-  handleGoogleRedirectResult: async (): Promise<User | null> => {
+    logger.log('authService: loginWithGoogle iniciando...');
     try {
-      const result = await getRedirectResult(auth);
-      if (!result) return null;
-
-      logger.log('authService: getRedirectResult → usuario autenticado:', result.user.email);
-      await createUserDocument(result.user);
-      const appUser = await mapFirebaseUserToAppUser(result.user);
+      const provider = new GoogleAuthProvider();
+      const userCredential = await signInWithPopup(auth, provider);
+      logger.log('authService: éxito en signInWithPopup:', userCredential.user.email);
+      await createUserDocument(userCredential.user);
+      const appUser = await mapFirebaseUserToAppUser(userCredential.user);
 
       await loggerService.logAction('LOGIN', appUser.id, appUser.id, 'users', {
         method: 'google',
         email: appUser.email
       });
-
-      return appUser;
     } catch (error: any) {
-      logger.error('authService: ERROR en handleGoogleRedirectResult:', error.code, error.message);
-      return null;
+      if ((error.code as string) === 'auth/popup-closed-by-user') return;
+      logger.error('authService: ERROR en loginWithGoogle:', error.code, error.message);
+      throw error;
     }
   },
 

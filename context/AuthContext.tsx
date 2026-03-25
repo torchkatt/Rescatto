@@ -63,11 +63,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     };
 
-    // Procesar resultado del redirect de Google (si el usuario viene de signInWithRedirect)
-    authService.handleGoogleRedirectResult().catch(err =>
-      logger.error('AuthContext: error procesando redirect de Google:', err)
-    );
-
     // Escuchar cambios de estado de autenticación de Firebase
     const authUnsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       logger.log('AuthContext: onAuthStateChanged detectado', firebaseUser?.uid);
