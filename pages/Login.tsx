@@ -117,12 +117,13 @@ const Login: React.FC = () => {
   const handleGoogleLogin = async () => {
     try {
       await loginWithGoogle();
-      navigate('/');
+      // signInWithRedirect redirige el navegador a Google — código posterior no ejecuta.
+      // La navegación de vuelta la maneja onAuthStateChanged → RootRedirect.
     } catch (err: any) {
       setError(err.message || 'Error al iniciar sesión con Google');
       auditService.logEvent({
         action: AuditAction.LOGIN_FAILURE,
-        performedBy: user?.id || 'anonymous', // Added performedBy
+        performedBy: user?.id || 'anonymous',
         details: { error: err.code || err.message, method: 'google' },
         path: '/login'
       });

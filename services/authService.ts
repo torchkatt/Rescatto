@@ -2,6 +2,8 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut as firebaseSignOut,
   updatePassword as firebaseUpdatePassword,
   GoogleAuthProvider,
@@ -217,17 +219,22 @@ export const authService = {
     await createUserDocument(firebaseUser, userData);
   },
 
-  loginWithGoogle: async (): Promise<User> => {
-    logger.log('authService: loginWithGoogle iniciando...');
-    try {
-      const provider = new GoogleAuthProvider();
-      logger.log('authService: llamando a signInWithPopup...');
-      const userCredential = await signInWithPopup(auth, provider);
-      logger.log('authService: éxito en signInWithPopup:', userCredential.user.email);
-      await createUserDocument(userCredential.user);
-      const appUser = await mapFirebaseUserToAppUser(userCredential.user);
+  loginWithGoogle: async (): Promise<void> => {
+    logger.log('authService: loginWithGoogle iniciando (redirect)...');
+    const provider = new GoogleAuthProvider();
+    await signInWithRedirect(auth, provider);
+    // El navegador redirige a Google. El código después de esta línea no se ejecuta.
+  },
 
-      // Registrar acción en auditoría
+  handleGoogleRedirectResult: async (): Promise<User | null> => {
+    try {
+      const result = await getRedirectResult(auth);
+      if (!result) return null;
+
+      logger.log('authService: getRedirectResult → usuario autenticado:', result.user.email);
+      await createUserDocument(result.user);
+      const appUser = await mapFirebaseUserToAppUser(result.user);
+
       await loggerService.logAction('LOGIN', appUser.id, appUser.id, 'users', {
         method: 'google',
         email: appUser.email
@@ -235,11 +242,8 @@ export const authService = {
 
       return appUser;
     } catch (error: any) {
-      logger.error('authService: ERROR en loginWithGoogle:', error.code, error.message);
-      if (error.code === 'auth/network-request-failed') {
-        logger.error('authService: Posible problema de conexión con el dominio de manejo de auth de Firebase.');
-      }
-      throw error;
+      logger.error('authService: ERROR en handleGoogleRedirectResult:', error.code, error.message);
+      return null;
     }
   },
 
