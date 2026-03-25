@@ -183,12 +183,12 @@ export const VenueDetail: React.FC = () => {
                     {/* Gradient overlay */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/5 to-black/25" />
 
-                    {/* Back button */}
+                    {/* Floating Back Button */}
                     <button
                         onClick={() => navigate(-1)}
-                        className="absolute top-4 left-4 p-2.5 rounded-full bg-white/15 backdrop-blur-md hover:bg-white/25 border border-white/20 shadow-lg active:scale-90 transition-all"
+                        className="absolute top-safe left-4 mt-4 z-50 p-3 bg-white/80 backdrop-blur-md rounded-full shadow-lg text-gray-800 hover:bg-white active:scale-95 transition-all"
                     >
-                        <ArrowLeft size={20} className="text-white" />
+                        <ArrowLeft size={20} className="text-gray-800" />
                     </button>
 
                     {/* Favorite button */}
@@ -196,7 +196,7 @@ export const VenueDetail: React.FC = () => {
                         <button
                             onClick={() => toggleFavorite(venueId)}
                             aria-label={isFavorite(venueId) ? t('venue_remove_fav') : t('venue_add_fav')}
-                            className="absolute top-4 right-4 p-2.5 rounded-full bg-white/15 backdrop-blur-md hover:bg-white/25 border border-white/20 shadow-lg active:scale-90 transition-all"
+                            className="absolute top-safe right-4 mt-4 p-2.5 rounded-full bg-white/15 backdrop-blur-md hover:bg-white/25 border border-white/20 shadow-lg active:scale-90 transition-all"
                         >
                             <Heart
                                 size={20}

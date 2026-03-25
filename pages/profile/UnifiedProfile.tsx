@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { ProfileHeader } from '../../components/profile/ProfileHeader';
 import { PersonalDetails } from '../../components/profile/PersonalDetails';
@@ -24,6 +24,7 @@ export const UnifiedProfile: React.FC = () => {
     const { showToast, success } = useToast();
     const confirm = useConfirm();
     const [activeTab, setActiveTab] = useState<'details' | 'stats' | 'security' | 'referrals' | 'pass'>('details');
+    const redeemingRef = useRef(false);
 
     if (!user) {
         return <div className="min-h-screen flex items-center justify-center">Cargando perfil...</div>;
@@ -51,6 +52,7 @@ export const UnifiedProfile: React.FC = () => {
     };
 
     const handleRedeemPoints = async (rewardId: string) => {
+        if (redeemingRef.current) return;
         // Logic copied/adapted from old Profile.tsx
         const rewardCosts: Record<string, number> = {
             'free_shipping': 50,
@@ -76,6 +78,7 @@ export const UnifiedProfile: React.FC = () => {
 
         if (!confirmed) return;
 
+        redeemingRef.current = true;
         try {
             const redeemFn = httpsCallable(functions, 'redeemPoints');
             await redeemFn({ rewardId });
@@ -83,6 +86,8 @@ export const UnifiedProfile: React.FC = () => {
         } catch (err: any) {
             logger.error('Redeem error:', err);
             showToast('error', 'Error al procesar el canje.');
+        } finally {
+            redeemingRef.current = false;
         }
     };
 
@@ -97,7 +102,7 @@ export const UnifiedProfile: React.FC = () => {
                 <ProfileHeader user={user} onEditAvatar={handleEditAvatar} />
 
                 {/* Navigation Tabs */}
-                <div className="grid grid-cols-2 sm:flex sm:overflow-x-auto pb-4 mb-6 gap-2 no-scrollbar px-1">
+                <div className="grid grid-cols-2 sm:flex sm:flex-wrap pb-4 mb-6 gap-2 px-1">
                     <button
                         onClick={() => setActiveTab('details')}
                         className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-bold text-sm text-center leading-tight transition-all whitespace-normal sm:whitespace-nowrap active:scale-95 ${activeTab === 'details'

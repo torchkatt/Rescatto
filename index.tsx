@@ -5,6 +5,9 @@ import App from './App';
 import './index.css';
 import { HelmetProvider } from 'react-helmet-async';
 import './i18n';
+import { validateEnv } from './utils/envValidation';
+
+validateEnv();
 
 if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
   Sentry.init({

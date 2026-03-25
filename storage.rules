@@ -23,7 +23,7 @@ service firebase.storage {
 
     // Uploads operativos restringidos a admins (reservado para backoffice).
     match /admin/{allPaths=**} {
-      allow read: if isAuthenticated();
+      allow read: if isAdmin();
       allow write: if isAdmin();
     }
 

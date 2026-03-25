@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { adminService } from '../../services/adminService';
+import { useToast } from '../../context/ToastContext';
 import { Order, OrderStatus } from '../../types';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
 import { DollarSign, Search, Calendar, CreditCard, TrendingUp, RotateCw, Store, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
@@ -50,6 +51,7 @@ interface FinanceStats {
 }
 
 export const FinanceManager: React.FC = () => {
+    const { showToast } = useToast();
     const [orders, setOrders] = useState<Order[]>([]);
     const [globalStats, setGlobalStats] = useState<FinanceStats | null>(null);
     const [loading, setLoading] = useState(true);
@@ -80,6 +82,7 @@ export const FinanceManager: React.FC = () => {
             setGlobalStats(result.data as FinanceStats);
         } catch (error) {
             logger.error('Error loading global finance stats:', error);
+            showToast('error', 'Error al cargar estadísticas financieras');
             setGlobalStats(null);
         } finally {
             setStatsLoading(false);
@@ -95,6 +98,7 @@ export const FinanceManager: React.FC = () => {
             setHasMore(result.hasMore);
         } catch (error) {
             logger.error('Error loading finance orders:', error);
+            showToast('error', 'Error al cargar órdenes');
         } finally {
             setLoading(false);
         }
@@ -125,6 +129,7 @@ export const FinanceManager: React.FC = () => {
                 setHasMore(result.hasMore);
             } catch (error) {
                 logger.error('Error loading more orders:', error);
+                showToast('error', 'Error al cargar más órdenes');
             } finally {
                 setLoadingMore(false);
             }

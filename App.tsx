@@ -515,6 +515,8 @@ const AppRoutes: React.FC = () => {
 }
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import { isFeatureEnabled, FLAG } from './utils/featureFlags';
 
 // Configure React Query Client directly in App
 const queryClient = new QueryClient({
@@ -565,6 +567,7 @@ const App: React.FC = () => {
                     </ThemeProvider>
                 </AuthProvider>
             </ErrorBoundary>
+            {isFeatureEnabled(FLAG.REACT_QUERY_DEVTOOLS) && <ReactQueryDevtools initialIsOpen={false} />}
         </QueryClientProvider>
     );
 };

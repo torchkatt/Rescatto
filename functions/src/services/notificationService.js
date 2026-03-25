@@ -24,6 +24,15 @@ const createNotification = onCall(withErrorHandling("createNotification", async 
     }
     const { userId, title, message, type, link } = dataParsed.data;
 
+    // Solo admins pueden crear notificaciones para otros usuarios
+    if (userId !== request.auth.uid) {
+        const callerDoc = await db.collection("users").doc(request.auth.uid).get();
+        const callerRole = callerDoc.exists ? callerDoc.data().role : null;
+        if (callerRole !== "SUPER_ADMIN" && callerRole !== "ADMIN") {
+            throw new HttpsError("permission-denied", "No puedes crear notificaciones para otro usuario.");
+        }
+    }
+
     const notificationRef = db.collection("notifications").doc();
     await notificationRef.set({
         userId,

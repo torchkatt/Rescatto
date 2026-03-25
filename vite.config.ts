@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import { visualizer } from 'rollup-plugin-visualizer';
 
 import tailwindcss from 'tailwindcss';
 import autoprefixer from 'autoprefixer';
@@ -13,6 +14,7 @@ export default defineConfig({
   },
   plugins: [
     react(),
+    ...(process.env.ANALYZE === 'true' ? [visualizer({ open: true, gzipSize: true, brotliSize: true })] : []),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
@@ -67,7 +69,7 @@ export default defineConfig({
             options: {
               cacheName: 'firebase-api-cache',
               networkTimeoutSeconds: 5,
-              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 }, // 24 h
+              expiration: { maxEntries: 50, maxAgeSeconds: 300 }, // 5 min — Firebase API data changes frequently
               cacheableResponse: { statuses: [0, 200] },
             },
           },
@@ -122,7 +124,7 @@ export default defineConfig({
   ],
   build: {
     outDir: 'dist',
-    sourcemap: false,
+    sourcemap: 'hidden',
     rollupOptions: {
       output: {
         manualChunks: {

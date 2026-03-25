@@ -18,6 +18,8 @@ const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
+  const [emailTouched, setEmailTouched] = useState(false);
+  const [confirmTouched, setConfirmTouched] = useState(false);
   const [selectedRole, setSelectedRole] = useState<'CUSTOMER' | 'BUSINESS'>('BUSINESS');
   const { user, isAuthenticated, login, loginWithGoogle, loginWithApple, loginWithFacebook, loginAsGuest } = useAuth();
   const { t, i18n } = useTranslation();
@@ -308,10 +310,14 @@ const Login: React.FC = () => {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full pl-12 pr-4 py-3.5 border border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all bg-white text-base hover:border-slate-300"
+                  onBlur={() => setEmailTouched(true)}
+                  className={`block w-full pl-12 pr-4 py-3.5 border rounded-xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all bg-white text-base hover:border-slate-300 ${emailTouched && email && !email.includes('@') ? 'border-red-300' : 'border-slate-200'}`}
                   placeholder={t('login_email_ph')}
                   required
                 />
+                {emailTouched && email && !email.includes('@') && (
+                  <p className="text-xs text-red-500 mt-1 ml-1">Ingresa un correo válido</p>
+                )}
               </div>
             </div>
 
@@ -336,6 +342,7 @@ const Login: React.FC = () => {
                 />
                 <button
                   type="button"
+                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-4 top-3.5 text-slate-400 hover:text-slate-600 transition-colors p-1"
                 >
@@ -352,13 +359,17 @@ const Login: React.FC = () => {
                   <input
                     type={showConfirmPassword ? "text" : "password"}
                     value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="block w-full pl-12 pr-12 py-3.5 border border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all bg-white text-base hover:border-slate-300"
+                    onChange={(e) => { setConfirmPassword(e.target.value); setConfirmTouched(true); }}
+                    className={`block w-full pl-12 pr-12 py-3.5 border rounded-xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all bg-white text-base hover:border-slate-300 ${confirmTouched && confirmPassword && confirmPassword !== password ? 'border-red-300' : 'border-slate-200'}`}
                     placeholder={t('login_password_ph')}
                     required
                   />
+                  {confirmTouched && confirmPassword && confirmPassword !== password && (
+                    <p className="text-xs text-red-500 mt-1 ml-1">Las contraseñas no coinciden</p>
+                  )}
                   <button
                     type="button"
+                    aria-label={showConfirmPassword ? 'Ocultar confirmación' : 'Mostrar confirmación'}
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                     className="absolute right-4 top-3.5 text-slate-400 hover:text-slate-600 transition-colors p-1"
                   >
@@ -386,6 +397,7 @@ const Login: React.FC = () => {
               <button
                 onClick={handleGoogleLogin}
                 type="button"
+                aria-label="Continuar con Google"
                 className="flex items-center justify-center py-3 border border-slate-200 rounded-xl shadow-sm bg-white hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-95"
               >
                 <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="Google" />
@@ -393,6 +405,7 @@ const Login: React.FC = () => {
               <button
                 onClick={handleAppleLogin}
                 type="button"
+                aria-label="Continuar con Apple"
                 className="flex items-center justify-center py-3 border border-slate-200 rounded-xl shadow-sm bg-white hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-95"
               >
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -402,6 +415,7 @@ const Login: React.FC = () => {
               <button
                 onClick={handleFacebookLogin}
                 type="button"
+                aria-label="Continuar con Facebook"
                 className="flex items-center justify-center py-3 border border-slate-200 rounded-xl shadow-sm bg-white hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-95"
               >
                 <svg className="w-5 h-5" fill="#1877F2" viewBox="0 0 24 24">

@@ -473,6 +473,69 @@ const handleDriverConfirmationTimeout = onSchedule("every 5 minutes", async () =
     } catch (e) { logError("handleDriverConfirmationTimeout error", e); }
 });
 
+/**
+ * Daily Firestore backup via the Firestore Admin API.
+ * Runs every day at 02:00 UTC to export all collections to GCS.
+ *
+ * Required: set FIRESTORE_BACKUP_BUCKET env var (e.g. gs://rescatto-backups)
+ * and grant the App Engine default service account roles/datastore.importExportAdmin.
+ */
+const backupFirestore = onSchedule(
+    { schedule: "0 2 * * *", timeZone: "UTC", retryCount: 2 },
+    async () => {
+        const bucket = process.env.FIRESTORE_BACKUP_BUCKET;
+        if (!bucket) {
+            logError("backupFirestore: FIRESTORE_BACKUP_BUCKET not configured — skipping.");
+            return;
+        }
+
+        const projectId = process.env.GCLOUD_PROJECT || admin.instanceId().app.options.projectId;
+        const timestamp = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+        const outputUriPrefix = `${bucket}/firestore/${timestamp}`;
+
+        try {
+            const firestore = admin.firestore();
+            // @ts-ignore — exportDocuments is available on the Firestore admin client
+            await firestore.collection("_health_").doc("__backup_trigger__").set(
+                { lastBackupAttempt: admin.firestore.FieldValue.serverTimestamp() },
+                { merge: true }
+            );
+
+            // Use the Firestore Admin REST API to trigger the export
+            const { GoogleAuth } = require("google-auth-library");
+            const auth = new GoogleAuth({ scopes: "https://www.googleapis.com/auth/datastore" });
+            const client = await auth.getClient();
+            const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default):exportDocuments`;
+            const response = await client.request({
+                url,
+                method: "POST",
+                data: { outputUriPrefix },
+            });
+
+            log("backupFirestore: export triggered", {
+                outputUriPrefix,
+                operationName: response.data?.name,
+            });
+
+            // Record successful trigger in Firestore for monitoring
+            await db.collection("system_events").add({
+                type: "BACKUP_TRIGGERED",
+                outputUriPrefix,
+                operationName: response.data?.name || null,
+                timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            });
+        } catch (e) {
+            logError("backupFirestore: export failed", { message: e.message, stack: e.stack });
+            // Record failure for alerting
+            await db.collection("system_events").add({
+                type: "BACKUP_FAILED",
+                error: e.message,
+                timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            }).catch(() => {});
+        }
+    }
+);
+
 module.exports = {
     applyDynamicPricing,
     deactivateExpiredProducts,
@@ -484,4 +547,5 @@ module.exports = {
     sendRetentionNotifications,
     handleOrderAcceptanceTimeout,
     handleDriverConfirmationTimeout,
+    backupFirestore,
 };

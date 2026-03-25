@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { TrendingUp, Leaf, DollarSign, Plus, ClipboardList, Settings as SettingsIcon, ArrowUpRight, BarChart as BarChartIcon } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -9,28 +10,32 @@ import { AnalyticsData, UserRole } from '../types';
 import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { formatCOP } from '../utils/formatters';
+import { getUserVenueId } from '../utils/getUserVenueId';
 
-const MetricCard: React.FC<{ title: string; value: string; icon: React.ReactNode; color: string; trend?: string }> = ({ title, value, icon, color, trend }) => (
-  <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex items-start space-x-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 group relative overflow-hidden">
-    <div className={`p-4 rounded-xl ${color} bg-opacity-10 text-white flex-shrink-0 relative z-10`}>
-      <div className={`absolute inset-0 ${color} opacity-20 rounded-xl`}></div>
-      <div className="relative z-10 text-emerald-900 group-hover:scale-110 transition-transform duration-300">
-        {React.cloneElement(icon as React.ReactElement, { className: `text-${color.replace('bg-', '')}-600` })}
-      </div>
-    </div>
-    <div className="flex-1 relative z-10">
-      <p className="text-sm font-medium text-slate-500 mb-1">{title}</p>
-      <h3 className="text-2xl font-bold text-slate-800 tracking-tight">{value}</h3>
-      {trend && (
-        <div className="flex items-center mt-2 text-xs font-medium text-emerald-600 bg-emerald-50 w-fit px-2 py-0.5 rounded-full">
-          <ArrowUpRight size={12} className="mr-1" />
-          {trend} vs mes anterior
+const MetricCard: React.FC<{ title: string; value: string; icon: React.ReactNode; color: string; trend?: string }> = ({ title, value, icon, color, trend }) => {
+  const { t } = useTranslation();
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex items-start space-x-4 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 group relative overflow-hidden">
+      <div className={`p-4 rounded-xl ${color} bg-opacity-10 text-white flex-shrink-0 relative z-10`}>
+        <div className={`absolute inset-0 ${color} opacity-20 rounded-xl`}></div>
+        <div className="relative z-10 text-emerald-900 group-hover:scale-110 transition-transform duration-300">
+          {React.cloneElement(icon as React.ReactElement, { className: `text-${color.replace('bg-', '')}-600` })}
         </div>
-      )}
+      </div>
+      <div className="flex-1 relative z-10">
+        <p className="text-sm font-medium text-slate-500 mb-1">{title}</p>
+        <h3 className="text-2xl font-bold text-slate-800 tracking-tight">{value}</h3>
+        {trend && (
+          <div className="flex items-center mt-2 text-xs font-medium text-emerald-600 bg-emerald-50 w-fit px-2 py-0.5 rounded-full">
+            <ArrowUpRight size={12} className="mr-1" />
+            {trend} {t('dashboard_trend')}
+          </div>
+        )}
+      </div>
+      <div className={`absolute -right-6 -bottom-6 w-24 h-24 rounded-full ${color} opacity-5 group-hover:scale-150 transition-transform duration-500 ease-out`}></div>
     </div>
-    <div className={`absolute -right-6 -bottom-6 w-24 h-24 rounded-full ${color} opacity-5 group-hover:scale-150 transition-transform duration-500 ease-out`}></div>
-  </div>
-);
+  );
+};
 
 const ActionCard: React.FC<{ to: string; title: string; subtitle: string; icon: React.ReactNode; color: string }> = ({ to, title, subtitle, icon, color }) => (
   <Link to={to} className="relative overflow-hidden bg-white p-5 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-all duration-300 flex items-center space-x-4 group">
@@ -54,9 +59,10 @@ import { useDashboardStats } from '../hooks/useDashboardStats';
 import { useQuery } from '@tanstack/react-query';
 import { MerchantAIPredictions } from '../components/business/MerchantAIPredictions';
 const Dashboard: React.FC = () => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [activeVenueId, setActiveVenueId] = useState(user?.venueIds?.[0] ?? user?.venueId);
+  const [activeVenueId, setActiveVenueId] = useState(getUserVenueId(user));
   const [chartPeriod, setChartPeriod] = useState<'7d' | '30d'>('7d');
 
   // Listado de sedes para el selector (si tiene múltiples)
@@ -107,7 +113,7 @@ const Dashboard: React.FC = () => {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight">
-            Hola, <span className="text-emerald-600">{user?.fullName?.split(' ')[0]}</span> 👋
+            {t('dashboard_greeting', { name: user?.fullName?.split(' ')[0] })} 👋
           </h1>
           <p className="text-slate-500 font-medium mt-1 capitalize">{today}</p>
         </div>
@@ -134,13 +140,13 @@ const Dashboard: React.FC = () => {
         {user?.role !== UserRole.KITCHEN_STAFF && (
           <>
             <MetricCard
-              title="Ventas Brutas"
+              title={t('dashboard_revenue')}
               value={formatCOP(displayMetrics.revenue)}
               icon={<DollarSign size={24} className="text-blue-600" />}
               color="bg-blue-500"
             />
             <MetricCard
-              title="Ganancias Netas"
+              title={t('dashboard_orders')}
               value={formatCOP(stats?.venueEarnings ?? displayMetrics.revenue * 0.9)}
               icon={<DollarSign size={24} className="text-emerald-600" />}
               color="bg-emerald-500"
@@ -148,13 +154,13 @@ const Dashboard: React.FC = () => {
           </>
         )}
         <MetricCard
-          title="Comida Salvada"
+          title={t('dashboard_food_saved')}
           value={`${displayMetrics.wasteSavedKg} kg`}
           icon={<Leaf size={24} className="text-emerald-600" />}
           color="bg-emerald-500"
         />
         <MetricCard
-          title="Platos Rescatados"
+          title={t('dashboard_food_saved')}
           value={`${displayMetrics.mealsSaved}`}
           icon={<TrendingUp size={24} className="text-purple-600" />}
           color="bg-purple-500"
@@ -177,7 +183,7 @@ const Dashboard: React.FC = () => {
 
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-lg font-bold text-slate-800">Tendencia de Impacto</h2>
+              <h2 className="text-lg font-bold text-slate-800">{t('dashboard_revenue_trend')}</h2>
               <select
                 value={chartPeriod}
                 onChange={(e) => setChartPeriod(e.target.value as '7d' | '30d')}
@@ -219,7 +225,7 @@ const Dashboard: React.FC = () => {
               ) : (
                 <div className="h-full flex flex-col items-center justify-center text-slate-400">
                   <BarChartIcon size={48} className="mb-2 opacity-50" />
-                  <p className="text-sm">Sin datos suficientes aún</p>
+                  <p className="text-sm">{t('dashboard_no_data')}</p>
                 </div>
               )}
             </div>
@@ -231,7 +237,7 @@ const Dashboard: React.FC = () => {
             <div className="bg-slate-900 text-white p-6 rounded-2xl shadow-xl overflow-hidden relative">
               <div className="absolute -right-4 -top-4 w-24 h-24 bg-emerald-500/20 rounded-full blur-2xl"></div>
               <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                <span className="text-emerald-400">✨</span> Productos Estrella
+                <span className="text-emerald-400">✨</span> {t('dashboard_quick_actions')}
               </h2>
               <div className="space-y-4">
                 {stats?.topProducts && stats.topProducts.length > 0 ? (
@@ -256,25 +262,25 @@ const Dashboard: React.FC = () => {
             </div>
 
             <div className="space-y-4">
-              <h2 className="text-lg font-bold text-slate-800 mb-2">Acciones Rápidas</h2>
+              <h2 className="text-lg font-bold text-slate-800 mb-2">{t('dashboard_quick_actions')}</h2>
               <ActionCard
                 to="/products"
-                title="Nuevo Producto"
-                subtitle="Publicar oferta flash"
+                title={t('dashboard_add_product')}
+                subtitle={t('dashboard_add_product_sub')}
                 icon={<Plus size={24} className="text-emerald-600" />}
                 color="bg-emerald-500"
               />
               <ActionCard
                 to="/order-management"
-                title="Gestionar Pedidos"
+                title={t('dashboard_manage_orders')}
                 subtitle={`${stats?.ordersByStatus?.['PAID'] || 0} pendientes`}
                 icon={<ClipboardList size={24} className="text-blue-600" />}
                 color="bg-blue-500"
               />
               <ActionCard
                 to="/settings"
-                title="Configuración"
-                subtitle="Perfil y horarios"
+                title={t('dashboard_config')}
+                subtitle={t('dashboard_config_sub')}
                 icon={<SettingsIcon size={24} className="text-purple-600" />}
                 color="bg-purple-500"
               />

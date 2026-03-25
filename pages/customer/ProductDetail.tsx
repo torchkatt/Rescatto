@@ -100,7 +100,7 @@ export const ProductDetail: React.FC = () => {
             />
             
             {/* Header / Nav - Expanded for Desktop */}
-            <div className="bg-white/80 backdrop-blur-xl sticky top-0 z-40 border-b border-gray-100/50">
+            <div className="bg-white/80 backdrop-blur-xl sticky top-0 z-40 border-b border-gray-100/50 pt-safe-top transition-all">
                 <div className="max-w-[1600px] mx-auto px-6 lg:px-10 py-4 flex items-center gap-4">
                     <button
                         onClick={() => navigate(-1)}

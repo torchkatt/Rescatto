@@ -77,8 +77,8 @@ export function useOrderSync(options: OrderSyncOptions = {}) {
                     OrderStatus.PENDING,
                     OrderStatus.PAID,
                     OrderStatus.IN_PREPARATION,
-                    OrderStatus.READY_PICKUP,
-                    OrderStatus.DRIVER_ACCEPTED,
+                    OrderStatus.READY,
+                    OrderStatus.DRIVER_ASSIGNED,
                     OrderStatus.IN_TRANSIT
                 ];
                 conditions.push(where('status', 'in', activeStatuses));
@@ -131,7 +131,7 @@ export function useOrderSync(options: OrderSyncOptions = {}) {
             total: orders.length,
             pending: orders.filter(o => o.status === OrderStatus.PAID).length,
             preparing: orders.filter(o => o.status === OrderStatus.IN_PREPARATION).length,
-            ready: orders.filter(o => o.status === OrderStatus.READY_PICKUP).length,
+            ready: orders.filter(o => o.status === OrderStatus.READY).length,
             inTransit: orders.filter(o => o.status === OrderStatus.IN_TRANSIT).length,
         };
     }, [orders]);

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { getUserVenueId } from '../../utils/getUserVenueId';
 import { UserRole } from '../../types';
 import { walletService, VenueWallet, WalletTransaction } from '../../services/walletService';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
@@ -15,7 +16,7 @@ import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 export const VenueFinance: React.FC = () => {
     const { user } = useAuth();
     const { showToast } = useToast();
-    const venueId = user?.venueIds?.[0] ?? user?.venueId;
+    const venueId = getUserVenueId(user);
     const [wallet, setWallet] = useState<VenueWallet | null>(null);
     const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
     const [loading, setLoading] = useState(true);

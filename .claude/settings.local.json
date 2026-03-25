@@ -13,7 +13,15 @@
       "Bash(firebase deploy --only functions:getBankPaymentInfo,functions:updateBankPaymentInfo)",
       "Bash(firebase deploy --only functions:requestBankInfoChange,functions:createSubscriptionRequest,functions:submitPaymentProof)",
       "Bash(firebase deploy --only functions:createSubscriptionRequest)",
-      "Bash(firebase deploy --only functions:getFinanceStats)"
+      "Bash(firebase deploy --only functions:getFinanceStats)",
+      "Bash(node -e \":*)",
+      "Bash(npm run lint)",
+      "Bash(npm run test:run)",
+      "Bash(npm run test:run -- tests/hooks/useOrderSync.test.ts tests/context/AuthContext.test.tsx tests/services/webhookSignature.test.ts)",
+      "Bash(npm run test:run -- tests/hooks/useOrderSync.test.ts)",
+      "Bash(npm install -D eslint @typescript-eslint/parser @typescript-eslint/eslint-plugin eslint-plugin-react eslint-plugin-react-hooks)",
+      "Bash(test -f /Users/alexandersandoval/Documents/PERSONAL/DESARROLLO/rescatto-business-dashboard/.eslintrc.json)",
+      "Bash(npx vitest run tests/flows/BusinessFlows.test.tsx)"
     ]
   }
 }

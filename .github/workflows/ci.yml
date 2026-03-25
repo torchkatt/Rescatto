@@ -18,7 +18,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -50,6 +50,10 @@ jobs:
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
           VITE_WOMPI_PUBLIC_KEY: ${{ secrets.VITE_WOMPI_PUBLIC_KEY }}
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
+
+      - name: Security audit
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
 
       - name: Upload test coverage
         if: always()

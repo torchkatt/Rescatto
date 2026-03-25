@@ -43,8 +43,9 @@ export const LoadingSpinner: React.FC<{
 
     if (fullPage) {
         return (
-            <div className="flex-1 flex items-center justify-center min-h-[60vh] w-full">
+            <div role="status" aria-live="polite" aria-busy="true" className="flex-1 flex items-center justify-center min-h-[60vh] w-full">
                 {spinner}
+                <span className="sr-only">Cargando...</span>
             </div>
         );
     }
@@ -207,7 +208,7 @@ export const VenueDetailSkeletonLoader: React.FC = () => (
 
 export const LoadingScreen: React.FC<{ message?: string }> = ({ message = 'Cargando...' }) => {
     return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm fixed inset-0 z-[9999]">
+        <div role="status" aria-live="polite" aria-busy="true" className="min-h-screen flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm fixed inset-0 z-[9999]">
             <div className="relative mb-8">
                 {/* Decorative background glow */}
                 <div className="absolute inset-0 bg-emerald-500/10 blur-3xl rounded-full scale-150"></div>

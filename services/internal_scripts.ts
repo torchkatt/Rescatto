@@ -135,7 +135,7 @@ export class OrderService {
     
     const missedOrders = await this.orderRepo.find({
       where: {
-        status: OrderStatus.READY_PICKUP,
+        status: OrderStatus.READY,
         pickup_deadline: LessThan(new Date()),
       },
     });

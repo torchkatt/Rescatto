@@ -76,11 +76,13 @@ const {
     sendRetentionNotifications,
     handleOrderAcceptanceTimeout,
     handleDriverConfirmationTimeout,
+    backupFirestore,
 } = require("./src/services/cronService");
 
 // ─── Miscellaneous Services ───────────────────────────────────────────────────
 const {
-    healthCheck
+    healthCheck,
+    scheduledHealthCheck,
 } = require("./src/services/miscService");
 
 // ─── Subscription Services ────────────────────────────────────────────────────
@@ -164,9 +166,11 @@ module.exports = {
     sendRetentionNotifications,
     handleOrderAcceptanceTimeout,
     handleDriverConfirmationTimeout,
+    backupFirestore,
 
     // Misc
     healthCheck,
+    scheduledHealthCheck,
 
     // Subscriptions
     createSubscriptionRequest,

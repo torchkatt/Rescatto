@@ -258,7 +258,13 @@ export class ProductService {
             const products: Product[] = [];
             let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
             let hasMore = true;
+            let iterations = 0;
+            const MAX_ITERATIONS = 20;
             while (hasMore) {
+                if (++iterations > MAX_ITERATIONS) {
+                    logger.warn('Pagination safety limit reached in getAllActiveProducts');
+                    break;
+                }
                 const constraints: any[] = [
                     where('quantity', '>', 0),
                     orderBy('quantity', 'desc'),

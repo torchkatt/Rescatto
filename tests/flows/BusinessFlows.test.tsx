@@ -12,7 +12,15 @@ vi.mock('../../context/AuthContext', () => ({
 // ─── Mock react-i18next ──────────────────────────────────────────────────────
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    // When called with opts containing interpolation values, include the first
+    // string value so assertions on user names (e.g. /Maria/) keep passing.
+    t: (key: string, opts?: Record<string, unknown>) => {
+        if (opts) {
+            const firstVal = Object.values(opts).find(v => typeof v === 'string');
+            if (firstVal) return `${key} ${firstVal}`;
+        }
+        return key;
+    },
     i18n: { language: 'es', changeLanguage: vi.fn() },
   }),
   Trans: ({ children }: any) => <>{children}</>,

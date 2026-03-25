@@ -16,6 +16,7 @@ import { RatingDisplay } from '../../components/rating/RatingDisplay';
 import { RatingStats } from '../../types';
 
 import { logger } from '../../utils/logger';
+import { useConfirm } from '../../context/ConfirmContext';
 
 const PAGE_SIZE = 20;
 
@@ -52,6 +53,7 @@ export const DriverDashboard: React.FC = () => {
     const navigate = useNavigate();
     const { createChat, openChat } = useChat();
     const { showToast } = useToast();
+    const confirm = useConfirm();
     const [availableOrders, setAvailableOrders] = useState<DeliveryOrder[]>([]);
     const [myDeliveries, setMyDeliveries] = useState<DeliveryOrder[]>([]);
     const [completedOrders, setCompletedOrders] = useState<DeliveryOrder[]>([]);
@@ -217,6 +219,8 @@ export const DriverDashboard: React.FC = () => {
             showToast('error', 'Error: Usuario no autenticado');
             return;
         }
+        const ok = await confirm({ message: '¿Confirmas que quieres tomar esta entrega?', confirmLabel: 'Confirmar' });
+        if (!ok) return;
         try {
             const takeDelivery = httpsCallable(functions, 'takeDelivery');
             await takeDelivery({ orderId });

@@ -69,7 +69,7 @@ export const MOCK_ORDERS: Order[] = [
     customerName: 'Carlos López',
     products: [toOrderProduct(MOCK_PRODUCTS[1])],
     totalAmount: 12000,
-    status: OrderStatus.READY_PICKUP, // Waiting for customer
+    status: OrderStatus.READY, // Waiting for customer
     createdAt: new Date(Date.now() - 1000 * 60 * 25).toISOString(), // 25 mins ago
     pickupDeadline: new Date(new Date().setHours(21, 30, 0, 0)).toISOString(),
     venueId: 'v1',

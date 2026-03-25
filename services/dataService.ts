@@ -252,7 +252,13 @@ export const dataService = {
         const orders: Order[] = [];
         let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
         let hasMore = true;
+        let iterations = 0;
+        const MAX_ITERATIONS = 20;
         while (hasMore) {
+            if (++iterations > MAX_ITERATIONS) {
+                logger.warn('Pagination safety limit reached in getAllOrders');
+                break;
+            }
             const constraints: any[] = [orderBy('createdAt', 'desc')];
             if (lastDoc) constraints.push(startAfter(lastDoc));
             constraints.push(limit(50));
@@ -381,7 +387,7 @@ export const dataService = {
 
         return onSnapshot(q, (snapshot) => {
             const allowedStatuses = new Set<OrderStatus>([
-                OrderStatus.READY_PICKUP,
+                OrderStatus.READY,
             ]);
 
             const orders = snapshot.docs.map(doc => {
@@ -492,7 +498,13 @@ export const dataService = {
         const centers: DonationCenter[] = [];
         let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
         let hasMore = true;
+        let iterations = 0;
+        const MAX_ITERATIONS = 20;
         while (hasMore) {
+            if (++iterations > MAX_ITERATIONS) {
+                logger.warn('Pagination safety limit reached in getDonationCenters');
+                break;
+            }
             const constraints: any[] = [orderBy('name', 'asc')];
             if (lastDoc) constraints.push(startAfter(lastDoc));
             constraints.push(limit(50));

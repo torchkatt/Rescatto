@@ -2,7 +2,13 @@ import { logger } from '../utils/logger';
 /**
  * Servicio de caché local para optimizar lecturas de Firestore.
  * Almacena datos en localStorage con un tiempo de expiración (TTL).
+ *
+ * Bump CACHE_VERSION to invalidate all cached data after a breaking schema change.
  */
+
+const CACHE_VERSION = 'v1';
+
+const versionedKey = (key: string) => `${CACHE_VERSION}:${key}`;
 
 interface CacheItem<T> {
     data: T;
@@ -17,7 +23,7 @@ export const cacheService = {
      */
     get: <T>(key: string): T | null => {
         try {
-            const itemStr = localStorage.getItem(key);
+            const itemStr = localStorage.getItem(versionedKey(key));
             if (!itemStr) return null;
 
             const item: CacheItem<T> = JSON.parse(itemStr);
@@ -25,7 +31,7 @@ export const cacheService = {
 
             // Verificar expiración
             if (now > item.expiry) {
-                localStorage.removeItem(key);
+                localStorage.removeItem(versionedKey(key));
                 return null;
             }
 
@@ -49,7 +55,7 @@ export const cacheService = {
                 data,
                 expiry: now + (ttlMinutes * 60 * 1000),
             };
-            localStorage.setItem(key, JSON.stringify(item));
+            localStorage.setItem(versionedKey(key), JSON.stringify(item));
         } catch (error) {
             logger.error('Error escribiendo en caché:', error);
         }
@@ -60,7 +66,7 @@ export const cacheService = {
      * @param key Clave a eliminar
      */
     remove: (key: string): void => {
-        localStorage.removeItem(key);
+        localStorage.removeItem(versionedKey(key));
     },
 
     /**
@@ -68,9 +74,28 @@ export const cacheService = {
      * @param prefix Prefijo de las claves a eliminar (ej: "venue_")
      */
     clearByPrefix: (prefix: string): void => {
+        const versionedPrefix = versionedKey(prefix);
         Object.keys(localStorage).forEach((key) => {
-            if (key.startsWith(prefix)) {
+            if (key.startsWith(versionedPrefix)) {
                 localStorage.removeItem(key);
+            }
+        });
+    },
+
+    /**
+     * Purges all cache entries from older versions (keys without the current version prefix).
+     */
+    purgeStale: (): void => {
+        Object.keys(localStorage).forEach((key) => {
+            if (!key.startsWith(`${CACHE_VERSION}:`) && localStorage.getItem(key) !== null) {
+                try {
+                    const parsed = JSON.parse(localStorage.getItem(key) || '{}');
+                    if ('data' in parsed && 'expiry' in parsed) {
+                        localStorage.removeItem(key);
+                    }
+                } catch {
+                    // Not a cache entry, skip
+                }
             }
         });
     }

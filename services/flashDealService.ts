@@ -104,7 +104,13 @@ export const flashDealService = {
             const deals: FlashDeal[] = [];
             let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
             let hasMore = true;
+            let iterations = 0;
+            const MAX_ITERATIONS = 20;
             while (hasMore) {
+                if (++iterations > MAX_ITERATIONS) {
+                    logger.warn('Pagination safety limit reached in getDealsByVenue');
+                    break;
+                }
                 const constraints: any[] = [
                     where('venueId', '==', venueId),
                     orderBy('startTime', 'desc'),

@@ -345,28 +345,30 @@ export const MyOrders: React.FC = () => {
     const unratedOrders = orders.filter(o => o.status === OrderStatus.COMPLETED && !o.rated);
 
     return (
-        <div className="min-h-screen bg-gray-50 p-6 overflow-x-hidden">
-            <div className="max-w-4xl mx-auto">
-                {/* Botón de Volver */}
-                <button
-                    onClick={() => navigate('/app')}
-                    className="flex items-center gap-2 text-gray-600 hover:text-emerald-600 mb-4 transition-colors group"
-                >
-                    <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
-                    <span className="font-medium">{t('orders_back')}</span>
-                </button>
-
-                <div className="flex justify-between items-center mb-6">
-                    <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-3">
-                        <Package className="text-emerald-600" />
-                        {t('orders_title')}
-                    </h1>
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-full">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
+        <div className="min-h-screen bg-gray-50 pb-24 overflow-x-hidden">
+            {/* Header */}
+            <header className="bg-white sticky top-0 pt-safe-top z-40 shadow-sm border-b border-gray-100">
+                <div className="px-4 py-3 flex items-center justify-between max-w-4xl mx-auto w-full">
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => navigate('/app')}
+                            className="p-2 rounded-full hover:bg-gray-100 transition-colors active:scale-95"
+                        >
+                            <ArrowLeft size={20} className="text-gray-600" />
+                        </button>
+                        <div className="flex items-center gap-2">
+                            <Package size={20} className="text-emerald-500" />
+                            <h1 className="text-lg font-bold text-gray-900">{t('orders_title')}</h1>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-600 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-full">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
                         {t('orders_live')}
                     </div>
                 </div>
+            </header>
 
+            <main className="p-4 sm:p-6 max-w-4xl mx-auto">
                 {orderIdParam && (
                     <div className="mb-6 space-y-3 animate-fadeIn">
                         <GuestConversionBanner context="post-order" />
@@ -695,7 +697,7 @@ export const MyOrders: React.FC = () => {
                         )}
                     </div>
                 )}
-            </div>
+            </main>
 
             {/* Modal de Calificación */}
             {ratingOrder && (

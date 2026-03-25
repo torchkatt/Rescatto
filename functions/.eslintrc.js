@@ -13,6 +13,12 @@ module.exports = {
         "no-restricted-globals": ["error", "name", "length"],
         "prefer-arrow-callback": "error",
         "quotes": ["error", "double", { "allowTemplateLiterals": true }],
+        "no-console": "warn",
+        "eqeqeq": ["error", "always"],
+        "no-eval": "error",
+        "no-implied-eval": "error",
+        "no-new-func": "error",
+        "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
     },
     overrides: [
         {

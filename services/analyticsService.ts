@@ -1,4 +1,4 @@
-import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, Timestamp, limit } from 'firebase/firestore';
 import { db } from './firebase';
 import { OrderStatus } from '../types';
 import { startOfDay, endOfDay, subDays, format } from 'date-fns';
@@ -184,7 +184,7 @@ export const getOrderStatistics = async (
                 case OrderStatus.PAID:
                     stats.paid++;
                     break;
-                case OrderStatus.READY_PICKUP:
+                case OrderStatus.READY:
                     stats.readyForPickup++;
                     break;
                 case OrderStatus.COMPLETED:
@@ -287,7 +287,8 @@ export const getDailyRevenueTrends = async (
             q = query(
                 ordersRef,
                 where('createdAt', '>=', startOfDay(dateRange.start).toISOString()),
-                where('createdAt', '<=', endOfDay(dateRange.end).toISOString())
+                where('createdAt', '<=', endOfDay(dateRange.end).toISOString()),
+                limit(5000)
             );
         } else if (Array.isArray(venueId)) {
             if (venueId.length === 0) return [];
@@ -295,14 +296,16 @@ export const getDailyRevenueTrends = async (
                 ordersRef,
                 where('venueId', 'in', venueId.slice(0, 10)),
                 where('createdAt', '>=', startOfDay(dateRange.start).toISOString()),
-                where('createdAt', '<=', endOfDay(dateRange.end).toISOString())
+                where('createdAt', '<=', endOfDay(dateRange.end).toISOString()),
+                limit(5000)
             );
         } else {
             q = query(
                 ordersRef,
                 where('venueId', '==', venueId),
                 where('createdAt', '>=', startOfDay(dateRange.start).toISOString()),
-                where('createdAt', '<=', endOfDay(dateRange.end).toISOString())
+                where('createdAt', '<=', endOfDay(dateRange.end).toISOString()),
+                limit(5000)
             );
         }
 

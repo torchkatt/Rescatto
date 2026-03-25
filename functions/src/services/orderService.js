@@ -153,13 +153,6 @@ const createOrder = onCall(
             throw new HttpsError("invalid-argument", "Valid transactionId is required for card payments.");
         }
 
-        if (normalizedPaymentMethod === "card" && transactionId) {
-            const existingOrder = await db.collection("orders").where("transactionId", "==", transactionId).limit(1).get();
-            if (!existingOrder.empty) {
-                throw new HttpsError("already-exists", "Esta transacción ya fue procesada.");
-            }
-        }
-
         let venueOwnerIdForMeta = null;
         let venueNameForMeta = null;
         let venueNeighborhoodForMeta = null;
@@ -202,6 +195,15 @@ const createOrder = onCall(
                     throw new HttpsError("failed-precondition", "La transacción reporta estado fallido.");
                 }
                 cardApprovedBeforeOrder = approvedSnap.exists;
+
+                // Verificar unicidad de transactionId dentro de la transacción (previene doble cobro)
+                if (transactionId) {
+                    const existingOrderSnap = await db.collection("orders")
+                        .where("transactionId", "==", transactionId).limit(1).get();
+                    if (!existingOrderSnap.empty) {
+                        throw new HttpsError("already-exists", "Esta transacción ya fue procesada.");
+                    }
+                }
             }
 
             const venueDoc = await transaction.get(db.collection("venues").doc(venueId));

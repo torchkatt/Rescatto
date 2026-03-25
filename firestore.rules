@@ -582,8 +582,8 @@ service cloud.firestore {
     match /audit_logs/{logId} {
       allow read: if isAdmin();
       // Only allow creating a log entry for your own actions (prevents spoofing other users)
-      allow create: if (isAuthenticated() || request.resource.data.performedBy == 'anonymous')
-          && (request.resource.data.performedBy == request.auth.uid || request.resource.data.performedBy == 'anonymous' || request.resource.data.performedBy == request.auth.token.email)
+      allow create: if isAuthenticated()
+          && request.resource.data.performedBy == request.auth.uid
           && isValidAuditLog();
       allow update, delete: if false;     // Immutable
     }

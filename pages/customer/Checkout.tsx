@@ -342,16 +342,21 @@ export const Checkout: React.FC = () => {
     }
 
     return (
-        <>
-            <div className="min-h-screen bg-gradient-to-br from-gray-50 via-emerald-50/30 to-gray-50 p-6 overflow-x-hidden">
-                <div className="max-w-4xl mx-auto">
+        <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 px-6 pb-6 pt-safe-top">
+            <div className="max-w-7xl mx-auto pt-4">
+                {/* Header Section */}
+                <div className="flex items-center gap-4 mb-8">
                     <button
                         onClick={() => navigate('/app/cart')}
-                        className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6 transition-all font-bold active:scale-95 px-2 py-1"
+                        className="p-3 bg-white border border-slate-200 rounded-full text-slate-700 hover:text-emerald-600 hover:border-emerald-500 hover:bg-emerald-50 transition-all duration-300 shadow-sm active:scale-95"
                     >
-                        <ArrowLeft size={20} />
-                        {t('checkout_back_cart')}
+                        <ArrowLeft size={20} strokeWidth={2.5} />
                     </button>
+                    <div>
+                        <h1 className="text-3xl font-black text-slate-900 leading-none">{t('checkout_title')}</h1>
+                        <p className="text-slate-500 font-medium">{t('checkout_subtitle')}</p>
+                    </div>
+                </div>
 
                     <GuestConversionBanner context="checkout" />
 
@@ -662,9 +667,8 @@ export const Checkout: React.FC = () => {
                                 </p>
                             </div>
                         </div>
-                    </div>
                 </div>
-            </div >
+            </div>
 
             {/* Notification permission modal — shown after first successful order */}
             {showNotifModal && user && (
@@ -676,7 +680,7 @@ export const Checkout: React.FC = () => {
                     }}
                 />
             )}
-        </>
+        </div>
     );
 };
 

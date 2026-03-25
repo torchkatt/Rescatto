@@ -61,8 +61,8 @@ export const calculateDeliveryFee = (
     // Note: Usually base fee covers the first X km, but here let's keep it simple or strictly additive as per user request for "ranges and logic". 
     // Let's implement a standard Base + Distance model.
 
-    const fee = venue.deliveryConfig.baseFee + (venue.deliveryConfig.pricePerKm * distanceKm);
+    const rawFee = venue.deliveryConfig.baseFee + (venue.deliveryConfig.pricePerKm * distanceKm);
+    const clampedFee = Math.max(0, Math.min(25000, Math.ceil(rawFee / 100) * 100));
 
-    // Round to nearest hundred/thousand if needed, but let's keep raw for now
-    return { possible: true, fee: Math.ceil(fee / 100) * 100, distance: distanceKm };
+    return { possible: true, fee: clampedFee, distance: distanceKm };
 };

@@ -37,16 +37,18 @@ export const usePWA = () => {
         checkInstall();
 
         // Detect when it gets installed
-        window.addEventListener('appinstalled', () => {
+        const appInstalledHandler = () => {
             setIsInstalled(true);
             setIsInstallable(false);
             setDeferredPrompt(null);
             setShowInstructions(false);
             showToast('success', '¡App instalada correctamente!');
-        });
+        };
+        window.addEventListener('appinstalled', appInstalledHandler);
 
         return () => {
             window.removeEventListener('beforeinstallprompt', handler);
+            window.removeEventListener('appinstalled', appInstalledHandler);
         };
     }, [showToast]);
 

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { dataService } from '../services/dataService';
 import { authService } from '../services/authService';
+import { getUserVenueId } from '../utils/getUserVenueId';
 import { Save, Zap, Building, Clock, Loader2, Store, Lock, Truck } from 'lucide-react';
 import { formatCOP } from '../utils/formatters';
 import { useToast } from '../context/ToastContext';
@@ -66,7 +67,7 @@ const Settings: React.FC = () => {
     };
 
     useEffect(() => {
-        const venueId = user?.venueIds?.[0] ?? user?.venueId;
+        const venueId = getUserVenueId(user);
         if (venueId) {
             loadVenue(venueId);
         }
@@ -113,7 +114,7 @@ const Settings: React.FC = () => {
     };
 
     const handleSave = async () => {
-        const venueId = user?.venueIds?.[0] ?? user?.venueId;
+        const venueId = getUserVenueId(user);
         if (!venue || !venueId) return;
 
         setIsSaving(true);
@@ -170,7 +171,7 @@ const Settings: React.FC = () => {
     }
 
     return (
-        <div className="max-w-4xl mx-auto space-y-8 pb-12 animate-in fade-in duration-700">
+        <div className="max-w-4xl mx-auto px-0 sm:px-2 space-y-8 pb-12 animate-in fade-in duration-700">
             <div>
                 <h1 className="text-2xl font-bold text-gray-900">{t('settings_title')}</h1>
                 <p className="text-gray-500">Gestiona tus preferencias de venta y automatización.</p>
@@ -218,14 +219,14 @@ const Settings: React.FC = () => {
                 </div>
 
                 <div className="p-8 space-y-8">
-                    <div className="flex items-center justify-between">
-                        <div>
+                    <div className="flex items-center justify-between gap-4">
+                        <div className="min-w-0">
                             <label className="font-bold text-gray-900 block">Activar Precios Dinámicos</label>
                             <p className="text-sm text-gray-500">Permitir que Rescatto reduzca precios automáticamente.</p>
                         </div>
                         <button
                             onClick={() => setDynamicPricingEnabled(!dynamicPricingEnabled)}
-                            className={`relative inline-flex h-8 w-14 items-center rounded-full transition-all active:scale-95 ${dynamicPricingEnabled ? 'bg-purple-600' : 'bg-gray-200'}`}
+                            className={`relative inline-flex flex-shrink-0 h-8 w-14 items-center rounded-full transition-all active:scale-95 ${dynamicPricingEnabled ? 'bg-purple-600' : 'bg-gray-200'}`}
                         >
                             <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${dynamicPricingEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
                         </button>
@@ -359,14 +360,14 @@ const Settings: React.FC = () => {
 
                 <div className="p-8 space-y-6">
                     {/* Toggle principal */}
-                    <div className="flex items-center justify-between">
-                        <div>
+                    <div className="flex items-center justify-between gap-4">
+                        <div className="min-w-0">
                             <label className="font-bold text-gray-900 block">Activar Domicilios</label>
                             <p className="text-sm text-gray-500">Permite a los clientes elegir entrega a domicilio.</p>
                         </div>
                         <button
                             onClick={() => setDeliveryConfig(d => ({ ...d, isEnabled: !d.isEnabled }))}
-                            className={`relative inline-flex h-8 w-14 items-center rounded-full transition-all active:scale-95 ${deliveryConfig.isEnabled ? 'bg-blue-600' : 'bg-gray-200'}`}
+                            className={`relative inline-flex flex-shrink-0 h-8 w-14 items-center rounded-full transition-all active:scale-95 ${deliveryConfig.isEnabled ? 'bg-blue-600' : 'bg-gray-200'}`}
                         >
                             <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${deliveryConfig.isEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
                         </button>

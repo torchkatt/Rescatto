@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import { UserRole } from '../../types';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
 import {
@@ -23,6 +24,7 @@ import RescueHeatmap from '../../components/admin/sections/RescueHeatmap';
 
 export const Analytics: React.FC = () => {
     const { user } = useAuth();
+    const { showToast } = useToast();
     const [loading, setLoading] = useState(true);
     const [selectedPreset, setSelectedPreset] = useState<DateRangePreset>('last7Days');
     const [customStart, setCustomStart] = useState('');
@@ -84,6 +86,7 @@ export const Analytics: React.FC = () => {
             setDailyTrends(trends);
         } catch (error) {
             logger.error('Error loading analytics:', error);
+            showToast('error', 'Error al cargar datos de analytics');
         } finally {
             setLoading(false);
         }

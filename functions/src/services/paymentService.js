@@ -96,6 +96,9 @@ const wompiWebhook = onRequest(
             signaturesMatch = sigBuffer.length === expectedBuffer.length &&
                 cryptoNode.timingSafeEqual(sigBuffer, expectedBuffer);
         } catch (_) {
+            logWarn("Wompi webhook: timingSafeEqual failed — malformed signature buffer", {
+                signatureLength: wompiSignature?.length,
+            });
             signaturesMatch = false;
         }
 
@@ -106,6 +109,10 @@ const wompiWebhook = onRequest(
 
         const webhookParsed = WompiWebhookSchema.safeParse(req.body);
         if (!webhookParsed.success) {
+            logWarn("Wompi webhook: schema validation failed — ignoring event", {
+                errors: webhookParsed.error?.issues?.map(i => i.message),
+                eventType: req.body?.event,
+            });
             return res.status(200).send({ received: true });
         }
         const event = webhookParsed.data;

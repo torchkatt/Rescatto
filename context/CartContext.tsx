@@ -107,7 +107,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 // No cloud cart — upload current local cart so it persists
                 setItems(prev => {
                     if (prev.length > 0) {
-                        cartSyncService.saveCart(userId, prev).catch(() => { });
+                        cartSyncService.saveCart(userId, prev).catch((e) => logger.warn('Cart sync failed:', e));
                     }
                     return prev;
                 });
@@ -128,7 +128,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
         saveTimerRef.current = setTimeout(() => {
-            cartSyncService.saveCart(userId, items).catch(() => { });
+            cartSyncService.saveCart(userId, items).catch((e) => logger.warn('Cart sync failed:', e));
         }, 800);
 
         return () => {
@@ -199,7 +199,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const clearCart = useCallback(() => {
         setItems([]);
         localStorage.removeItem('cart');
-        if (userId) cartSyncService.clearCart(userId).catch(() => { });
+        if (userId) cartSyncService.clearCart(userId).catch((e) => logger.warn('Cart clear failed:', e));
     }, [userId]);
 
     const getTotalItems = useCallback(() => {

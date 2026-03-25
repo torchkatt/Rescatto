@@ -249,7 +249,7 @@ const CustomerHome: React.FC = () => {
 
 
             {/* Header Sticky (Mobile Only) */}
-            <header className="px-6 pt-8 pb-4 bg-brand-bg sticky top-0 z-40 lg:hidden">
+            <header className="px-6 pt-safe-top pb-4 bg-brand-bg sticky top-0 z-40 lg:hidden">
                 <div className="max-w-7xl mx-auto">
                     <div className="flex items-center justify-between mb-4">
                         <button

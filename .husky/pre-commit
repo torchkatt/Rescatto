@@ -1,1 +1,2 @@
 npx lint-staged
+npm run test:run -- --changed 2>/dev/null || true

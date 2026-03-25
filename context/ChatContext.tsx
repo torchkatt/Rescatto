@@ -70,6 +70,43 @@ interface ChatProviderProps {
     children: ReactNode;
 }
 
+// ─── Grouped state types ───────────────────────────────────────────────────────
+
+interface ChatListState {
+    base: Chat[];
+    extra: Chat[];
+    lastDoc: QueryDocumentSnapshot<DocumentData> | null;
+    loadingMore: boolean;
+    hasMore: boolean;
+}
+
+interface MessageListState {
+    latest: Message[];
+    older: Message[];
+    lastDoc: QueryDocumentSnapshot<DocumentData> | null;
+    loadingMore: boolean;
+    hasMore: boolean;
+}
+
+interface UiState {
+    loading: boolean;
+    sending: boolean;
+}
+
+// ─── Defaults ─────────────────────────────────────────────────────────────────
+
+const defaultChatList: ChatListState = {
+    base: [], extra: [], lastDoc: null, loadingMore: false, hasMore: true,
+};
+
+const defaultMessageList: MessageListState = {
+    latest: [], older: [], lastDoc: null, loadingMore: false, hasMore: true,
+};
+
+const defaultUi: UiState = { loading: false, sending: false };
+
+// ─── Provider ─────────────────────────────────────────────────────────────────
+
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const { user } = useAuth();
     const { error: showError } = useToast();
@@ -82,35 +119,25 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         setActiveLink
     } = useNotifications();
 
+    // Grouped state — replaces 13 individual useState calls
+    const [chatList, setChatList] = useState<ChatListState>(defaultChatList);
+    const [messageList, setMessageList] = useState<MessageListState>(defaultMessageList);
+    const [ui, setUi] = useState<UiState>(defaultUi);
+
+    // Derived / individual state
     const [chats, setChats] = useState<Chat[]>([]);
-    const [baseChats, setBaseChats] = useState<Chat[]>([]);
-    const [extraChats, setExtraChats] = useState<Chat[]>([]);
     const [currentChat, setCurrentChat] = useState<Chat | null>(null);
     const [messages, setMessages] = useState<Message[]>([]);
-    const [latestMessages, setLatestMessages] = useState<Message[]>([]);
-    const [olderMessages, setOlderMessages] = useState<Message[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
-    const [loading, setLoading] = useState(false);
-    const [sending, setSending] = useState(false);
-    const [loadingMoreChats, setLoadingMoreChats] = useState(false);
-    const [hasMoreChats, setHasMoreChats] = useState(true);
-    const [loadingMoreMessages, setLoadingMoreMessages] = useState(false);
-    const [hasMoreMessages, setHasMoreMessages] = useState(true);
-    const [chatsLastDoc, setChatsLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
-    const [messagesLastDoc, setMessagesLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
 
     // Fetch user's chats (paginated)
     useEffect(() => {
         if (!user?.id) {
+            setChatList(defaultChatList);
             setChats([]);
             setUnreadCount(0);
-            setBaseChats([]);
-            setExtraChats([]);
-            setChatsLastDoc(null);
-            setHasMoreChats(true);
             return;
         }
-        // Hybrid: realtime for latest chats only
         const chatsRef = collection(db, 'chats');
         const q = query(
             chatsRef,
@@ -121,46 +148,48 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
         const unsub = onSnapshot(q, (snapshot) => {
             const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Chat[];
-            setBaseChats(data);
-            setChatsLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
-            setHasMoreChats(snapshot.docs.length === CHAT_PAGE_SIZE);
-            setUnreadCount(getUnreadCount(data, user.id));
+            setChatList(prev => ({
+                ...prev,
+                base: data,
+                lastDoc: snapshot.docs[snapshot.docs.length - 1] || null,
+                hasMore: snapshot.docs.length === CHAT_PAGE_SIZE,
+            }));
         });
 
         return () => unsub();
     }, [user?.id]);
 
+    // Merge base + extra chats into the public `chats` array
     useEffect(() => {
-        const merged = [...baseChats, ...extraChats];
+        const merged = [...chatList.base, ...chatList.extra];
         const unique = Array.from(new Map(merged.map(c => [c.id, c])).values());
         setChats(unique);
         if (user?.id) setUnreadCount(getUnreadCount(unique, user.id));
-    }, [baseChats, extraChats, user?.id]);
+    }, [chatList.base, chatList.extra, user?.id]);
 
-    // 1. Manage Active Link and Message Fetch
+    // Subscribe to messages for the current chat
     useEffect(() => {
         if (!currentChat?.id) {
+            setMessageList(defaultMessageList);
             setMessages([]);
-            setLatestMessages([]);
-            setOlderMessages([]);
-            setMessagesLastDoc(null);
-            setHasMoreMessages(true);
             setActiveLink(null);
             return;
         }
 
         const link = `/chat?id=${currentChat.id}`;
         setActiveLink(link);
-        // Hybrid: realtime for latest messages in current chat
         const messagesRef = collection(db, `chats/${currentChat.id}/messages`);
         const q = query(messagesRef, orderBy('timestamp', 'desc'), limit(MESSAGE_PAGE_SIZE));
 
         const unsub = onSnapshot(q, (snapshot) => {
             const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Message[];
             const ordered = [...data].reverse();
-            setLatestMessages(ordered);
-            setMessagesLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
-            setHasMoreMessages(snapshot.docs.length === MESSAGE_PAGE_SIZE);
+            setMessageList(prev => ({
+                ...prev,
+                latest: ordered,
+                lastDoc: snapshot.docs[snapshot.docs.length - 1] || null,
+                hasMore: snapshot.docs.length === MESSAGE_PAGE_SIZE,
+            }));
         });
 
         return () => {
@@ -169,28 +198,21 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         };
     }, [currentChat?.id, setActiveLink]);
 
+    // Merge older + latest messages into the public `messages` array
     useEffect(() => {
-        setMessages([...olderMessages, ...latestMessages]);
-    }, [olderMessages, latestMessages]);
+        setMessages([...messageList.older, ...messageList.latest]);
+    }, [messageList.older, messageList.latest]);
 
-
-    // 2. Handle Notifications Cleaning (Reactive)
+    // Mark notifications as read when current chat changes
     useEffect(() => {
         if (!currentChat?.id) return;
 
         const link = `/chat?id=${currentChat.id}`;
-
-        // Find notifications for THIS chat that are unread
-        const chatNotifications = notifications.filter(n =>
-            n.link === link && !n.read
-        );
-
+        const chatNotifications = notifications.filter(n => n.link === link && !n.read);
         if (chatNotifications.length === 0) return;
 
-        // Mark them as read
         const markRead = async () => {
             try {
-                // Use Promise.all to mark all found
                 await Promise.all(chatNotifications.map(n => markNotificationAsRead(n.id)));
             } catch (e) {
                 logger.warn('Error clearing chat notifications:', e);
@@ -203,7 +225,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const openChat = async (chatId: string) => {
         if (!user?.id) return;
 
-        setLoading(true);
+        setUi(prev => ({ ...prev, loading: true }));
         try {
             const chat = await getChatById(chatId);
             if (!chat) {
@@ -213,46 +235,39 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
             setCurrentChat(chat);
 
-            // Intentar marcar mensajes como leídos (Silenciosamente para no bloquear la UI)
             try {
                 await markMessagesAsRead(chatId, user.id);
-            } catch (readError: any) {
-                logger.warn('No se pudieron marcar los mensajes como leídos (posible falta de índice):', readError);
+            } catch (readError: unknown) {
+                logger.warn('No se pudieron marcar los mensajes como leídos:', readError);
             }
 
-            // Intentar marcar notificaciones como leídas (Silenciosamente)
             try {
                 const chatNotifications = notifications.filter(n =>
                     n.link === `/chat?id=${chatId}` && !n.read
                 );
-
                 for (const notif of chatNotifications) {
                     await markNotificationAsRead(notif.id);
                 }
             } catch (notifError) {
                 logger.warn('Error al limpiar notificaciones del chat:', notifError);
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             logger.error('Error opening chat:', error);
-
-            // Check if it's a Firebase index error
-            if (error?.message?.includes('index') || error?.message?.includes('query requires')) {
+            const msg = error instanceof Error ? error.message : '';
+            if (msg.includes('index') || msg.includes('query requires')) {
                 showError('⚠️ Faltan índices de Firebase. Revisa la consola para crear los índices necesarios.');
             } else {
                 showError(t('chat_error_open'));
             }
         } finally {
-            setLoading(false);
+            setUi(prev => ({ ...prev, loading: false }));
         }
     };
 
     const closeChat = () => {
         setCurrentChat(null);
+        setMessageList(defaultMessageList);
         setMessages([]);
-        setLatestMessages([]);
-        setOlderMessages([]);
-        setMessagesLastDoc(null);
-        setHasMoreMessages(true);
     };
 
     const sendMessage = async (
@@ -262,7 +277,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     ) => {
         if (!user || !currentChat || (!text.trim() && type === 'text')) return;
 
-        setSending(true);
+        setUi(prev => ({ ...prev, sending: true }));
         try {
             await sendMessageService(
                 currentChat.id,
@@ -273,13 +288,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 type,
                 extraData
             );
-            // Refresh recent messages after send (keeps UI in sync if snapshot lag)
-            await fetchMessages();
 
-            // Enviar notificación al otro participante
             const otherUserId = currentChat.participants.find(id => id !== user.id);
             if (otherUserId) {
-                // Determinar el título basado en el tipo de chat o el nombre del remitente
                 const title = t('chat_notif_title', { name: user.fullName });
                 const notificationText = type === 'location' ? t('chat_notif_location') :
                     text.trim().length > 50 ? text.trim().substring(0, 47) + '...' : text.trim();
@@ -294,9 +305,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
             }
         } catch (error) {
             logger.error('Error sending message:', error);
-            throw error; // Permitir que el llamador (ChatWindow) muestre el toast y no limpie el input
+            throw error;
         } finally {
-            setSending(false);
+            setUi(prev => ({ ...prev, sending: false }));
         }
     };
 
@@ -311,64 +322,68 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     const fetchChats = async (initial = false) => {
         if (!user?.id) return;
         if (initial) {
-            setLoading(true);
-            setChatsLastDoc(null);
-            setHasMoreChats(true);
+            setChatList(defaultChatList);
         }
         try {
-            const constraints: any[] = [
+            const constraints: Parameters<typeof query>[1][] = [
                 where('participants', 'array-contains', user.id),
                 orderBy('updatedAt', 'desc'),
             ];
-            if (!initial && chatsLastDoc) constraints.push(startAfter(chatsLastDoc));
+            if (!initial && chatList.lastDoc) constraints.push(startAfter(chatList.lastDoc));
             constraints.push(limit(CHAT_PAGE_SIZE));
             const q = query(collection(db, 'chats'), ...constraints);
             const snapshot = await getDocs(q);
             const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Chat[];
+            const newLastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
+            const hasMore = snapshot.docs.length === CHAT_PAGE_SIZE;
             if (initial) {
-                setExtraChats([]);
+                setChatList(prev => ({ ...prev, extra: [], lastDoc: newLastDoc, hasMore }));
             } else {
-                setExtraChats(prev => [...prev, ...data]);
+                setChatList(prev => ({
+                    ...prev,
+                    extra: [...prev.extra, ...data],
+                    lastDoc: newLastDoc,
+                    hasMore,
+                }));
             }
-            setChatsLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
-            setHasMoreChats(snapshot.docs.length === CHAT_PAGE_SIZE);
         } catch (error) {
             logger.error('Error fetching chats:', error);
-        } finally {
-            if (initial) setLoading(false);
         }
     };
 
-    const fetchMessages = async () => {
+    const fetchOlderMessages = async () => {
         if (!currentChat?.id) return;
         try {
-            const constraints: any[] = [orderBy('timestamp', 'desc')];
-            if (messagesLastDoc) constraints.push(startAfter(messagesLastDoc));
+            const constraints: Parameters<typeof query>[1][] = [orderBy('timestamp', 'desc')];
+            if (messageList.lastDoc) constraints.push(startAfter(messageList.lastDoc));
             constraints.push(limit(MESSAGE_PAGE_SIZE));
             const q = query(collection(db, `chats/${currentChat.id}/messages`), ...constraints);
             const snapshot = await getDocs(q);
             const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Message[];
             const ordered = [...data].reverse();
-            setOlderMessages(prev => [...ordered, ...prev]);
-            setMessagesLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
-            setHasMoreMessages(snapshot.docs.length === MESSAGE_PAGE_SIZE);
+            setMessageList(prev => ({
+                ...prev,
+                older: [...ordered, ...prev.older],
+                lastDoc: snapshot.docs[snapshot.docs.length - 1] || null,
+                hasMore: snapshot.docs.length === MESSAGE_PAGE_SIZE,
+            }));
         } catch (error) {
             logger.error('Error fetching messages:', error);
         }
     };
 
     const loadMoreChats = async () => {
-        if (!user?.id || !hasMoreChats || loadingMoreChats) return;
-        setLoadingMoreChats(true);
+        if (!user?.id || !chatList.hasMore || chatList.loadingMore) return;
+        setChatList(prev => ({ ...prev, loadingMore: true }));
         await fetchChats(false);
-        setLoadingMoreChats(false);
+        setChatList(prev => ({ ...prev, loadingMore: false }));
     };
 
     const loadMoreMessages = async () => {
-        if (!currentChat?.id || !hasMoreMessages || loadingMoreMessages) return;
-        setLoadingMoreMessages(true);
-        await fetchMessages();
-        setLoadingMoreMessages(false);
+        if (!currentChat?.id || !messageList.hasMore || messageList.loadingMore) return;
+        setMessageList(prev => ({ ...prev, loadingMore: true }));
+        await fetchOlderMessages();
+        setMessageList(prev => ({ ...prev, loadingMore: false }));
     };
 
     const createChat = async (
@@ -380,7 +395,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     ): Promise<Chat> => {
         if (!user) throw new Error('User not authenticated');
 
-        setLoading(true);
+        setUi(prev => ({ ...prev, loading: true }));
         try {
             const chat = await getOrCreateChat(
                 user.id,
@@ -392,23 +407,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                 chatType,
                 orderId
             );
-
-            // Note: We don't refresh chats here to avoid index errors
-            // The chat list will refresh naturally when the user navigates to chats
-
             return chat;
         } catch (error) {
             logger.error('Error creating chat:', error);
             showError(t('chat_error_create'));
             throw error;
         } finally {
-            setLoading(false);
+            setUi(prev => ({ ...prev, loading: false }));
         }
     };
 
     const markAsRead = async (chatId: string) => {
         if (!user?.id) return;
-
         try {
             await markMessagesAsRead(chatId, user.id);
         } catch (error) {
@@ -418,7 +428,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     const refreshChats = async () => {
         if (!user?.id) return;
-
         try {
             await fetchChats(true);
         } catch (error) {
@@ -431,12 +440,12 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         currentChat,
         messages,
         unreadCount,
-        loading,
-        sending,
-        loadingMoreChats,
-        hasMoreChats,
-        loadingMoreMessages,
-        hasMoreMessages,
+        loading: ui.loading,
+        sending: ui.sending,
+        loadingMoreChats: chatList.loadingMore,
+        hasMoreChats: chatList.hasMore,
+        loadingMoreMessages: messageList.loadingMore,
+        hasMoreMessages: messageList.hasMore,
         openChat,
         closeChat,
         sendMessage,

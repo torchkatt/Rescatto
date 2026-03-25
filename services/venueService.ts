@@ -48,7 +48,13 @@ export const venueService = {
         const venues: Venue[] = [];
         let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
         let hasMore = true;
+        let iterations = 0;
+        const MAX_ITERATIONS = 20;
         while (hasMore) {
+            if (++iterations > MAX_ITERATIONS) {
+                logger.warn('Pagination safety limit reached in venueService.getAllVenues');
+                break;
+            }
             const constraints: any[] = [orderBy('name')];
             if (city) constraints.unshift(where('city', '==', city));
             if (lastDoc) constraints.push(startAfter(lastDoc));

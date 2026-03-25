@@ -54,7 +54,13 @@ export const adminService = {
         const users: User[] = [];
         let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
         let hasMore = true;
+        let iterations = 0;
+        const MAX_ITERATIONS = 20;
         while (hasMore) {
+            if (++iterations > MAX_ITERATIONS) {
+                logger.warn('Pagination safety limit reached in getAllUsers');
+                break;
+            }
             const constraints: any[] = [orderBy('__name__')];
             if (cityFilter) constraints.push(where('city', '==', cityFilter));
             if (lastDoc) constraints.push(startAfter(lastDoc));
@@ -156,8 +162,14 @@ export const adminService = {
         const venues: Venue[] = [];
         let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
         let hasMore = true;
+        let iterations = 0;
+        const MAX_ITERATIONS = 20;
 
         while (hasMore) {
+            if (++iterations > MAX_ITERATIONS) {
+                logger.warn('Pagination safety limit reached in getAllVenues');
+                break;
+            }
             const constraints: any[] = [orderBy('__name__')];
             if (cityFilter) constraints.push(where('city', '==', cityFilter));
             if (lastDoc) constraints.push(startAfter(lastDoc));
@@ -243,8 +255,14 @@ export const adminService = {
         const products: Product[] = [];
         let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
         let hasMore = true;
+        let iterations = 0;
+        const MAX_ITERATIONS = 20;
 
         while (hasMore) {
+            if (++iterations > MAX_ITERATIONS) {
+                logger.warn('Pagination safety limit reached in getAllProducts');
+                break;
+            }
             const constraints: any[] = [orderBy('__name__')];
             if (cityFilter) {
                 constraints.push(where('city', '==', cityFilter));
@@ -272,7 +290,13 @@ export const adminService = {
             const categories: any[] = [];
             let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
             let hasMore = true;
+            let iterations = 0;
+            const MAX_ITERATIONS = 20;
             while (hasMore) {
+                if (++iterations > MAX_ITERATIONS) {
+                    logger.warn('Pagination safety limit reached in getAllCategories');
+                    break;
+                }
                 const q = lastDoc
                     ? query(collection(db, 'categories'), orderBy('__name__'), startAfter(lastDoc), limit(50))
                     : query(collection(db, 'categories'), orderBy('__name__'), limit(50));
@@ -369,7 +393,13 @@ export const adminService = {
         const orders: Order[] = [];
         let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
         let hasMore = true;
+        let iterations = 0;
+        const MAX_ITERATIONS = 20;
         while (hasMore) {
+            if (++iterations > MAX_ITERATIONS) {
+                logger.warn('Pagination safety limit reached in adminService.getAllOrders');
+                break;
+            }
             const constraints: any[] = [orderBy('createdAt', 'desc')];
             if (cityFilter) constraints.push(where('city', '==', cityFilter));
             if (lastDoc) constraints.push(startAfter(lastDoc));
@@ -475,7 +505,13 @@ export const adminService = {
         const points: { lat: number; lng: number; weight: number }[] = [];
         let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
         let hasMore = true;
+        let iterations = 0;
+        const MAX_ITERATIONS = 20;
         while (hasMore) {
+            if (++iterations > MAX_ITERATIONS) {
+                logger.warn('Pagination safety limit reached in getCompletedOrdersLocations');
+                break;
+            }
             const constraints: any[] = [
                 where('status', '==', 'COMPLETED'),
                 orderBy('__name__'),

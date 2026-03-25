@@ -31,12 +31,13 @@ export const useFavorites = () => {
         }
 
         // 2. Sync with Firestore (Background)
+        let cancelled = false;
         const fetchRemote = async () => {
             try {
                 const userRef = doc(db, 'users', user.id);
                 const userDoc = await getDoc(userRef);
 
-                if (userDoc.exists()) {
+                if (!cancelled && userDoc.exists()) {
                     const userData = userDoc.data();
                     const remoteFavs = userData.favoriteVenueIds || [];
 
@@ -49,11 +50,12 @@ export const useFavorites = () => {
             } catch (error) {
                 logger.error('Error syncing favorites:', error);
             } finally {
-                setLoading(false);
+                if (!cancelled) setLoading(false);
             }
         };
 
         fetchRemote();
+        return () => { cancelled = true; };
     }, [user?.id]);
 
     const toggleFavorite = useCallback(async (venueId: string) => {

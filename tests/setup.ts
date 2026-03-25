@@ -55,7 +55,10 @@ vi.mock('firebase/firestore', () => ({
   where: vi.fn(),
   orderBy: vi.fn(),
   onSnapshot: vi.fn(),
-  Timestamp: { now: vi.fn(() => ({ toDate: () => new Date() })) },
+  Timestamp: class FakeTimestamp {
+    static now() { return new FakeTimestamp(); }
+    toDate() { return new Date(); }
+  },
   increment: vi.fn((n) => n),
   arrayUnion: vi.fn(),
   arrayRemove: vi.fn(),

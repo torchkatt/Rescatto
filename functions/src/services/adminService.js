@@ -7,6 +7,20 @@ const { admin, db } = require("../admin");
 const { withErrorHandling } = require("../utils/errorHandler");
 const { GetFinanceStatsSchema } = require("../schemas");
 const { log, error: logError } = require("../utils/logger");
+const { checkRateLimit } = require("../utils/rateLimit");
+
+/**
+ * Verifies caller is SUPER_ADMIN or ADMIN. Throws HttpsError if not.
+ */
+async function verifyAdminAccess(uid) {
+    const userDoc = await db.collection("users").doc(uid).get();
+    if (!userDoc.exists) throw new HttpsError("permission-denied", "User not found.");
+    const role = userDoc.data().role;
+    if (role !== "SUPER_ADMIN" && role !== "ADMIN") {
+        throw new HttpsError("permission-denied", "Admin access required.");
+    }
+    return { role, userData: userDoc.data() };
+}
 
 /**
  * Global and per-venue stats aggregation on COMPLETED orders.
@@ -51,11 +65,7 @@ const aggregateAdminStats = onDocumentUpdated("orders/{orderId}", async (event) 
  */
 const getFinanceStats = onCall(withErrorHandling("getFinanceStats", async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Auth required.");
-
-    const userDoc = await db.collection("users").doc(request.auth.uid).get();
-    if (!userDoc.exists || userDoc.data().role !== "SUPER_ADMIN") {
-        throw new HttpsError("permission-denied", "Access denied.");
-    }
+    await verifyAdminAccess(request.auth.uid);
 
     const finParsed = GetFinanceStatsSchema.safeParse(request.data || {});
     if (!finParsed.success) throw new HttpsError("invalid-argument", "Invalid dates.");
@@ -106,11 +116,12 @@ const getFinanceStats = onCall(withErrorHandling("getFinanceStats", async (reque
 /**
  * Admin utility: migrate venueId to venueIds array.
  */
-const migrateVenueIdToVenueIds = onCall(async (request) => {
+const migrateVenueIdToVenueIds = onCall(withErrorHandling("migrateVenueIdToVenueIds", async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Auth required.");
-    const callerDoc = await db.collection("users").doc(request.auth.uid).get();
-    const callerRole = callerDoc.data()?.role;
-    if (callerRole !== "SUPER_ADMIN" && callerRole !== "ADMIN") throw new HttpsError("permission-denied", "Admin ONLY.");
+    await verifyAdminAccess(request.auth.uid);
+
+    const allowed = await checkRateLimit(`migrate:${request.auth.uid}`, 1, 86400000);
+    if (!allowed) throw new HttpsError("resource-exhausted", "Esta migración solo puede ejecutarse una vez por día.");
 
     const snapshot = await db.collection("users").get();
     const batch = db.batch();
@@ -125,8 +136,17 @@ const migrateVenueIdToVenueIds = onCall(async (request) => {
     });
 
     if (migrated > 0) await batch.commit();
+
+    await db.collection("audit_logs").add({
+        action: "MIGRATE_VENUE_ID_TO_VENUE_IDS",
+        performedBy: request.auth.uid,
+        details: { migrated },
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    log(`migrateVenueIdToVenueIds: ${migrated} users migrated by ${request.auth.uid}`);
     return { migrated };
-});
+}));
 
 /**
  * Admin: registra un pago manual de comisión o liquidación a un negocio. Solo SUPER_ADMIN.
@@ -135,11 +155,7 @@ const migrateVenueIdToVenueIds = onCall(async (request) => {
  */
 const recordManualSettlement = onCall(withErrorHandling("recordManualSettlement", async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Auth required.");
-
-    const userDoc = await db.collection("users").doc(request.auth.uid).get();
-    if (!userDoc.exists || userDoc.data().role !== "SUPER_ADMIN") {
-        throw new HttpsError("permission-denied", "Access denied.");
-    }
+    await verifyAdminAccess(request.auth.uid);
 
     const { venueId, amount, type, description } = request.data || {};
     if (!venueId || !amount || !type || !description) {

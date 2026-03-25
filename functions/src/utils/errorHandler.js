@@ -2,19 +2,22 @@
 
 const { HttpsError } = require("firebase-functions/v2/https");
 const { error: logError } = require("./logger");
+const { generateCorrelationId } = require("./correlationId");
 
 /**
- * Wraps an onCall handler with consistent error handling.
+ * Wraps an onCall handler with consistent error handling and correlation ID injection.
  */
 function withErrorHandling(fnName, handler) {
     return async (request) => {
+        const correlationId = generateCorrelationId();
         try {
-            return await handler(request);
+            return await handler(request, correlationId);
         } catch (err) {
             if (err instanceof HttpsError) {
                 throw err;
             }
             logError(`[${fnName}] Unhandled error`, {
+                correlationId,
                 message: err.message,
                 stack: err.stack,
                 userId: request.auth?.uid || "anonymous",
@@ -25,20 +28,23 @@ function withErrorHandling(fnName, handler) {
 }
 
 /**
- * Wraps an onRequest handler with consistent error handling.
+ * Wraps an onRequest handler with consistent error handling and correlation ID.
  */
 function withRequestErrorHandling(fnName, handler) {
     return async (req, res) => {
+        const correlationId = req.headers["x-correlation-id"] || generateCorrelationId();
+        res.setHeader("x-correlation-id", correlationId);
         try {
-            return await handler(req, res);
+            return await handler(req, res, correlationId);
         } catch (err) {
             logError(`[${fnName}] Unhandled error`, {
+                correlationId,
                 message: err.message,
                 stack: err.stack,
                 method: req.method,
                 path: req.path,
             });
-            return res.status(500).json({ error: "Internal Server Error" });
+            return res.status(500).json({ error: "Internal Server Error", correlationId });
         }
     };
 }

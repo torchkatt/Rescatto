@@ -4,10 +4,12 @@ import { Clock, CheckCircle, Package, RotateCw, UtensilsCrossed, AlertCircle } f
 import { dataService } from '../services/dataService';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { useTranslation } from 'react-i18next';
 import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { LoadingSpinner } from '../components/customer/common/Loading';
 
 const Orders: React.FC = () => {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'HISTORY'>('ACTIVE');
   const [orders, setOrders] = useState<Order[]>([]);
   const [isVenueMissing, setIsVenueMissing] = useState(false);
@@ -59,7 +61,7 @@ const Orders: React.FC = () => {
       setLastDoc(page.lastDoc);
       setHasMore(page.hasMore);
     } catch (error) {
-      showToast('error', 'Error al cargar pedidos');
+      showToast('error', t('orders_error_load'));
     } finally {
       if (initial) setLoading(false);
       setLoadingMore(false);
@@ -70,21 +72,21 @@ const Orders: React.FC = () => {
     try {
       await dataService.updateOrderStatus(orderId, newStatus);
       setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
-      showToast('success', `Orden actualizada a ${newStatus}`);
+      showToast('success', t('orders_updated_status', { status: newStatus }));
     } catch (error) {
-      showToast('error', 'Error al actualizar estado');
+      showToast('error', t('orders_error_update'));
     }
   };
 
   const getStatusBadge = (status: OrderStatus) => {
     switch (status) {
-      case OrderStatus.PAID: return <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-bold">Por Preparar</span>;
-      case OrderStatus.IN_PREPARATION: return <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded text-xs font-bold animate-pulse">Cocinando...</span>;
-      case OrderStatus.READY_PICKUP: return <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-bold animate-pulse">Listo para Recoger</span>;
-      case OrderStatus.DRIVER_ACCEPTED: return <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs font-bold">Domiciliario en Camino</span>;
-      case OrderStatus.IN_TRANSIT: return <span className="px-2 py-1 bg-teal-100 text-teal-700 rounded text-xs font-bold">En Tránsito</span>;
-      case OrderStatus.COMPLETED: return <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-bold">Completado</span>;
-      case OrderStatus.MISSED: return <span className="px-2 py-1 bg-red-100 text-red-600 rounded text-xs font-bold">No Recogido</span>;
+      case OrderStatus.PAID: return <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-bold">{t('badge_to_prepare')}</span>;
+      case OrderStatus.IN_PREPARATION: return <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded text-xs font-bold animate-pulse">{t('badge_cooking')}</span>;
+      case OrderStatus.READY: return <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-bold animate-pulse">{t('badge_ready_pickup')}</span>;
+      case OrderStatus.DRIVER_ASSIGNED: return <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs font-bold">{t('badge_driver_en_route')}</span>;
+      case OrderStatus.IN_TRANSIT: return <span className="px-2 py-1 bg-teal-100 text-teal-700 rounded text-xs font-bold">{t('badge_in_transit')}</span>;
+      case OrderStatus.COMPLETED: return <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-bold">{t('badge_completed')}</span>;
+      case OrderStatus.MISSED: return <span className="px-2 py-1 bg-red-100 text-red-600 rounded text-xs font-bold">{t('badge_not_picked_up')}</span>;
       default: return null;
     }
   };
@@ -93,8 +95,8 @@ const Orders: React.FC = () => {
     if (activeTab === 'ACTIVE') return [
       OrderStatus.PAID,
       OrderStatus.IN_PREPARATION,
-      OrderStatus.READY_PICKUP,
-      OrderStatus.DRIVER_ACCEPTED,
+      OrderStatus.READY,
+      OrderStatus.DRIVER_ASSIGNED,
       OrderStatus.IN_TRANSIT
     ].includes(o.status);
     return o.status === OrderStatus.COMPLETED || o.status === OrderStatus.MISSED;
@@ -108,28 +110,33 @@ const Orders: React.FC = () => {
     <div className="space-y-6 animate-in fade-in duration-700">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Gestión de Pedidos</h1>
-          <p className="text-sm text-gray-500">Monitor de cocina y entregas (KDS)</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t('orders_mgmt_title')}</h1>
+          <p className="text-sm text-gray-500">{t('orders_mgmt_subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
           <button
+            aria-label="Conectado en tiempo real"
             className="bg-white border border-gray-200 text-gray-600 p-2 rounded-lg hover:bg-gray-50 transition shadow-sm flex items-center justify-center"
             title="Conectado en tiempo real"
           >
             <RotateCw size={18} />
           </button>
-          <div className="flex space-x-1.5 bg-white p-1.5 rounded-xl border border-gray-200 shadow-sm">
+          <div role="tablist" className="flex space-x-1.5 bg-white p-1.5 rounded-xl border border-gray-200 shadow-sm">
             <button
+              role="tab"
+              aria-selected={activeTab === 'ACTIVE'}
               onClick={() => setActiveTab('ACTIVE')}
               className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-95 ${activeTab === 'ACTIVE' ? 'bg-emerald-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
             >
-              Activos
+              {t('orders_tab_active')}
             </button>
             <button
+              role="tab"
+              aria-selected={activeTab === 'HISTORY'}
               onClick={() => setActiveTab('HISTORY')}
               className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-95 ${activeTab === 'HISTORY' ? 'bg-emerald-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
             >
-              Historial
+              {t('orders_tab_history')}
             </button>
           </div>
         </div>
@@ -143,7 +150,7 @@ const Orders: React.FC = () => {
             </div>
             <div className="ml-3">
               <p className="text-sm text-yellow-700">
-                <span className="font-bold">Atención:</span> No tienes una sede asignada. No podrás ver los pedidos hasta que un administrador configure tu perfil correctamente.
+                <span className="font-bold">{t('attention', 'Atención')}:</span> {t('orders_no_venue_warning')}
               </p>
             </div>
           </div>
@@ -157,7 +164,7 @@ const Orders: React.FC = () => {
             <div className="flex items-center gap-3">
               <div className="bg-blue-200 p-2 rounded-lg text-blue-700"><Package size={20} /></div>
               <div>
-                <p className="text-sm text-blue-900 font-medium">Por Preparar</p>
+                <p className="text-sm text-blue-900 font-medium">{t('orders_stat_to_prepare')}</p>
                 <p className="text-2xl font-bold text-blue-700">{orders.filter(o => o.status === OrderStatus.PAID).length}</p>
               </div>
             </div>
@@ -167,7 +174,7 @@ const Orders: React.FC = () => {
             <div className="flex items-center gap-3">
               <div className="bg-orange-200 p-2 rounded-lg text-orange-700"><CheckCircle size={20} /></div>
               <div>
-                <p className="text-sm text-orange-900 font-medium">Cocinando</p>
+                <p className="text-sm text-orange-900 font-medium">{t('orders_stat_cooking')}</p>
                 <p className="text-2xl font-bold text-orange-700">{orders.filter(o => o.status === OrderStatus.IN_PREPARATION).length}</p>
               </div>
             </div>
@@ -176,8 +183,8 @@ const Orders: React.FC = () => {
             <div className="flex items-center gap-3">
               <div className="bg-green-200 p-2 rounded-lg text-green-700"><Clock size={20} /></div>
               <div>
-                <p className="text-sm text-green-900 font-medium">Para Recoger</p>
-                <p className="text-2xl font-bold text-green-700">{orders.filter(o => o.status === OrderStatus.READY_PICKUP).length}</p>
+                <p className="text-sm text-green-900 font-medium">{t('orders_stat_pickup')}</p>
+                <p className="text-2xl font-bold text-green-700">{orders.filter(o => o.status === OrderStatus.READY).length}</p>
               </div>
             </div>
           </div>
@@ -185,9 +192,9 @@ const Orders: React.FC = () => {
             <div className="flex items-center gap-3">
               <div className="bg-indigo-200 p-2 rounded-lg text-indigo-700"><Package size={20} /></div>
               <div>
-                <p className="text-sm text-indigo-900 font-medium">Con Domiciliario</p>
+                <p className="text-sm text-indigo-900 font-medium">{t('orders_stat_driver')}</p>
                 <p className="text-2xl font-bold text-indigo-700">
-                  {orders.filter(o => o.status === OrderStatus.DRIVER_ACCEPTED || o.status === OrderStatus.IN_TRANSIT).length}
+                  {orders.filter(o => o.status === OrderStatus.DRIVER_ASSIGNED || o.status === OrderStatus.IN_TRANSIT).length}
                 </p>
               </div>
             </div>
@@ -200,7 +207,7 @@ const Orders: React.FC = () => {
         {filteredOrders.length === 0 ? (
           <div className="col-span-full py-12 text-center text-gray-400 bg-white rounded-xl border border-dashed border-gray-300">
             <Package size={48} className="mx-auto mb-3 opacity-50" />
-            <p>No hay órdenes en esta categoría</p>
+            <p>{t('orders_empty_category')}</p>
           </div>
         ) : (
           filteredOrders.map(order => (
@@ -232,20 +239,20 @@ const Orders: React.FC = () => {
                   ))}
                   {order.deliveryNotes && (
                     <div className="bg-yellow-50 p-2 rounded text-xs text-yellow-800 italic border border-yellow-200">
-                      Nota: {order.deliveryNotes}
+                      {t('orders_delivery_note', { note: order.deliveryNotes })}
                     </div>
                   )}
                 </div>
 
                 <div className="text-sm text-red-600 font-bold flex items-center gap-1 bg-red-50 p-2 rounded mb-2 border border-red-100">
                   <Clock size={14} />
-                  <span>Entrega: {new Date(order.pickupDeadline).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span>{t('orders_delivery_time_label')} {new Date(order.pickupDeadline).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
 
                 {((order as any).driverName || order.driverId) && (
                   <div className="text-sm text-indigo-700 font-bold flex items-center gap-1 bg-indigo-50 p-2 rounded mb-2 border border-indigo-100">
                     <Package size={14} />
-                    <span>Domiciliario: {(order as any).driverName || 'Asignado'}</span>
+                    <span>{t('orders_driver_label', { name: (order as any).driverName || t('orders_assigned', 'Asignado') })}</span>
                   </div>
                 )}
               </div>
@@ -257,38 +264,38 @@ const Orders: React.FC = () => {
                     className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-sm text-lg active:scale-95"
                   >
                     <UtensilsCrossed size={20} />
-                    Empezar a Cocinar
+                    {t('orders_start_cooking')}
                   </button>
                 )}
                 {order.status === OrderStatus.IN_PREPARATION && (
                   <button
-                    onClick={() => handleStatusChange(order.id, OrderStatus.READY_PICKUP)}
+                    onClick={() => handleStatusChange(order.id, OrderStatus.READY)}
                     className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-sm text-lg animate-pulse active:scale-95"
                   >
                     <CheckCircle size={20} />
-                    ¡Está Listo!
+                    {t('orders_mark_ready')}
                   </button>
                 )}
-                {order.status === OrderStatus.READY_PICKUP && (
+                {order.status === OrderStatus.READY && (
                   <div className="space-y-2">
                     <div className="flex gap-2">
                       <input
                         type="text"
-                        placeholder="Código de entrega"
+                        placeholder={t('orders_delivery_code_ph')}
                         className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-medium"
                       />
                       <button
                         onClick={() => handleStatusChange(order.id, OrderStatus.COMPLETED)}
                         className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold text-sm transition-all active:scale-95 shadow-md shadow-emerald-100"
                       >
-                        Entregar
+                        {t('orders_deliver_btn')}
                       </button>
                     </div>
                   </div>
                 )}
                 {(order.status === OrderStatus.COMPLETED || order.status === OrderStatus.MISSED) && (
                   <button disabled className="w-full bg-gray-200 text-gray-400 font-medium py-2 rounded-lg cursor-not-allowed">
-                    Archivado
+                    {t('orders_archived')}
                   </button>
                 )}
               </div>
@@ -303,7 +310,7 @@ const Orders: React.FC = () => {
             disabled={loadingMore}
             className="px-4 py-2 rounded-full text-sm font-bold bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-60"
           >
-            {loadingMore ? 'Cargando...' : 'Cargar más pedidos'}
+            {loadingMore ? t('loading') : t('orders_load_more')}
           </button>
         </div>
       )}

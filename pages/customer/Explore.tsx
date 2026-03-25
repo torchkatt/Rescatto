@@ -183,7 +183,7 @@ const Explore: React.FC = () => {
                 description={t('explore_desc') || 'Encuentra los mejores productos cerca de ti'}
             />
             {/* Header Sticky */}
-            <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-gray-100 px-6 py-4">
+            <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-gray-100 px-6 py-4 pt-safe-top">
                 <div className="max-w-7xl mx-auto">
                     <div className="flex items-center gap-4 mb-5">
                         <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-50 rounded-full transition-colors">

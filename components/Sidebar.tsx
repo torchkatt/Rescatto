@@ -13,6 +13,7 @@ import { PWANotification } from './PWANotification';
 import { useLocation } from '../context/LocationContext';
 import { LocationSelector } from './customer/home/LocationSelector';
 import { logger } from '../utils/logger';
+import { getUserVenueId } from '../utils/getUserVenueId';
 
 const Sidebar: React.FC = () => {
   const { user, logout, hasRole } = useAuth();
@@ -30,7 +31,7 @@ const Sidebar: React.FC = () => {
     if (!user?.id) return;
     if (user.role === UserRole.CUSTOMER || user.role === UserRole.DRIVER) return;
 
-    const venueId = user.venueIds?.[0] || user.venueId;
+    const venueId = getUserVenueId(user);
     if (!venueId && user.role !== UserRole.SUPER_ADMIN) return;
 
     const constraints: any[] = [where('status', 'in', ['PENDING', 'PAID'])];
@@ -99,7 +100,7 @@ const Sidebar: React.FC = () => {
             </span>
           </Link>
           {/* Botón de Cerrar para Móvil */}
-          <button onClick={toggleMobileMenu} className="lg:hidden text-slate-400 hover:text-white transition-colors p-1 hover:bg-white/10 rounded-lg">
+          <button onClick={toggleMobileMenu} aria-label="Cerrar menú" className="lg:hidden text-slate-400 hover:text-white transition-colors p-1 hover:bg-white/10 rounded-lg">
             <X size={24} />
           </button>
         </div>
@@ -180,7 +181,7 @@ const Sidebar: React.FC = () => {
         )}
 
         {/* SECCIÓN GESTIÓN */}
-        {hasRole([UserRole.VENUE_OWNER, UserRole.ADMIN]) && (user?.venueIds?.[0] || user?.venueId) && (
+        {hasRole([UserRole.VENUE_OWNER, UserRole.ADMIN]) && getUserVenueId(user) && (
           <div className="space-y-1">
             <p className="px-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Gestión</p>
             <NavLink to="/products" className={`tour-step-products ${navClass({ isActive: window.location.hash.includes('/products') })}`} onClick={() => setIsMobileOpen(false)}>
@@ -375,7 +376,7 @@ const Sidebar: React.FC = () => {
           )}
           <span className="font-bold text-white text-lg tracking-tight">{venue?.name || 'Rescatto'}</span>
         </Link>
-        <button onClick={toggleMobileMenu} className="text-white hover:text-emerald-400 transition-colors p-2 -mr-2 active:scale-95">
+        <button onClick={toggleMobileMenu} aria-label="Abrir menú" className="text-white hover:text-emerald-400 transition-colors p-2 -mr-2 active:scale-95">
           <Menu size={26} />
         </button>
       </div>

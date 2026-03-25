@@ -21,7 +21,7 @@ export const acceptDelivery = async (orderId: string, driverId: string): Promise
         // Update order status
         await updateDoc(orderRef, {
             driverId,
-            status: OrderStatus.DRIVER_ACCEPTED,
+            status: OrderStatus.DRIVER_ASSIGNED,
             acceptedAt: new Date().toISOString(),
         });
 
@@ -114,7 +114,13 @@ export const getDriverDeliveries = async (driverId: string) => {
         const deliveries: any[] = [];
         let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
         let hasMore = true;
+        let iterations = 0;
+        const MAX_ITERATIONS = 20;
         while (hasMore) {
+            if (++iterations > MAX_ITERATIONS) {
+                logger.warn('Pagination safety limit reached in getDriverDeliveries');
+                break;
+            }
             const constraints: any[] = [
                 where('driverId', '==', driverId),
                 where('status', '==', OrderStatus.IN_TRANSIT),

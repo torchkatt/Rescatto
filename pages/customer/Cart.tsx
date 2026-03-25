@@ -8,12 +8,14 @@ import { useToast } from '../../context/ToastContext';
 import { useTranslation } from 'react-i18next';
 import { isProductExpired } from '../../utils/productAvailability';
 import { formatCOP } from '../../utils/formatters';
+import { useConfirm } from '../../context/ConfirmContext';
 
 export const Cart: React.FC = () => {
     const { t } = useTranslation();
     const navigate = useNavigate();
     const { items, removeFromCart, updateQuantity, getTotalPrice, getTotalItems, getCartByVenue } = useCart();
     const { error } = useToast();
+    const confirm = useConfirm();
 
     const venueGroups = getCartByVenue();
 
@@ -101,20 +103,29 @@ export const Cart: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-gray-50 pb-20 overflow-x-hidden">
-            <div className="max-w-6xl mx-auto px-4 py-6">
-                {/* Header */}
-                <button
-                    onClick={() => navigate('/app')}
-                    className="inline-flex items-center gap-2 px-5 py-3 bg-white border-2 border-gray-200 rounded-xl text-gray-700 hover:text-gray-900 hover:border-emerald-500 hover:bg-emerald-50 mb-6 transition-all duration-200 group shadow-sm font-bold active:scale-95"
-                >
-                    <ArrowLeft size={20} strokeWidth={2.5} className="group-hover:-translate-x-1 transition-transform" />
-                    <span>{t('btn_back')}</span>
-                </button>
+            {/* Header */}
+            <header className="bg-white sticky top-0 pt-safe-top z-40 shadow-sm border-b border-gray-100">
+                <div className="px-4 py-3 flex items-center justify-between max-w-6xl mx-auto w-full">
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => navigate('/app')}
+                            className="p-2 rounded-full hover:bg-gray-100 transition-colors active:scale-95"
+                        >
+                            <ArrowLeft size={20} className="text-gray-600" />
+                        </button>
+                        <div className="flex items-center gap-2">
+                            <ShoppingCart size={20} className="text-emerald-500" />
+                            <h1 className="text-lg font-bold text-gray-900">{t('cart_title')}</h1>
+                        </div>
+                    </div>
+                    <div className="text-gray-400 text-xs font-bold bg-gray-50 px-2.5 py-1 rounded-full border border-gray-100">
+                        {getTotalItems().toLocaleString('es-CO')} {getTotalItems() === 1 ? t('cart_product') : t('cart_products')}
+                    </div>
+                </div>
+            </header>
 
-                <h1 className="text-3xl font-bold text-gray-900 mb-8 flex items-center gap-3">
-                    <ShoppingCart className="text-emerald-600" size={32} />
-                    {t('cart_title')} <span className="text-gray-400 text-2xl">({getTotalItems().toLocaleString('es-CO')} {getTotalItems() === 1 ? t('cart_product') : t('cart_products')})</span>
-                </h1>
+            <div className="max-w-6xl mx-auto px-4 py-6">
+                {/* Urgency banner — shown when any item expires within 2 hours */}
 
                 {/* Urgency banner — shown when any item expires within 2 hours */}
                 {urgentItems.length > 0 && (
@@ -223,7 +234,10 @@ export const Cart: React.FC = () => {
                                                 </div>
 
                                                 <button
-                                                    onClick={() => removeFromCart(item.id)}
+                                                    onClick={async () => {
+                                                        const ok = await confirm({ message: '¿Quieres eliminar este producto del carrito?', confirmLabel: 'Eliminar' });
+                                                        if (ok) removeFromCart(item.id);
+                                                    }}
                                                     className="w-10 h-10 flex items-center justify-center rounded-xl text-red-500 hover:bg-red-50 hover:text-red-700 transition-all active:scale-90 border border-transparent hover:border-red-100"
                                                     aria-label="Eliminar producto"
                                                 >
