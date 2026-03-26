@@ -395,7 +395,7 @@ export const AuditLogs: React.FC = () => {
     if (loading && logs.length === 0) return <LoadingSpinner fullPage />;
 
     return (
-        <div className="p-8 max-w-7xl mx-auto relative overflow-x-hidden">
+        <div className="max-w-7xl mx-auto relative overflow-x-hidden">
             <div className="mb-8">
                 <h1 className="text-3xl font-bold text-white">Centro de Auditoría</h1>
                 <p className="text-gray-400 mt-2">Monitoreo forense y control de seguridad en tiempo real.</p>
@@ -445,14 +445,14 @@ export const AuditLogs: React.FC = () => {
                         </button>
                     </div>
                 </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full">
+                <div className="overflow-x-auto -mx-4 sm:mx-0">
+                    <table className="w-full min-w-[640px]">
                         <thead>
                             <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold tracking-wider">
-                                <th className="p-4 w-40 text-left">Fecha</th>
-                                <th className="p-4 w-48 text-left">Categoría</th>
-                                <th className="p-4 w-56 text-left">Actor (Quién)</th>
-                                <th className="p-4 text-left">Evento (Qué pasó)</th>
+                                <th className="p-3 sm:p-4 w-32 sm:w-40 text-left">Fecha</th>
+                                <th className="p-3 sm:p-4 hidden sm:table-cell w-48 text-left">Categoría</th>
+                                <th className="p-3 sm:p-4 w-48 sm:w-56 text-left">Actor</th>
+                                <th className="p-3 sm:p-4 text-left">Evento</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 text-sm">
@@ -475,7 +475,7 @@ export const AuditLogs: React.FC = () => {
                                             onClick={() => setSelectedLog(log)}
                                             className="hover:bg-emerald-50/30 transition-colors group cursor-pointer border-l-4 border-l-transparent hover:border-l-emerald-500"
                                         >
-                                            <td className="p-4 text-gray-500 text-xs whitespace-nowrap">
+                                            <td className="p-3 sm:p-4 text-gray-500 text-xs whitespace-nowrap">
                                                 <div className="font-medium text-gray-700">
                                                     {new Date(log.timestamp).toLocaleDateString()}
                                                 </div>
@@ -483,14 +483,14 @@ export const AuditLogs: React.FC = () => {
                                                     {new Date(log.timestamp).toLocaleTimeString()}
                                                 </div>
                                             </td>
-                                            <td className="p-4">
+                                            <td className="p-3 sm:p-4 hidden sm:table-cell">
                                                 <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${category.color}`}>
                                                     {category.icon}
                                                     {category.label}
                                                 </span>
                                             </td>
-                                            <td className="p-4">
-                                                <div className="flex items-center gap-3">
+                                            <td className="p-3 sm:p-4">
+                                                <div className="flex items-center gap-2 sm:gap-3">
                                                     <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-xs font-bold border border-slate-200">
                                                         {actorName.charAt(0).toUpperCase()}
                                                     </div>
@@ -504,7 +504,7 @@ export const AuditLogs: React.FC = () => {
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="p-4 text-gray-600 text-sm leading-relaxed">
+                                            <td className="p-3 sm:p-4 text-gray-600 text-sm leading-relaxed">
                                                 {generateHumanDescription(log)}
                                             </td>
                                         </tr>

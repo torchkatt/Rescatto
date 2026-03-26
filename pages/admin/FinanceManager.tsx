@@ -310,8 +310,8 @@ export const FinanceManager: React.FC = () => {
                 {loading ? (
                     <div className="p-8 flex justify-center"><LoadingSpinner /></div>
                 ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
+                    <div className="overflow-x-auto -mx-4 sm:mx-0">
+                        <table className="w-full min-w-[800px] text-left border-collapse">
                             <thead>
                                 <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold tracking-wider">
                                     <th className="p-4">ID</th>

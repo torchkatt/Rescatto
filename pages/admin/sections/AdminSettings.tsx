@@ -139,7 +139,7 @@ export const AdminSettings: React.FC = () => {
                             step={0.5}
                             value={form.searchRadiusKm}
                             onChange={e => set('searchRadiusKm', parseFloat(e.target.value) || 5)}
-                            className="w-24 px-3 py-2 bg-white text-gray-900 border border-gray-200 rounded-xl text-center focus:ring-2 focus:ring-emerald-500 outline-none"
+                            className="w-20 sm:w-24 px-3 py-2 bg-white text-gray-900 border border-gray-200 rounded-xl text-center focus:ring-2 focus:ring-emerald-500 outline-none"
                         />
                     </div>
                     <div className="flex items-center justify-between gap-4">
@@ -154,7 +154,7 @@ export const AdminSettings: React.FC = () => {
                             step={5}
                             value={form.maxPickupMinutes}
                             onChange={e => set('maxPickupMinutes', parseInt(e.target.value) || 30)}
-                            className="w-24 px-3 py-2 bg-white text-gray-900 border border-gray-200 rounded-xl text-center focus:ring-2 focus:ring-emerald-500 outline-none"
+                            className="w-20 sm:w-24 px-3 py-2 bg-white text-gray-900 border border-gray-200 rounded-xl text-center focus:ring-2 focus:ring-emerald-500 outline-none"
                         />
                     </div>
                 </div>

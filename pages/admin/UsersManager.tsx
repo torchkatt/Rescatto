@@ -14,6 +14,7 @@ import { useToast } from '../../context/ToastContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import { Tooltip } from '../../components/common/Tooltip';
 import { logger } from '../../utils/logger';
+import MobileDrawer from '../../components/common/MobileDrawer';
 
 const roleNames: Record<UserRole, string> = {
     [UserRole.SUPER_ADMIN]: 'Super Administrador',
@@ -1127,6 +1128,40 @@ export const UsersManager: React.FC = () => {
                 )}
             </div>
 
+
+            {/* Mobile Preview Drawer */}
+            <MobileDrawer
+                isOpen={!!previewUser}
+                onClose={() => setPreviewUser(null)}
+                title="Perfil de Usuario"
+            >
+                {previewUser && (
+                    <div className="space-y-6">
+                        <UserProfilePreview user={previewUser} venues={venues} />
+                        <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                            <h4 className="font-bold text-gray-800 mb-2 text-sm">Acciones de Administración</h4>
+                            <div className="grid grid-cols-1 gap-2">
+                                {canManageUser(currentUser, previewUser) && (
+                                    <button
+                                        onClick={() => { setPreviewUser(null); openPermissionEditor(previewUser); }}
+                                        className="w-full bg-white border border-gray-300 text-gray-700 py-2 rounded-lg text-xs font-bold hover:bg-gray-50 transition flex items-center justify-center gap-2"
+                                    >
+                                        <Shield size={14} /> Gestionar Rol/Permisos
+                                    </button>
+                                )}
+                                {canManageUser(currentUser, previewUser) && (
+                                    <button
+                                        onClick={() => { setPreviewUser(null); setUserToDelete(previewUser.id); }}
+                                        className="w-full bg-red-50 text-red-700 border border-red-100 py-2 rounded-lg text-xs font-bold hover:bg-red-100 transition flex items-center justify-center gap-2"
+                                    >
+                                        <Trash2 size={14} /> Eliminar Usuario
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </MobileDrawer>
 
             {/* Permission Editor Modal */}
             {

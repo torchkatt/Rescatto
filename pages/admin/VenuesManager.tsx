@@ -15,6 +15,7 @@ import { UserRole } from '../../types';
 import { venueService } from '../../services/venueService';
 import { COLOMBIAN_CITIES } from '../../data/colombianCities';
 import { logger } from '../../utils/logger';
+import MobileDrawer from '../../components/common/MobileDrawer';
 
 const CityCombobox: React.FC<{ value: string; onChange: (city: string) => void }> = ({ value, onChange }) => {
     const [query, setQuery] = useState(value);
@@ -366,8 +367,8 @@ export const VenuesManager: React.FC = () => {
                                         venue={venue}
                                         onClick={(v) => {
                                             setPreviewVenue(v);
-                                            // Force modal open if preview is hidden or if on mobile (width < 1024px)
-                                            if (!showPreview || window.innerWidth < 1024) {
+                                            // On desktop open details modal; on mobile use the MobileDrawer
+                                            if (window.innerWidth >= 1024) {
                                                 setSelectedVenueDetails(v);
                                             }
                                         }}
@@ -446,6 +447,43 @@ export const VenuesManager: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            {/* Mobile Preview Drawer */}
+            <MobileDrawer
+                isOpen={!!previewVenue}
+                onClose={() => setPreviewVenue(null)}
+                title="Vista Previa"
+            >
+                {previewVenue && (
+                    <div className="space-y-5">
+                        <VenueMobilePreview venue={previewVenue} />
+                        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                            <h4 className="font-bold text-gray-800 mb-3 text-sm">Acciones</h4>
+                            <div className="grid grid-cols-2 gap-2">
+                                <button
+                                    onClick={() => { setPreviewVenue(null); setSelectedVenueDetails(previewVenue); }}
+                                    className="bg-emerald-50 text-emerald-700 py-2.5 rounded-lg text-xs font-bold hover:bg-emerald-100 transition"
+                                >
+                                    Ver Detalles
+                                </button>
+                                <button
+                                    onClick={() => { setPreviewVenue(null); openEdit(previewVenue); }}
+                                    className="bg-blue-50 text-blue-700 py-2.5 rounded-lg text-xs font-bold hover:bg-blue-100 transition"
+                                >
+                                    Editar
+                                </button>
+                                <button
+                                    onClick={() => { setPreviewVenue(null); handleDelete(previewVenue.id); }}
+                                    disabled={currentUser?.role !== UserRole.SUPER_ADMIN}
+                                    className={`col-span-2 py-2.5 rounded-lg text-xs font-bold transition ${currentUser?.role === UserRole.SUPER_ADMIN ? 'bg-red-50 text-red-700 hover:bg-red-100' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
+                                >
+                                    Eliminar Negocio
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </MobileDrawer>
 
             {/* Modal */}
             {isModalOpen && (

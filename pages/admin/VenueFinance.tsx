@@ -247,8 +247,8 @@ export const VenueFinance: React.FC = () => {
                     </div>
                 </div>
 
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left">
+                <div className="overflow-x-auto -mx-4 sm:mx-0">
+                    <table className="w-full min-w-[640px] text-left">
                         <thead className="bg-slate-50/50 text-slate-400 text-[10px] font-black uppercase tracking-widest">
                             <tr>
                                 <th className="px-8 py-4">Fecha & Hora</th>

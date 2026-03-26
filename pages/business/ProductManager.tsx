@@ -12,6 +12,7 @@ import { useToast } from '../../context/ToastContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import { Tooltip } from '../../components/common/Tooltip';
 import MobilePreview from '../../components/MobilePreview';
+import MobileDrawer from '../../components/common/MobileDrawer';
 import { logger } from '../../utils/logger';
 import { formatCOP } from '../../utils/formatters';
 import { geminiService } from '../../services/geminiService';
@@ -571,6 +572,44 @@ export const ProductManager: React.FC = () => {
                     )}
                 </div>
             )}
+
+            {/* Mobile Product Preview Drawer */}
+            <MobileDrawer
+                isOpen={!!selectedProduct}
+                onClose={() => setSelectedProduct(null)}
+                title="Vista Previa del Producto"
+            >
+                {selectedProduct && (
+                    <div className="space-y-5">
+                        <MobilePreview
+                            product={selectedProduct}
+                            venueName={venues.find(v => v.id === selectedVenueId)?.name || 'Tu Negocio'}
+                        />
+                        <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
+                            <h4 className="text-xs font-bold text-blue-800 mb-1 flex items-center gap-1">
+                                <Eye size={12} /> Tips para tu oferta:
+                            </h4>
+                            <p className="text-[10px] text-blue-700 leading-relaxed">
+                                Asegúrate de que la foto sea apetitosa. Las ofertas que terminan entre 20:00 y 21:00 tienen un 30% más de ventas.
+                            </p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <button
+                                onClick={() => { setSelectedProduct(null); handleOpenModal(selectedProduct); }}
+                                className="bg-blue-50 text-blue-700 py-2.5 rounded-lg text-xs font-bold hover:bg-blue-100 transition flex items-center justify-center gap-1"
+                            >
+                                <Pencil size={13} /> Editar
+                            </button>
+                            <button
+                                onClick={() => { setSelectedProduct(null); handleDuplicate(selectedProduct); }}
+                                className="bg-gray-50 text-gray-700 border border-gray-200 py-2.5 rounded-lg text-xs font-bold hover:bg-gray-100 transition flex items-center justify-center gap-1"
+                            >
+                                <Copy size={13} /> Duplicar
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </MobileDrawer>
 
             {/* Modal */}
             {showModal && (

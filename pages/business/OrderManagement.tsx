@@ -464,8 +464,8 @@ export const OrderManagement: React.FC = () => {
                     </div>
                 ) : isSuperAdmin ? (
                     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
+                        <div className="overflow-x-auto -mx-4 sm:mx-0">
+                            <table className="w-full min-w-[900px] text-left border-collapse">
                                 <thead className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500">
                                     <tr>
                                         <th className="px-4 py-3">Pedido</th>

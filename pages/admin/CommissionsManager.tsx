@@ -240,8 +240,8 @@ export const CommissionsManager: React.FC = () => {
                         <p className="font-medium">No se encontraron resultados</p>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left">
+                    <div className="overflow-x-auto -mx-4 sm:mx-0">
+                        <table className="w-full min-w-[620px] text-sm text-left">
                             <thead>
                                 <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold tracking-wider">
                                     <th className="px-4 py-3">Negocio</th>
