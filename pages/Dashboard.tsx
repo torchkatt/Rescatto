@@ -58,6 +58,7 @@ const ActionCard: React.FC<{ to: string; title: string; subtitle: string; icon: 
 import { useDashboardStats } from '../hooks/useDashboardStats';
 import { useQuery } from '@tanstack/react-query';
 import { MerchantAIPredictions } from '../components/business/MerchantAIPredictions';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 const Dashboard: React.FC = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -179,7 +180,11 @@ const Dashboard: React.FC = () => {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-6">
             {/* [NUEVO] IA Predictiva - Capa 13 */}
-            {venueId && <MerchantAIPredictions venue={{ id: venueId, ...(stats as any) } as any} />}
+            {venueId && (
+              <ErrorBoundary>
+                <MerchantAIPredictions venue={{ id: venueId, ...(stats as any) } as any} />
+              </ErrorBoundary>
+            )}
 
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
             <div className="flex justify-between items-center mb-6">

@@ -15,6 +15,8 @@ import { logger } from '../../utils/logger';
 import { messagingService } from '../../services/messagingService';
 import { leaderboardService, LeaderboardEntry } from '../../services/leaderboardService';
 import { useTranslation } from 'react-i18next';
+import { useEscapeKey } from '../../hooks/useEscapeKey';
+import { formatCOP } from '../../utils/formatters';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -369,6 +371,7 @@ const Impact: React.FC = () => {
     const { t, i18n } = useTranslation();
     const [redeeming, setRedeeming] = useState<string | null>(null);
     const [showShareCard, setShowShareCard] = useState(false);
+    useEscapeKey(() => setShowShareCard(false), showShareCard);
     const [requestingNotifs, setRequestingNotifs] = useState(false);
     const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
     const [leaderboardLoading, setLeaderboardLoading] = useState(false);
@@ -445,13 +448,11 @@ const Impact: React.FC = () => {
         }
     };
 
-    const formatCurrency = (value: number) =>
-        new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(value);
 
     const isNotificationSupported = 'Notification' in window && Notification.permission === 'default';
 
     return (
-        <div className="min-h-screen bg-gray-50 pb-24 overflow-x-hidden">
+        <div className="min-h-screen bg-gray-50 pb-nav overflow-x-hidden">
             {/* Banner de invitado */}
             {showGuestBanner && (
                 <GuestPromptBanner
@@ -559,7 +560,7 @@ const Impact: React.FC = () => {
                         <StatCard
                             icon={<TrendingUp size={14} />}
                             label={t('impact_stat_money')}
-                            value={formatCurrency(moneySaved)}
+                            value={formatCOP(moneySaved)}
                             color="bg-gradient-to-br from-blue-500 to-indigo-600"
                         />
                     </div>
@@ -682,7 +683,13 @@ const Impact: React.FC = () => {
 
                                             <div className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center font-black text-sm shadow-sm overflow-hidden bg-emerald-600 text-white">
                                                 {entry.avatarUrl ? (
-                                                    <img src={entry.avatarUrl} alt={firstName} className="w-full h-full object-cover" />
+                                                    <img
+                                                        src={entry.avatarUrl}
+                                                        alt={firstName}
+                                                        loading="lazy"
+                                                        className="w-full h-full object-cover"
+                                                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                                    />
                                                 ) : (
                                                     firstName.charAt(0)
                                                 )}

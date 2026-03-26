@@ -151,10 +151,6 @@ export const VenuesManager: React.FC = () => {
     const [lastDoc, setLastDoc] = useState<any>(null);
     const [hasMore, setHasMore] = useState(true);
 
-    useEffect(() => {
-        loadInitialData();
-    }, []);
-
     const loadInitialData = async () => {
         setLoading(true);
         try {

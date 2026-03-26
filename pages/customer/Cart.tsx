@@ -102,7 +102,7 @@ export const Cart: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 pb-20 overflow-x-hidden">
+        <div className="min-h-screen bg-gray-50 pb-nav overflow-x-hidden">
             {/* Header */}
             <header className="bg-white sticky top-0 pt-safe-top z-40 shadow-sm border-b border-gray-100">
                 <div className="px-4 py-3 flex items-center justify-between max-w-6xl mx-auto w-full">
@@ -217,7 +217,7 @@ export const Cart: React.FC = () => {
                                                 <div className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-1.5 border border-gray-100 shadow-sm">
                                                     <button
                                                         onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                                                        className="w-9 h-9 flex items-center justify-center rounded-lg bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 shadow-sm transition-all active:scale-90"
+                                                        className="w-11 h-11 flex items-center justify-center rounded-lg bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 shadow-sm transition-all active:scale-90"
                                                         aria-label="Disminuir cantidad"
                                                     >
                                                         <Minus size={16} strokeWidth={3} />
@@ -225,7 +225,7 @@ export const Cart: React.FC = () => {
                                                     <span className="w-8 text-center font-bold text-gray-900 text-lg">{item.quantity}</span>
                                                     <button
                                                         onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                                                        className="w-9 h-9 flex items-center justify-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-md transition-all active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                        className="w-11 h-11 flex items-center justify-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-md transition-all active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed"
                                                         aria-label="Aumentar cantidad"
                                                         disabled={isExpired || isAtStockLimit}
                                                     >

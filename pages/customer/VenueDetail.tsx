@@ -350,22 +350,25 @@ export const VenueDetail: React.FC = () => {
 
                 {/* Category pills */}
                 {productCategories.length > 1 && (
-                    <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 mb-5">
-                        <button
-                            onClick={() => setSelectedCategory('all')}
-                            className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-bold transition-all flex-shrink-0 ${selectedCategory === 'all' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-white border border-gray-200 text-gray-600 hover:border-emerald-300 hover:text-emerald-700'}`}
-                        >
-                            {t('cat_all')}
-                        </button>
-                        {productCategories.map(cat => (
+                    <div className="relative mb-5">
+                        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
                             <button
-                                key={cat}
-                                onClick={() => setSelectedCategory(cat)}
-                                className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-bold transition-all flex-shrink-0 ${selectedCategory === cat ? 'bg-emerald-600 text-white shadow-sm' : 'bg-white border border-gray-200 text-gray-600 hover:border-emerald-300 hover:text-emerald-700'}`}
+                                onClick={() => setSelectedCategory('all')}
+                                className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-bold transition-all flex-shrink-0 ${selectedCategory === 'all' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-white border border-gray-200 text-gray-600 hover:border-emerald-300 hover:text-emerald-700'}`}
                             >
-                                {cat}
+                                {t('cat_all')}
                             </button>
-                        ))}
+                            {productCategories.map(cat => (
+                                <button
+                                    key={cat}
+                                    onClick={() => setSelectedCategory(cat)}
+                                    className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-bold transition-all flex-shrink-0 ${selectedCategory === cat ? 'bg-emerald-600 text-white shadow-sm' : 'bg-white border border-gray-200 text-gray-600 hover:border-emerald-300 hover:text-emerald-700'}`}
+                                >
+                                    {cat}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="absolute right-0 top-0 bottom-1 w-10 bg-gradient-to-l from-gray-50 to-transparent pointer-events-none lg:hidden" />
                     </div>
                 )}
 

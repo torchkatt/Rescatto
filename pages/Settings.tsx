@@ -117,6 +117,19 @@ const Settings: React.FC = () => {
         const venueId = getUserVenueId(user);
         if (!venue || !venueId) return;
 
+        if (!formData.name.trim()) {
+            showToast('error', 'El nombre del local es obligatorio');
+            return;
+        }
+        if (!formData.address.trim()) {
+            showToast('error', 'La dirección física es obligatoria');
+            return;
+        }
+        if (!formData.closingTime) {
+            showToast('error', 'La hora de cierre es obligatoria');
+            return;
+        }
+
         setIsSaving(true);
         try {
             await dataService.updateVenue(venueId, {
@@ -243,6 +256,7 @@ const Settings: React.FC = () => {
                                     type="range" min="10" max="70" value={discountRate}
                                     onChange={(e) => setDiscountRate(Number(e.target.value))}
                                     className="w-full h-2 bg-purple-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                                    aria-label="Descuento agresivo en porcentaje"
                                 />
                                 <p className="text-xs text-gray-500 mt-1">Porcentaje extra de descuento sobre el precio ya rebajado.</p>
                             </div>
@@ -256,6 +270,7 @@ const Settings: React.FC = () => {
                                     type="range" min="15" max="120" step="15" value={triggerTime}
                                     onChange={(e) => setTriggerTime(Number(e.target.value))}
                                     className="w-full h-2 bg-purple-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                                    aria-label="Minutos antes del cierre para activar descuento"
                                 />
                                 <p className="text-xs text-gray-500 mt-1">Cuándo debe activarse el descuento agresivo.</p>
                             </div>

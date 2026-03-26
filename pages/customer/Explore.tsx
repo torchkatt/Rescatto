@@ -177,7 +177,7 @@ const Explore: React.FC = () => {
     }
 
     return (
-        <div className="pb-32 bg-brand-bg min-h-screen">
+        <div className="pb-nav bg-brand-bg min-h-screen">
              <SEO
                 title={t('explore_title')}
                 description={t('explore_desc') || 'Encuentra los mejores productos cerca de ti'}

@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { ProfileHeader } from '../../components/profile/ProfileHeader';
 import { PersonalDetails } from '../../components/profile/PersonalDetails';
 import { SecuritySettings } from '../../components/profile/SecuritySettings';
@@ -11,7 +12,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { db, functions } from '../../services/firebase';
 import { useToast } from '../../context/ToastContext';
 import { UserRole } from '../../types';
-import { LayoutDashboard, User as UserIcon, Lock, TrendingUp, Gift, Zap } from 'lucide-react';
+import { ArrowLeft, LayoutDashboard, User as UserIcon, Lock, TrendingUp, Gift, Zap } from 'lucide-react';
 import { httpsCallable } from 'firebase/functions';
 import { useConfirm } from '../../context/ConfirmContext';
 import { logger } from '../../utils/logger';
@@ -21,6 +22,7 @@ import { useTranslation } from 'react-i18next';
 export const UnifiedProfile: React.FC = () => {
     const { t } = useTranslation();
     const { user } = useAuth();
+    const navigate = useNavigate();
     const { showToast, success } = useToast();
     const confirm = useConfirm();
     const [activeTab, setActiveTab] = useState<'details' | 'stats' | 'security' | 'referrals' | 'pass'>('details');
@@ -96,7 +98,21 @@ export const UnifiedProfile: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50/50 pb-20">
+        <div className="min-h-screen bg-gray-50/50 pb-nav">
+            {/* Header con back button */}
+            <header className="bg-white sticky top-0 pt-safe-top z-40 shadow-sm border-b border-gray-100 lg:hidden">
+                <div className="px-4 py-3 flex items-center gap-3">
+                    <button
+                        onClick={() => navigate(-1)}
+                        className="p-2 rounded-full hover:bg-gray-100 transition-colors active:scale-95"
+                        aria-label={t('back')}
+                    >
+                        <ArrowLeft size={20} className="text-gray-600" />
+                    </button>
+                    <h1 className="text-lg font-bold text-gray-900">{t('prof_title', 'Mi Perfil')}</h1>
+                </div>
+            </header>
+
             <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
                 <ProfileHeader user={user} onEditAvatar={handleEditAvatar} />

@@ -575,7 +575,7 @@ export const DriverDashboard: React.FC = () => {
     if (loading) return <LoadingSpinner fullPage />;
 
     return (
-        <div className="space-y-6 overflow-x-hidden">
+        <div className="space-y-6 overflow-x-hidden pb-[env(safe-area-inset-bottom)]">
             <div className="flex justify-between items-center">
                 <div>
                     <h1 className="text-3xl font-extrabold text-gray-800 flex items-center gap-3">

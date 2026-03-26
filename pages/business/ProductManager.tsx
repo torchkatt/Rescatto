@@ -138,6 +138,7 @@ export const ProductManager: React.FC = () => {
             }
         } catch (error) {
             logger.error('Error loading products:', error);
+            if (initial) toast.error('Error al cargar productos. Intenta de nuevo.');
         } finally {
             if (initial) setLoading(false);
             setLoadingMore(false);

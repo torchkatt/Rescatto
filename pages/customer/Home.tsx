@@ -241,7 +241,7 @@ const CustomerHome: React.FC = () => {
     if (loading) return <HomeSkeletonLoader />;
 
     return (
-        <div className="pb-40 bg-brand-bg min-h-screen">
+        <div className="pb-nav bg-brand-bg min-h-screen">
             <SEO
                 title={t('explore')}
                 description={t('home_subtitle')}
@@ -357,7 +357,7 @@ const CustomerHome: React.FC = () => {
                                                 className="bg-white p-3 rounded-[2rem] border border-gray-100 flex lg:flex-col items-center lg:items-start gap-4 hover:shadow-lg hover:shadow-red-500/5 transition-all cursor-pointer group active:scale-[0.98]"
                                             >
                                                 <div className="w-16 h-16 lg:w-full lg:h-32 rounded-2xl overflow-hidden relative shrink-0">
-                                                    <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                                    <img src={product.imageUrl} alt={product.name} loading="lazy" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                                                     <div className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-black px-2 py-1 rounded-lg">
                                                         {hours > 0 ? `${hours}h ${mins}m` : `${mins}m`}
                                                     </div>

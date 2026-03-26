@@ -63,7 +63,7 @@ const Favorites: React.FC = () => {
     const userLocation = latitude && longitude ? { lat: latitude, lng: longitude } : undefined;
 
     return (
-        <div className="min-h-screen bg-gray-50 pb-24 overflow-x-hidden">
+        <div className="min-h-screen bg-gray-50 pb-nav overflow-x-hidden">
             {/* Banner de invitado */}
             {showGuestBanner && (
                 <GuestPromptBanner

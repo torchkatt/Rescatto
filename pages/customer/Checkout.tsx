@@ -55,6 +55,10 @@ export const Checkout: React.FC = () => {
     const [selectedRedemption, setSelectedRedemption] = useState<ActiveRedemption | null>(null);
 
     const isPhoneValid = phone.length >= 7 && phone.length <= 17 && /^\+?\d+$/.test(phone);
+    const [addressTouched, setAddressTouched] = useState(false);
+    const addressError = addressTouched && deliveryMethod === 'delivery' && address.trim().length < 5
+        ? t('checkout_address_error', 'Ingresa una dirección válida (mínimo 5 caracteres)')
+        : null;
 
     // Auto-login guiado para Guest Checkout (máximo un intento para evitar loops)
     const guestLoginAttempted = useRef(false);
@@ -434,10 +438,14 @@ export const Checkout: React.FC = () => {
                                                 type="text"
                                                 value={address}
                                                 onChange={(e) => setAddress(e.target.value)}
+                                                onBlur={() => setAddressTouched(true)}
                                                 placeholder="Ej: Calle 123 #45-67, Bogotá"
-                                                className="w-full bg-white px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-base transition-all"
+                                                className={`w-full bg-white px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-base transition-all ${addressError ? 'border-red-400 focus:ring-red-400' : 'border-gray-200'}`}
                                                 required
                                             />
+                                            {addressError && (
+                                                <p className="text-red-500 text-xs mt-1">{addressError}</p>
+                                            )}
                                         </div>
                                     )}
 

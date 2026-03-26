@@ -13,13 +13,14 @@ import { Sparkles } from 'lucide-react';
 import { Package, Clock, CheckCircle, XCircle, Truck, MessageSquare, Star, ArrowLeft, ShoppingCart, Share2, AlertTriangle, Ban } from 'lucide-react';
 import { RatingModal } from '../../components/rating/RatingModal';
 import { ChatWindow } from '../../components/chat/ChatWindow';
+import { useEscapeKey } from '../../hooks/useEscapeKey';
 import { logger } from '../../utils/logger';
 import { GuestConversionBanner } from '../../components/customer/common/GuestConversionBanner';
 import { formatCOP } from '../../utils/formatters';
 import { useTranslation } from 'react-i18next';
 
 export const MyOrders: React.FC = () => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const orderIdParam = searchParams.get('orderId');
@@ -37,6 +38,7 @@ export const MyOrders: React.FC = () => {
     const [ratingOrder, setRatingOrder] = useState<Order | null>(null);
     const [showChatWindow, setShowChatWindow] = useState(false);
     const [chatLoadingOrderId, setChatLoadingOrderId] = useState<string | null>(null);
+    useEscapeKey(() => setShowChatWindow(false), showChatWindow);
     const [confirmingOrderId, setConfirmingOrderId] = useState<string | null>(null);
     const highlightRef = useRef<HTMLDivElement | null>(null);
 
@@ -345,7 +347,7 @@ export const MyOrders: React.FC = () => {
     const unratedOrders = orders.filter(o => o.status === OrderStatus.COMPLETED && !o.rated);
 
     return (
-        <div className="min-h-screen bg-gray-50 pb-24 overflow-x-hidden">
+        <div className="min-h-screen bg-gray-50 pb-nav overflow-x-hidden">
             {/* Header */}
             <header className="bg-white sticky top-0 pt-safe-top z-40 shadow-sm border-b border-gray-100">
                 <div className="px-4 py-3 flex items-center justify-between max-w-4xl mx-auto w-full">
@@ -500,7 +502,7 @@ export const MyOrders: React.FC = () => {
                                                 </button>
                                             )}
                                             <p className="text-xs text-gray-400">
-                                                #{order.id.slice(0, 8)} · {new Date(order.createdAt).toLocaleDateString('es-CO', {
+                                                #{order.id.slice(0, 8)} · {new Date(order.createdAt).toLocaleDateString(i18n.language, {
                                                     year: 'numeric',
                                                     month: 'short',
                                                     day: 'numeric',
@@ -718,7 +720,7 @@ export const MyOrders: React.FC = () => {
                     onClick={() => setShowChatWindow(false)}
                 >
                     <div
-                        className="w-full max-w-2xl h-[min(78vh,600px)] mx-3 sm:mx-4 rounded-2xl overflow-hidden shadow-2xl cursor-default"
+                        className="w-full max-w-2xl h-[min(70vh,600px)] mx-3 sm:mx-4 rounded-2xl overflow-hidden shadow-2xl cursor-default pb-[env(safe-area-inset-bottom)]"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <ChatWindow 

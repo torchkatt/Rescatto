@@ -14,6 +14,15 @@
         /* Layout Variables */
         --sidebar-width: clamp(240px, 16vw, 280px);
         --header-height: 80px;
+
+        /* Z-index scale — use these to avoid stacking-context conflicts */
+        --z-base: 0;
+        --z-sticky: 40;
+        --z-bottom-nav: 45;
+        --z-modal-backdrop: 50;
+        --z-modal: 51;
+        --z-toast: 60;
+        --z-critical: 100;
     }
 
     html {
@@ -276,5 +285,10 @@
 
     .bottom-safe {
         bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);
+    }
+
+    /* Padding inferior para páginas con bottom nav fijo (5rem nav + safe area) */
+    .pb-nav {
+        padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
     }
 }

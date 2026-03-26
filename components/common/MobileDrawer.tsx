@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
+import { useEscapeKey } from '../../hooks/useEscapeKey';
 
 interface MobileDrawerProps {
   isOpen: boolean;
@@ -9,6 +10,8 @@ interface MobileDrawerProps {
 }
 
 const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose, title, children }) => {
+  useEscapeKey(onClose, isOpen);
+
   // Lock body scroll while drawer is open (only on mobile viewports)
   useEffect(() => {
     const isMobile = window.innerWidth < 1024;

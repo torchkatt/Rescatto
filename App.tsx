@@ -10,6 +10,7 @@ import { ChatProvider } from './context/ChatContext';
 import { LocationProvider } from './context/LocationContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { NotificationDisplay } from './components/common/NotificationDisplay';
+import { OfflineBanner } from './components/common/OfflineBanner';
 import { featureFlagService } from './services/featureFlagService';
 import { analytics } from './services/firebase';
 import { logEvent } from 'firebase/analytics';
@@ -181,7 +182,7 @@ const CustomerLayout: React.FC = () => {
 
     return (
         /* Esqueleto raíz: flex horizontal, altura exacta del viewport, sin overflow */
-        <div className="flex h-screen overflow-hidden bg-brand-bg">
+        <div className="flex h-[100dvh] overflow-hidden bg-brand-bg">
 
             {/* ── SIDEBAR (desktop only) — flex item, no fixed ── */}
             <DesktopSidebar onOpenImpact={() => setIsImpactModalOpen(true)} />
@@ -553,6 +554,7 @@ const App: React.FC = () => {
                                         <ChatProvider>
                                             <LocationProvider>
                                                 <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+                                                    <OfflineBanner />
                                                     <ReloadPrompt />
                                                     <ErrorBoundary section="Navegación">
                                                         <AppRoutes />

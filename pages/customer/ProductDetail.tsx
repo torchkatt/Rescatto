@@ -90,7 +90,7 @@ export const ProductDetail: React.FC = () => {
         : 0;
 
     return (
-        <div className="min-h-screen bg-brand-bg pb-52 lg:pb-32">
+        <div className="min-h-screen bg-brand-bg pb-[calc(9rem+env(safe-area-inset-bottom))] lg:pb-36">
             <SEO 
                 title={product.name}
                 description={t('prod_seo_desc', { price: formatCOP(activePrice), name: product.name, venue: venue?.name || 'Rescatto', discount: discount })}
@@ -270,7 +270,7 @@ export const ProductDetail: React.FC = () => {
             </main>
 
             {/* Bottom Action Bar - Mobile-aware & Desktop-optimized */}
-            <div className="fixed bottom-[74px] lg:bottom-0 left-0 right-0 lg:left-64 bg-white/95 backdrop-blur-2xl border-t border-gray-100/50 z-40 rounded-t-[2.5rem] lg:rounded-t-[4rem] shadow-[0_-20px_50px_-20px_rgba(0,0,0,0.15)] transition-all">
+            <div className="fixed bottom-0 left-0 right-0 lg:left-[var(--sidebar-width,16rem)] bg-white/95 backdrop-blur-2xl border-t border-gray-100/50 z-40 rounded-t-[2.5rem] lg:rounded-t-[4rem] shadow-[0_-20px_50px_-20px_rgba(0,0,0,0.15)] transition-all pb-[env(safe-area-inset-bottom)]">
                 <div className="max-w-[1600px] mx-auto px-6 lg:px-12 pt-6 pb-6 lg:pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)] flex items-center justify-between gap-6 sm:gap-8">
                     <div className="hidden sm:block flex-shrink-0">
                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">{t('prod_total_to_pay')}</p>

@@ -32,7 +32,7 @@ export const CustomerBottomNav: React.FC = () => {
     const isCartActive = isActive('/app/cart');
 
     return (
-        <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-lg border-t border-emerald-50/50 px-4 py-3 flex items-center justify-around z-40 lg:hidden shadow-[0_-8px_30px_rgba(0,0,0,0.08)] rounded-t-[2rem]">
+        <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-lg border-t border-emerald-50/50 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] flex items-center justify-around z-40 lg:hidden shadow-[0_-8px_30px_rgba(0,0,0,0.08)] rounded-t-[2rem]">
             {navItems.map((item) => {
                 const active = isActive(item.path);
                 const Icon = item.icon;
@@ -44,6 +44,7 @@ export const CustomerBottomNav: React.FC = () => {
                         <button
                             key={item.label}
                             onClick={() => navigate('/app/cart')}
+                            aria-label={`${item.label} — ${cartCount} productos`}
                             className={`relative flex-1 flex justify-center active:scale-95 transition-all duration-300`}
                         >
                             <div className={`
@@ -72,6 +73,8 @@ export const CustomerBottomNav: React.FC = () => {
                     <button
                         key={item.label}
                         onClick={() => navigate(item.path)}
+                        aria-label={item.label}
+                        aria-current={active ? 'page' : undefined}
                         className={`relative flex flex-col items-center gap-1.5 flex-1 py-1 transition-all active:scale-90 ${
                             active ? 'text-emerald-600' : 'text-gray-400 hover:text-gray-600'
                         }`}

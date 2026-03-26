@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useEscapeKey } from '../../../hooks/useEscapeKey';
 import { Bell, BellOff, X, Zap, Star, Clock } from 'lucide-react';
 import { messagingService } from '../../../services/messagingService';
 import { logger } from '../../../utils/logger';
@@ -17,6 +18,7 @@ interface Props {
 export const NotificationPermissionModal: React.FC<Props> = ({ userId, onClose }) => {
     const { t } = useTranslation();
     const [loading, setLoading] = useState(false);
+    useEscapeKey(onClose);
 
     const handleAllow = async () => {
         setLoading(true);
