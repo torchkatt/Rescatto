@@ -41,6 +41,7 @@ import SuperAdminRoute from './components/admin/SuperAdminRoute';
 import BackofficeLayout from './components/admin/layout/BackofficeLayout';
 const DashboardOverview = lazyLoad(() => import('./pages/backoffice/DashboardOverview'), 'default');
 const BackofficeVenuesManager = lazyLoad(() => import('./pages/admin/VenuesManager'), 'VenuesManager');
+const DriversManager = lazyLoad(() => import('./pages/admin/DriversManager'), 'DriversManager');
 
 // Components
 import ProtectedRoute from './components/ProtectedRoute';
@@ -312,7 +313,7 @@ const AppRoutes: React.FC = () => {
                     <Route path="subscriptions" element={<AdminSubscriptionsPage />} />
                     <Route path="payment-settings" element={<AdminPaymentSettingsPage />} />
                     <Route path="settings" element={<AdminSettingsPage />} />
-                    <Route path="drivers" element={<div className="p-8 text-white opacity-60 text-center pt-24"><p className="text-2xl font-bold mb-2">Conductores</p><p className="text-sm">Módulo en desarrollo</p></div>} />
+                    <Route path="drivers" element={<DriversManager />} />
                     <Route path="support" element={<div className="p-8 text-white opacity-60 text-center pt-24"><p className="text-2xl font-bold mb-2">Soporte</p><p className="text-sm">Módulo en desarrollo</p></div>} />
                 </Route>
 
