@@ -42,6 +42,7 @@ import BackofficeLayout from './components/admin/layout/BackofficeLayout';
 const DashboardOverview = lazyLoad(() => import('./pages/backoffice/DashboardOverview'), 'default');
 const BackofficeVenuesManager = lazyLoad(() => import('./pages/admin/VenuesManager'), 'VenuesManager');
 const DriversManager = lazyLoad(() => import('./pages/admin/DriversManager'), 'DriversManager');
+const SupportManager = lazyLoad(() => import('./pages/admin/SupportManager'), 'SupportManager');
 
 // Components
 import ProtectedRoute from './components/ProtectedRoute';
@@ -314,7 +315,7 @@ const AppRoutes: React.FC = () => {
                     <Route path="payment-settings" element={<AdminPaymentSettingsPage />} />
                     <Route path="settings" element={<AdminSettingsPage />} />
                     <Route path="drivers" element={<DriversManager />} />
-                    <Route path="support" element={<div className="p-8 text-white opacity-60 text-center pt-24"><p className="text-2xl font-bold mb-2">Soporte</p><p className="text-sm">Módulo en desarrollo</p></div>} />
+                    <Route path="support" element={<SupportManager />} />
                 </Route>
 
                 {/* --- LEGACY ADMIN ROUTES (Will be deprecated) --- */}
