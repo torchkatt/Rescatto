@@ -32,9 +32,9 @@
         overflow: hidden;
         height: 100%;
         max-width: 100vw;
-        /* Fondo neutro dark — los layouts concretos (customer cream, backoffice dark)
-           pintan el suyo encima vía h-full. Evita flashes blancos en carga. */
-        background-color: #0a0a0a;
+        /* Fondo neutro — los layouts concretos (customer cream, backoffice dark)
+           pintan el suyo encima vía h-full. Evita la barra negra inferior. */
+        background-color: #ffffff;
     }
 
     *,

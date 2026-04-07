@@ -32,7 +32,7 @@ export const CustomerBottomNav: React.FC = () => {
     const isCartActive = isActive('/app/cart');
 
     return (
-        <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-lg border-t border-emerald-50/50 px-4 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] flex items-center justify-around z-40 lg:hidden shadow-[0_-8px_30px_rgba(0,0,0,0.08)] rounded-t-[2rem]">
+        <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-lg border-t border-emerald-50/50 px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex items-center justify-around z-40 lg:hidden shadow-[0_-8px_30px_rgba(0,0,0,0.08)] rounded-t-3xl">
             {navItems.map((item) => {
                 const active = isActive(item.path);
                 const Icon = item.icon;
@@ -45,16 +45,16 @@ export const CustomerBottomNav: React.FC = () => {
                             key={item.label}
                             onClick={() => navigate('/app/cart')}
                             aria-label={`${item.label} — ${cartCount} productos`}
-                            className={`relative flex-1 flex justify-center active:scale-95 transition-all duration-300`}
+                            className={`relative flex-1 flex justify-center active:scale-95 transition-all duration-300 py-1`}
                         >
                             <div className={`
-                                -translate-y-2 flex items-center gap-2 px-4 py-2 rounded-2xl
+                                -translate-y-1.5 flex items-center gap-1.5 px-3 py-1.5 rounded-2xl
                                 bg-emerald-600 text-white shadow-lg shadow-emerald-600/40
                                 ${!isCartActive ? 'animate-[pulse_3s_ease-in-out_infinite]' : ''}
                                 transition-all duration-300
                             `}>
                                 <div className="relative">
-                                    <ShoppingCart size={20} className="fill-white/20 stroke-[2.5px]" />
+                                    <ShoppingCart size={18} className="fill-white/20 stroke-[2.5px]" />
                                     <span className="absolute -top-2 -right-2 min-w-[16px] h-[16px] bg-brand-accent text-white text-[9px] font-black rounded-full flex items-center justify-center px-0.5">
                                         {cartCount > 99 ? '99+' : cartCount}
                                     </span>
@@ -75,17 +75,17 @@ export const CustomerBottomNav: React.FC = () => {
                         onClick={() => navigate(item.path)}
                         aria-label={item.label}
                         aria-current={active ? 'page' : undefined}
-                        className={`relative flex flex-col items-center gap-1.5 flex-1 py-1 transition-all active:scale-90 ${
+                        className={`relative flex flex-col items-center justify-center gap-1 flex-1 py-1 transition-all active:scale-90 ${
                             active ? 'text-emerald-600' : 'text-gray-400 hover:text-gray-600'
                         }`}
                     >
-                        <div className={`p-2 rounded-2xl transition-all duration-300 ${active ? 'bg-emerald-50 shadow-inner' : ''}`}>
+                        <div className={`p-1.5 rounded-xl transition-all duration-300 ${active ? 'bg-emerald-50 shadow-inner' : ''}`}>
                             <Icon
-                                size={22}
+                                size={20}
                                 className={`transition-all duration-300 ${active ? 'fill-emerald-600/20 stroke-[2.5px]' : 'stroke-[2px]'}`}
                             />
                         </div>
-                        <span className={`text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${
+                        <span className={`text-[10px] font-bold uppercase tracking-wider transition-all duration-300 ${
                             active ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-1 scale-90'
                         }`}>
                             {item.label}

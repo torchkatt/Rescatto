@@ -157,7 +157,7 @@ const Login: React.FC = () => {
       {/* Global Language Switcher */}
       <button
         onClick={toggleLanguage}
-        className="absolute top-6 right-6 z-50 flex items-center gap-2 bg-white/80 backdrop-blur-md px-4 py-2 rounded-full border border-slate-200 shadow-sm hover:shadow-md hover:bg-white text-slate-700 font-bold text-sm transition-all group"
+        className="absolute top-[calc(env(safe-area-inset-top,0px)+1.5rem)] right-6 z-50 flex items-center gap-2 bg-white/80 backdrop-blur-md px-4 py-2 rounded-full border border-slate-200 shadow-sm hover:shadow-md hover:bg-white text-slate-700 font-bold text-sm transition-all group"
       >
         <Globe size={16} className="text-emerald-600 group-hover:animate-pulse" />
         {i18n.language.startsWith('es') ? 'ES' : 'EN'}
