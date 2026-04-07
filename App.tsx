@@ -184,7 +184,7 @@ const CustomerLayout: React.FC = () => {
 
     return (
         /* Esqueleto raíz: flex horizontal, altura exacta del viewport, sin overflow */
-        <div className="flex h-[100dvh] overflow-hidden bg-brand-bg">
+        <div className="flex h-screen overflow-hidden bg-brand-bg">
 
             {/* ── SIDEBAR (desktop only) — flex item, no fixed ── */}
             <DesktopSidebar onOpenImpact={() => setIsImpactModalOpen(true)} />
@@ -200,7 +200,7 @@ const CustomerLayout: React.FC = () => {
                 />
 
                 {/* Único contenedor de scroll de la app */}
-                <main className="flex-1 overflow-y-auto overscroll-y-contain pt-[env(safe-area-inset-top)] lg:pt-0">
+                <main className="flex-1 overflow-y-auto overscroll-y-contain">
                     <div className="pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-8">
                         <Outlet context={{
                             openImpact: () => setIsImpactModalOpen(true),
