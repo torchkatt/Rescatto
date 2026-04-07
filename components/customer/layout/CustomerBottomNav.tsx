@@ -32,7 +32,7 @@ export const CustomerBottomNav: React.FC = () => {
     const isCartActive = isActive('/app/cart');
 
     return (
-        <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-lg border-t border-emerald-50/50 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] flex items-center justify-around z-40 lg:hidden shadow-[0_-8px_30px_rgba(0,0,0,0.08)] rounded-t-[2rem]">
+        <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-lg border-t border-emerald-50/50 px-4 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] flex items-center justify-around z-40 lg:hidden shadow-[0_-8px_30px_rgba(0,0,0,0.08)] rounded-t-[2rem]">
             {navItems.map((item) => {
                 const active = isActive(item.path);
                 const Icon = item.icon;
@@ -48,7 +48,7 @@ export const CustomerBottomNav: React.FC = () => {
                             className={`relative flex-1 flex justify-center active:scale-95 transition-all duration-300`}
                         >
                             <div className={`
-                                -translate-y-3 flex items-center gap-2 px-4 py-2.5 rounded-2xl
+                                -translate-y-2 flex items-center gap-2 px-4 py-2 rounded-2xl
                                 bg-emerald-600 text-white shadow-lg shadow-emerald-600/40
                                 ${!isCartActive ? 'animate-[pulse_3s_ease-in-out_infinite]' : ''}
                                 transition-all duration-300

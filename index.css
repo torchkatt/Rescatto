@@ -52,7 +52,7 @@
 
     body {
         font-family: 'Outfit', 'Inter', sans-serif;
-        background-color: var(--background-color);
+        background-color: transparent;
         color: var(--text-primary);
         overflow: hidden;
         width: 100%;
@@ -291,6 +291,6 @@
 
     /* Padding inferior para páginas con bottom nav fijo (5rem nav + safe area) */
     .pb-nav {
-        padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+        padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
     }
 }
