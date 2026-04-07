@@ -103,7 +103,7 @@ const RootRedirect: React.FC = () => {
     // Se usa un ref para ejecutarlo solo UNA vez por sesión (evita 403 repetidos).
     const fcmRegisteredRef = React.useRef(false);
     useEffect(() => {
-        if (user && user.id && !user.isGuest && Notification.permission === 'granted' && !fcmRegisteredRef.current) {
+        if (user && user.id && !user.isGuest && typeof Notification !== 'undefined' && Notification.permission === 'granted' && !fcmRegisteredRef.current) {
             fcmRegisteredRef.current = true;
             messagingService.requestPermissionAndSaveToken(user.id).catch(() => {});
         }

@@ -18,6 +18,12 @@ export const messagingService = {
             logger.debug('FCM: VITE_FIREBASE_VAPID_KEY no configurado, omitiendo registro de token.');
             return null;
         }
+        // Guard: algunos navegadores (iOS Safari en modo privado, WebViews reducidas)
+        // no exponen la API Notification. Evita ReferenceError global.
+        if (typeof Notification === 'undefined') {
+            logger.warn('⚠️ Notification API no disponible en este navegador.');
+            return null;
+        }
         try {
             logger.log('🔑 Solicitando permisos de notificación...');
             const permission = await Notification.requestPermission();

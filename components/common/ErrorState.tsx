@@ -47,17 +47,29 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center w-full max-w-sm">
                 {resetErrorBoundary && (
                     <button
-                        onClick={resetErrorBoundary}
+                        onClick={() => {
+                            // Reset del boundary + recarga forzada: si el error vino de un
+                            // chunk/estado roto, solo limpiar state re-explota. El reload
+                            // es el único reintento confiable.
+                            try { resetErrorBoundary(); } catch {}
+                            window.location.reload();
+                        }}
                         className="w-full sm:w-auto px-8 py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all flex items-center justify-center gap-2 shadow-xl active:scale-95"
                     >
                         <RefreshCcw size={16} />
                         Reintentar
                     </button>
                 )}
-                
+
                 {showHome && (
                     <button
-                        onClick={() => window.location.href = '#/'}
+                        onClick={() => {
+                            // Redirige a la raíz con reload completo. El <RoleRedirect/>
+                            // del App.tsx se encargará de enviar al dashboard del rol
+                            // (customer, driver, venue owner, admin, super admin).
+                            // Usamos replace para no dejar el error en el historial.
+                            window.location.replace(`${window.location.origin}/`);
+                        }}
                         className="w-full sm:w-auto px-8 py-4 bg-white border border-slate-200 text-slate-700 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center justify-center gap-2 active:scale-95"
                     >
                         <Home size={16} />
@@ -67,7 +79,9 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
 
                 {showSupport && (
                     <button
-                        onClick={() => window.location.href = '#/chat'}
+                        onClick={() => {
+                            window.location.replace(`${window.location.origin}/#/chat`);
+                        }}
                         className="w-full sm:w-auto px-8 py-4 bg-emerald-50 text-emerald-700 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-100 transition-all flex items-center justify-center gap-2 active:scale-95"
                     >
                         <MessageSquare size={16} />
