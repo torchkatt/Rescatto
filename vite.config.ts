@@ -23,7 +23,7 @@ export default defineConfig({
         short_name: 'Rescatto',
         description: 'La plataforma definitiva para gestionar tu negocio con Rescatto. Controla pedidos, inventario y métricas en tiempo real.',
         theme_color: '#059669',
-        background_color: '#ffffff',
+        background_color: '#0f172a',
         display: 'standalone',
         categories: ['business', 'productivity', 'food'],
         icons: [

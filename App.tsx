@@ -103,7 +103,7 @@ const RootRedirect: React.FC = () => {
     // Se usa un ref para ejecutarlo solo UNA vez por sesión (evita 403 repetidos).
     const fcmRegisteredRef = React.useRef(false);
     useEffect(() => {
-        if (user && user.id && !user.isGuest && typeof Notification !== 'undefined' && Notification.permission === 'granted' && !fcmRegisteredRef.current) {
+        if (user && user.id && !user.isGuest && Notification.permission === 'granted' && !fcmRegisteredRef.current) {
             fcmRegisteredRef.current = true;
             messagingService.requestPermissionAndSaveToken(user.id).catch(() => {});
         }
@@ -184,7 +184,7 @@ const CustomerLayout: React.FC = () => {
 
     return (
         /* Esqueleto raíz: flex horizontal, altura exacta del viewport, sin overflow */
-        <div className="flex h-full overflow-hidden bg-brand-bg">
+        <div className="flex h-[100dvh] overflow-hidden bg-brand-bg">
 
             {/* ── SIDEBAR (desktop only) — flex item, no fixed ── */}
             <DesktopSidebar onOpenImpact={() => setIsImpactModalOpen(true)} />
@@ -200,7 +200,7 @@ const CustomerLayout: React.FC = () => {
                 />
 
                 {/* Único contenedor de scroll de la app */}
-                <main className="flex-1 overflow-y-auto overscroll-y-contain">
+                <main className="flex-1 overflow-y-auto overscroll-y-contain pt-[env(safe-area-inset-top)] lg:pt-0">
                     <div className="pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-8">
                         <Outlet context={{
                             openImpact: () => setIsImpactModalOpen(true),
@@ -571,7 +571,6 @@ const App: React.FC = () => {
                     </ThemeProvider>
                 </AuthProvider>
             </ErrorBoundary>
-            {isFeatureEnabled(FLAG.REACT_QUERY_DEVTOOLS) && <ReactQueryDevtools initialIsOpen={false} />}
         </QueryClientProvider>
     );
 };
