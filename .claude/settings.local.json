@@ -21,7 +21,14 @@
       "Bash(npm run test:run -- tests/hooks/useOrderSync.test.ts)",
       "Bash(npm install -D eslint @typescript-eslint/parser @typescript-eslint/eslint-plugin eslint-plugin-react eslint-plugin-react-hooks)",
       "Bash(test -f /Users/alexandersandoval/Documents/PERSONAL/DESARROLLO/rescatto-business-dashboard/.eslintrc.json)",
-      "Bash(npx vitest run tests/flows/BusinessFlows.test.tsx)"
+      "Bash(npx vitest run tests/flows/BusinessFlows.test.tsx)",
+      "Bash(git add App.tsx components/Layout.tsx components/Sidebar.tsx components/admin/layout/BackofficeLayout.tsx)",
+      "Bash(git commit -m \"fix\\(ui\\): corregir safe-area-inset-top en todos los layouts mobile:*)",
+      "Bash(git push origin main)",
+      "Bash(git add components/common/MobileDrawer.tsx pages/admin/sections/AdminInventory.tsx pages/admin/sections/AdminSettings.tsx pages/admin/AuditLogs.tsx pages/admin/CommissionsManager.tsx pages/admin/FinanceManager.tsx pages/admin/UsersManager.tsx pages/admin/VenueFinance.tsx pages/admin/VenuesManager.tsx pages/business/OrderManagement.tsx pages/business/ProductManager.tsx components/admin/layout/BackofficeLayout.tsx)",
+      "Bash(git commit:*)",
+      "Bash(git add:*)",
+      "Bash(git push:*)"
     ]
   }
 }
