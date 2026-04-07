@@ -114,7 +114,7 @@ const BackofficeLayout: React.FC = () => {
   );
 
   return (
-    <div className="flex h-[100dvh] bg-neutral-900 text-white font-sans overflow-hidden">
+    <div className="flex h-full bg-neutral-900 text-white font-sans overflow-hidden">
       {/* Sidebar */}
       <aside className="hidden lg:flex w-64 bg-black border-r border-neutral-800 flex-col">
         <SidebarContent />

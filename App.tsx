@@ -184,7 +184,7 @@ const CustomerLayout: React.FC = () => {
 
     return (
         /* Esqueleto raíz: flex horizontal, altura exacta del viewport, sin overflow */
-        <div className="flex h-[100dvh] overflow-hidden bg-brand-bg">
+        <div className="flex h-full overflow-hidden bg-brand-bg">
 
             {/* ── SIDEBAR (desktop only) — flex item, no fixed ── */}
             <DesktopSidebar onOpenImpact={() => setIsImpactModalOpen(true)} />

@@ -9,7 +9,7 @@ import { UserRole } from '../types';
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   return (
-    <div className="flex h-[100dvh] w-full bg-gray-50 overflow-hidden">
+    <div className="flex h-full w-full bg-gray-50 overflow-hidden">
       <Sidebar />
       <main className="flex-1 p-4 pt-[calc(4rem+env(safe-area-inset-top))] md:pt-8 md:p-8 overflow-y-auto overflow-x-hidden h-full w-full relative scroll-smooth no-scrollbar">
         <div className="max-w-7xl mx-auto pb-[env(safe-area-inset-bottom,0px)] md:pb-8">

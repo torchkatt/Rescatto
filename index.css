@@ -30,11 +30,11 @@
         scroll-behavior: smooth;
         overscroll-behavior: none;
         overflow: hidden;
-        /* Height dinámica: coincide con h-[100dvh] de los layouts para evitar
-           que el fondo del html asome cuando la barra de URL se retrae en mobile. */
-        height: 100dvh;
+        height: 100%;
         max-width: 100vw;
-        background-color: var(--background-color);
+        /* Fondo neutro dark — los layouts concretos (customer cream, backoffice dark)
+           pintan el suyo encima vía h-full. Evita flashes blancos en carga. */
+        background-color: #0a0a0a;
     }
 
     *,
@@ -46,6 +46,10 @@
     /* Root: ocupa exactamente el viewport sin overflow visible */
     #root {
         width: 100%;
+        /* Cadena de fallback robusta: vh primero (universal), dvh como progresivo.
+           Navegadores sin soporte dvh usarán vh; modernos usarán dvh (que se ajusta
+           cuando la barra de URL se retrae). */
+        height: 100vh;
         height: 100dvh;
         max-width: 100vw;
         overflow: hidden;
@@ -57,7 +61,7 @@
         color: var(--text-primary);
         overflow: hidden;
         width: 100%;
-        height: 100dvh;
+        height: 100%;
         -webkit-user-select: none;
         /* Prevent accidental text selection */
         user-select: none;

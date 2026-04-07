@@ -28,7 +28,8 @@
       "Bash(git add components/common/MobileDrawer.tsx pages/admin/sections/AdminInventory.tsx pages/admin/sections/AdminSettings.tsx pages/admin/AuditLogs.tsx pages/admin/CommissionsManager.tsx pages/admin/FinanceManager.tsx pages/admin/UsersManager.tsx pages/admin/VenueFinance.tsx pages/admin/VenuesManager.tsx pages/business/OrderManagement.tsx pages/business/ProductManager.tsx components/admin/layout/BackofficeLayout.tsx)",
       "Bash(git commit:*)",
       "Bash(git add:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(ls /Users/alexandersandoval/Documents/PERSONAL/DESARROLLO/rescatto-business-dashboard/.env*)"
     ]
   }
 }
