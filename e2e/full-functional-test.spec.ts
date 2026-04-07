@@ -14,11 +14,19 @@ import { test, expect, Page, BrowserContext } from '@playwright/test';
 
 const BASE = 'https://rescatto.com';
 
+// Credenciales de cuentas de prueba — NUNCA hardcodear. Se leen del entorno
+// (ej. .env.test local o secrets de CI). Ver e2e/README.md.
+const must = (key: string): string => {
+  const v = process.env[key];
+  if (!v) throw new Error(`Missing required env var: ${key}`);
+  return v;
+};
+
 const CREDS = {
-  customer: { email: 'cliente1@test.com', password: 'clave123' },
-  kitchen: { email: 'cocina1@test.com', password: 'clave123' },
-  venue: { email: 'admin3@test.com', password: 'clave123' },
-  admin: { email: 'superadmin1@test.com', password: 'clave123' },
+  customer: { email: must('E2E_CUSTOMER_EMAIL'), password: must('E2E_CUSTOMER_PASSWORD') },
+  kitchen:  { email: must('E2E_KITCHEN_EMAIL'),  password: must('E2E_KITCHEN_PASSWORD') },
+  venue:    { email: must('E2E_VENUE_EMAIL'),    password: must('E2E_VENUE_PASSWORD') },
+  admin:    { email: must('E2E_ADMIN_EMAIL'),    password: must('E2E_ADMIN_PASSWORD') },
 };
 
 // ───────────────────────────────────────────────────────────
