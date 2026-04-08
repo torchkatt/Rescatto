@@ -53,7 +53,7 @@ export const HelpFloatingButton: React.FC<HelpFloatingButtonProps> = ({ layout =
 
   return (
     <div
-      className={`fixed right-4 ${bottomClass} z-40 flex flex-col items-end gap-1`}
+      className={`fixed left-4 ${bottomClass} z-40 flex flex-col items-start gap-1`}
       role="group"
       aria-label="Botón de ayuda"
     >
@@ -61,7 +61,7 @@ export const HelpFloatingButton: React.FC<HelpFloatingButtonProps> = ({ layout =
       <button
         onClick={handleDismiss}
         aria-label="Ocultar botón de ayuda"
-        className="w-5 h-5 rounded-full bg-gray-400/80 hover:bg-gray-500 text-white flex items-center justify-center transition-colors"
+        className="w-5 h-5 rounded-full bg-gray-400/80 hover:bg-gray-500 text-white flex items-center justify-center transition-colors self-end"
       >
         <X size={10} />
       </button>

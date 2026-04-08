@@ -103,12 +103,25 @@ export const HelpCenter: React.FC<HelpCenterProps> = ({ onClose }) => {
 
   const faqs = FAQ_BY_ROLE[roleKey] ?? FAQ_BY_ROLE['customer'];
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!manual) return;
-    const a = document.createElement('a');
-    a.href = manual.url;
-    a.download = `rescatto-manual-${roleKey}.pdf`;
-    a.click();
+    try {
+      // Fetch → blob → object URL: funciona en iOS Safari, Android y escritorio
+      const res = await fetch(manual.url);
+      if (!res.ok) throw new Error('fetch failed');
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `rescatto-manual-${roleKey}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+    } catch {
+      // Fallback: abrir en pestaña nueva (iOS Safari no descarga, pero al menos abre el PDF)
+      window.open(manual.url, '_blank', 'noopener,noreferrer');
+    }
   };
 
   const handleOpenOnline = () => {
