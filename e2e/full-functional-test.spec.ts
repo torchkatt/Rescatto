@@ -621,7 +621,7 @@ test.describe('VENUE_OWNER: gestión completa del negocio', () => {
     console.log('SETTINGS: tiene email en teléfono:', body?.toLowerCase().includes('@') && body?.toLowerCase().includes('teléfono'));
 
     // Check all form fields
-    const inputs = await page.locator('input').evaluateAll(els => els.map(el => ({
+    const inputs = await page.locator('input').evaluateAll((els: HTMLInputElement[]) => els.map(el => ({
       name: el.name || el.id || el.placeholder,
       value: el.value,
       type: el.type,

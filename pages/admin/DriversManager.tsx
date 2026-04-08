@@ -117,7 +117,7 @@ export const DriversManager: React.FC = () => {
                 ? `¿Verificar a ${driver.fullName}? Esto le permite operar como conductor activo.`
                 : `¿Quitar verificación de ${driver.fullName}?`,
             confirmLabel: verify ? 'Verificar' : 'Quitar',
-            variant: verify ? 'success' : 'warning',
+            variant: verify ? 'info' : 'warning',
         });
         if (!confirmed) return;
         try {
