@@ -18,6 +18,8 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         <PWAInstallPrompt />
       </main>
       <ChatButton />
+      {/* Rellena el safe-area-bottom con el mismo bg del layout, evita barra negra */}
+      <div className="fixed bottom-0 left-0 right-0 bg-gray-50 z-0" style={{ height: 'env(safe-area-inset-bottom, 0px)' }} aria-hidden />
 
       {/* Sistema de Onboarding (Solo para Venue Owners Nuevos) */}
       {user && user.role === UserRole.VENUE_OWNER && (

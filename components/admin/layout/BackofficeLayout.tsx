@@ -144,6 +144,9 @@ const BackofficeLayout: React.FC = () => {
         </div>
       </main>
 
+      {/* Rellena el safe-area-bottom con el mismo bg del layout, evita barra negra */}
+      <div className="fixed bottom-0 left-0 right-0 bg-black z-0" style={{ height: 'env(safe-area-inset-bottom, 0px)' }} aria-hidden />
+
       {isMobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/60" onClick={() => setIsMobileOpen(false)}></div>
