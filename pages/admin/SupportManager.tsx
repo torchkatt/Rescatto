@@ -13,18 +13,19 @@ import { logger } from '../../utils/logger';
 import {
     MessageSquare, Search, Send, Trash2, RefreshCw,
     Users, Truck, Store, ShieldCheck, Circle, X,
-    ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight
+    ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
+    Inbox
 } from 'lucide-react';
 import MobileDrawer from '../../components/common/MobileDrawer';
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
-const TYPE_LABELS: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
-    'customer-venue':  { label: 'Cliente ↔ Negocio', icon: <Store size={13} />,       color: 'bg-blue-100 text-blue-700' },
-    'customer-driver': { label: 'Cliente ↔ Driver',  icon: <Truck size={13} />,       color: 'bg-amber-100 text-amber-700' },
-    'venue-driver':    { label: 'Negocio ↔ Driver',  icon: <Users size={13} />,       color: 'bg-purple-100 text-purple-700' },
-    'admin-support':   { label: 'Soporte Admin',      icon: <ShieldCheck size={13} />, color: 'bg-emerald-100 text-emerald-700' },
+const TYPE_LABELS: Record<string, { label: string; icon: React.ReactNode; color: string; bgColor: string }> = {
+    'customer-venue':  { label: 'Negocio', icon: <Store size={12} />,       color: 'text-blue-700',    bgColor: 'bg-blue-50' },
+    'customer-driver': { label: 'Driver',  icon: <Truck size={12} />,       color: 'text-amber-700',   bgColor: 'bg-amber-50' },
+    'venue-driver':    { label: 'Logística',  icon: <Users size={12} />,       color: 'text-purple-700',  bgColor: 'bg-purple-50' },
+    'admin-support':   { label: 'Admin',      icon: <ShieldCheck size={12} />, color: 'text-emerald-700', bgColor: 'bg-emerald-50' },
 };
 
 function chatTitle(chat: Chat): string {
@@ -254,23 +255,17 @@ export const SupportManager: React.FC = () => {
         return (
             <div className="flex flex-col h-full bg-white">
                 {/* Chat header */}
-                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50 shrink-0">
-                    <div className="flex items-center gap-3 min-w-0">
-                        <div className="min-w-0">
-                            <p className="font-bold text-gray-900 truncate text-sm">{chatTitle(selectedChat)}</p>
-                            {selectedChat.orderId && (
-                                <p className="text-xs text-gray-400">Pedido #{selectedChat.orderId.slice(-6).toUpperCase()}</p>
-                            )}
-                        </div>
+                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50/80 backdrop-blur-sm shrink-0">
+                    <div className="min-w-0">
+                        <p className="font-black text-gray-900 truncate text-sm">{chatTitle(selectedChat)}</p>
+                        {selectedChat.orderId && (
+                            <p className="text-[10px] text-emerald-600 font-black uppercase tracking-widest mt-0.5">Pedido #{selectedChat.orderId.slice(-6)}</p>
+                        )}
                     </div>
                     <div className="flex items-center gap-1">
-                        <span className={`hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${TYPE_LABELS[selectedChat.type]?.color}`}>
-                            {TYPE_LABELS[selectedChat.type]?.icon}
-                            {TYPE_LABELS[selectedChat.type]?.label}
-                        </span>
                         <button
                             onClick={() => handleDelete(selectedChat)}
-                            className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors ml-1"
+                            className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
                             title="Eliminar conversación"
                         >
                             <Trash2 size={15} />
@@ -282,31 +277,36 @@ export const SupportManager: React.FC = () => {
                 </div>
 
                 {/* Mensajes */}
-                <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-gray-50/30 min-h-0">
+                <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-gray-50/30 min-h-0">
                     {loadingMessages ? (
                         <div className="flex justify-center items-center h-32">
-                            <RefreshCw size={20} className="animate-spin text-gray-400" />
+                            <RefreshCw size={24} className="animate-spin text-emerald-500/20" />
                         </div>
                     ) : messages.length === 0 ? (
-                        <div className="text-center text-gray-400 text-sm py-8">Sin mensajes aún</div>
+                        <div className="flex flex-col items-center justify-center h-full text-gray-300 gap-2 opacity-40">
+                            <MessageSquare size={32} />
+                            <p className="text-xs font-bold uppercase tracking-widest">Sin mensajes</p>
+                        </div>
                     ) : messages.map(msg => {
                         const isMsgFromMe = msg.senderId === user?.id;
                         const isSystem = msg.type === 'system' || msg.senderId === 'system';
                         if (isSystem) return (
                             <div key={msg.id} className="flex justify-center">
-                                <span className="text-[11px] text-gray-400 bg-gray-100 px-3 py-1 rounded-full">{msg.text}</span>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 bg-white shadow-sm border border-gray-100 px-3 py-1 rounded-full">{msg.text}</span>
                             </div>
                         );
                         return (
                             <div key={msg.id} className={`flex ${isMsgFromMe ? 'justify-end' : 'justify-start'}`}>
-                                <div className={`max-w-[75%] rounded-2xl px-3 py-2 ${isMsgFromMe ? 'bg-emerald-600 text-white rounded-br-sm' : 'bg-white border border-gray-100 text-gray-800 rounded-bl-sm shadow-sm'}`}>
-                                    {!isMsgFromMe && <p className="text-[10px] font-bold mb-0.5 opacity-60">{msg.senderName}</p>}
+                                <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 shadow-sm ${isMsgFromMe ? 'bg-emerald-600 text-white rounded-br-none' : 'bg-white border border-gray-100 text-gray-800 rounded-bl-none'}`}>
+                                    {!isMsgFromMe && <p className="text-[10px] font-black mb-1 opacity-50 uppercase tracking-tighter">{msg.senderName}</p>}
                                     <p className="text-sm leading-relaxed">{msg.text}</p>
-                                    <div className="flex items-center justify-end gap-1 mt-1">
-                                        <p className={`text-[10px] ${isMsgFromMe ? 'text-white/60' : 'text-gray-400'}`}>
+                                    <div className="flex items-center justify-end gap-1.5 mt-1.5">
+                                        <p className={`text-[9px] font-bold ${isMsgFromMe ? 'text-white/60' : 'text-gray-400'}`}>
                                             {new Date(msg.timestamp).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
                                         </p>
-                                        {isMsgFromMe && msg.read && <Circle size={4} className="fill-white/60 text-white/60" />}
+                                        {isMsgFromMe && (
+                                            <Circle size={4} className={`${msg.read ? 'fill-white/80' : 'text-white/20'} transition-all`} />
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -316,23 +316,23 @@ export const SupportManager: React.FC = () => {
                 </div>
 
                 {/* Input */}
-                <div className="px-4 py-3 border-t border-gray-100 bg-white shrink-0">
+                <div className="px-4 py-4 border-t border-gray-100 bg-white shrink-0">
                     <div className="flex gap-2">
-                        <input
-                            type="text"
+                        <textarea
+                            rows={1}
                             value={newMessage}
                             onChange={e => setNewMessage(e.target.value)}
                             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                            placeholder="Escribe un mensaje como soporte..."
-                            className="flex-1 px-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none bg-gray-50"
+                            placeholder="Responde como soporte central..."
+                            className="flex-1 px-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none bg-gray-50 resize-none transition-all scrollbar-hide"
                         />
                         <button
                             onClick={handleSend}
                             disabled={!newMessage.trim() || sending}
-                            className="flex items-center justify-center w-10 h-10 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 transition-all active:scale-95 shrink-0"
+                            className="flex items-center justify-center w-11 h-11 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-30 transition-all active:scale-95 shadow-md shadow-emerald-200 shrink-0"
                             aria-label="Enviar"
                         >
-                            <Send size={16} />
+                            <Send size={18} />
                         </button>
                     </div>
                 </div>
@@ -342,154 +342,139 @@ export const SupportManager: React.FC = () => {
 
     // ── Render ─────────────────────────────────────────────────────────────────
     return (
-        <div className="flex flex-col gap-4 overflow-x-hidden min-h-screen pb-6">
+        <div className="flex flex-col gap-6 overflow-x-hidden min-h-screen pb-10 max-w-[1600px] mx-auto px-4 lg:px-6">
 
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
+            {/* Header Section */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 shrink-0 mt-2">
                 <div>
-                    <h1 className="text-2xl font-extrabold text-white flex items-center gap-3">
-                        <MessageSquare className="text-emerald-500" size={28} />
-                        Gestión de Soporte
-                    </h1>
-                    <p className="text-gray-400 text-sm mt-0.5">
-                        {stats.total}{hasMore ? '+' : ''} conversaciones activas
-                        {stats.unread > 0 && <> · <span className="font-bold text-red-500">{stats.unread} sin leer</span></>}
+                    <div className="flex items-center gap-3 mb-1">
+                        <div className="p-2 bg-emerald-500 rounded-xl shadow-lg shadow-emerald-500/20">
+                            <MessageSquare className="text-white" size={24} />
+                        </div>
+                        <h1 className="text-3xl font-black text-white tracking-tight">Consola de Soporte</h1>
+                    </div>
+                    <p className="text-gray-400 text-sm font-medium flex items-center gap-2 ml-1">
+                        <Circle size={8} className="fill-emerald-500 text-emerald-500 animate-pulse" />
+                        {stats.total} conversaciones procesadas
+                        {stats.unread > 0 && <span className="bg-red-500/10 text-red-500 px-2 py-0.5 rounded-lg text-xs font-black">· {stats.unread} pendientes</span>}
                     </p>
                 </div>
                 <button
                     onClick={() => loadChats(true)}
                     disabled={loadingChats}
-                    className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 disabled:opacity-50 transition-all self-start shrink-0 shadow-sm"
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-bold text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 hover:border-gray-300 disabled:opacity-50 transition-all shadow-sm active:scale-95"
                 >
-                    <RefreshCw size={14} className={loadingChats ? 'animate-spin' : ''} />
-                    Actualizar
+                    <RefreshCw size={16} className={loadingChats ? 'animate-spin' : ''} />
+                    Refrescar Bandeja
                 </button>
             </div>
 
-            {/* Dashboard Stats / Info Banner */}
-            <div className="bg-emerald-900/40 border border-emerald-800/50 rounded-2xl p-4 flex flex-wrap gap-4 items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-emerald-500/20 rounded-xl flex items-center justify-center text-emerald-400 shadow-inner">
-                        <ShieldCheck size={24} />
-                    </div>
-                    <div>
-                        <p className="text-xs text-emerald-400 font-bold uppercase tracking-wider">Centro de Soporte</p>
-                        <h3 className="text-lg font-bold text-white">Consola de Administración</h3>
-                    </div>
-                </div>
-                <div className="flex gap-2">
-                    {Object.entries(TYPE_LABELS).map(([type, meta]) => (
-                        <div key={type} className={`px-3 py-1.5 rounded-xl border border-white/5 flex items-center gap-2 ${meta.color.replace('bg-', 'bg-opacity-10 bg-')}`}>
-                            <span className="text-xs font-bold whitespace-nowrap text-white">{meta.label}</span>
-                            <span className="bg-white/10 px-1.5 py-0.5 rounded text-[10px] font-black text-white">{stats.byType[type] ?? 0}</span>
+            {/* Premium Stats Display */}
+            <div className="bg-emerald-900/60 border border-emerald-500/20 rounded-[2rem] p-6 shadow-2xl backdrop-blur-md">
+                <div className="flex flex-col lg:flex-row gap-6 items-center justify-between">
+                    <div className="flex items-center gap-5">
+                        <div className="w-16 h-16 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center text-emerald-400 shadow-inner">
+                            <ShieldCheck size={32} />
                         </div>
-                    ))}
+                        <div>
+                            <p className="text-[10px] text-emerald-400 font-black uppercase tracking-[0.3em] mb-1">Centro de Operaciones</p>
+                            <h3 className="text-xl font-black text-white">Bandeja de Entrada Global</h3>
+                        </div>
+                    </div>
+                    <div className="flex flex-wrap justify-center gap-3">
+                        {Object.entries(TYPE_LABELS).map(([type, meta]) => (
+                            <div key={type} className="bg-white/5 border border-white/10 px-4 py-2 rounded-2xl flex items-center gap-3 hover:bg-white/10 transition-colors group cursor-default">
+                                <span className={`p-1.5 rounded-lg ${meta.bgColor} ${meta.color}`}>{meta.icon}</span>
+                                <div className="flex flex-col">
+                                    <span className="text-[9px] text-gray-400 font-black uppercase tracking-widest">{meta.label}</span>
+                                    <span className="text-white text-sm font-black">{stats.byType[type] ?? 0}</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
 
-            <div className="flex gap-6 items-start">
+            <div className="flex flex-col lg:flex-row gap-6 items-start flex-1 min-h-0">
                 {/* Main Content (Table) */}
-                <div className="flex-1 min-w-0">
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div className="flex-1 w-full min-w-0">
+                    <div className="bg-white rounded-[2rem] shadow-xl border border-gray-100 overflow-hidden flex flex-col h-[calc(100vh-280px)] min-h-[500px]">
                         
-                        {/* Table Controls */}
-                        <div className="p-4 border-b bg-gray-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                            <div className="flex items-center gap-3">
-                                <div className="flex items-center gap-2 border border-gray-200 rounded-xl px-3 py-2 bg-white w-full sm:w-64 shadow-sm">
-                                    <Search className="text-gray-400 shrink-0" size={16} />
-                                    <input
-                                        type="search"
-                                        placeholder="Buscar participante, pedido..."
-                                        value={searchTerm}
-                                        onChange={e => handleSearch(e.target.value)}
-                                        className="w-full outline-none text-gray-700 bg-transparent text-sm"
-                                    />
+                        {/* Table Controls - Refined Layout */}
+                        <div className="p-4 bg-gray-50/80 border-b border-gray-100">
+                            <div className="flex flex-col xl:flex-row gap-4 justify-between items-center">
+                                {/* Search & Rows */}
+                                <div className="flex items-center gap-3 w-full xl:w-auto">
+                                    <div className="relative group flex-1 sm:w-80 sm:flex-none">
+                                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-emerald-500 transition-colors" size={16} />
+                                        <input
+                                            type="search"
+                                            placeholder="Buscar participante, pedido..."
+                                            value={searchTerm}
+                                            onChange={e => handleSearch(e.target.value)}
+                                            className="w-full pl-10 pr-4 py-2.5 text-sm font-medium border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none bg-white shadow-sm transition-all"
+                                        />
+                                    </div>
+                                    <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-1.5 shadow-sm">
+                                        <span className="text-[10px] text-gray-400 font-black uppercase tracking-tighter">Filas</span>
+                                        <select 
+                                            value={pageSize} 
+                                            onChange={e => handlePageSizeChange(Number(e.target.value))}
+                                            className="text-sm font-black bg-transparent text-emerald-600 outline-none cursor-pointer"
+                                        >
+                                            {PAGE_SIZE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                        </select>
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-2 shrink-0">
-                                    <span className="text-xs text-gray-500 font-bold">Filas:</span>
-                                    <select 
-                                        value={pageSize} 
-                                        onChange={e => handlePageSizeChange(Number(e.target.value))}
-                                        className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 font-bold cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm"
-                                    >
-                                        {PAGE_SIZE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                                    </select>
-                                </div>
-                            </div>
-                            
-                            {/* Filter Chips */}
-                            <div className="flex flex-wrap gap-1.5">
-                                <button
-                                    onClick={() => handleFilter('all')}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all border ${filterType === 'all' ? 'bg-gray-900 text-white border-gray-900' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
-                                >
-                                    Todos
-                                </button>
-                                {Object.entries(TYPE_LABELS).map(([type, meta]) => (
+                                
+                                {/* Filter Chips - Horizontal Scrollable */}
+                                <div className="flex items-center gap-2 w-full xl:w-auto overflow-x-auto scrollbar-hide pb-1">
                                     <button
-                                        key={type}
-                                        onClick={() => handleFilter(type)}
-                                        className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all border ${filterType === type ? 'bg-gray-900 text-white border-gray-900' : `border-transparent ${meta.color} hover:opacity-80`}`}
+                                        onClick={() => handleFilter('all')}
+                                        className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all border ${filterType === 'all' ? 'bg-gray-900 text-white border-gray-900 shadow-lg shadow-gray-200' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50'}`}
                                     >
-                                        {meta.label}
+                                        Todos
                                     </button>
-                                ))}
+                                    {Object.entries(TYPE_LABELS).map(([type, meta]) => (
+                                        <button
+                                            key={type}
+                                            onClick={() => handleFilter(type)}
+                                            className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all border ${filterType === type ? 'bg-gray-900 text-white border-gray-900 shadow-lg shadow-gray-200' : `border-transparent ${meta.bgColor} ${meta.color} hover:brightness-95`}`}
+                                        >
+                                            {meta.label}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         </div>
 
-                        {/* Mobile List View */}
-                        <div className="block lg:hidden divide-y divide-gray-50">
-                            {paginated.map(chat => (
-                                <div 
-                                    key={chat.id} 
-                                    onClick={() => selectChat(chat)}
-                                    className={`p-4 active:bg-gray-50 transition-colors ${selectedChat?.id === chat.id ? 'bg-emerald-50/50' : ''}`}
-                                >
-                                    <div className="flex justify-between items-start mb-2">
-                                        <div className="flex items-center gap-2">
-                                            {!chat.lastMessage.read && chat.lastMessage.senderId !== user?.id && <Circle size={8} className="fill-red-500 text-red-500" />}
-                                            <p className={`text-sm font-bold ${!chat.lastMessage.read && chat.lastMessage.senderId !== user?.id ? 'text-gray-900' : 'text-gray-700'}`}>
-                                                {chatTitle(chat)}
-                                            </p>
-                                        </div>
-                                        <span className="text-[10px] text-gray-400 font-medium">{timeAgo(chat.updatedAt)}</span>
-                                    </div>
-                                    <p className="text-xs text-gray-500 truncate mb-2">{chat.lastMessage.text || 'Sin mensajes'}</p>
-                                    <div className="flex items-center gap-2">
-                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${TYPE_LABELS[chat.type]?.color}`}>
-                                            {TYPE_LABELS[chat.type]?.label}
-                                        </span>
-                                        {chat.orderId && <span className="text-[10px] text-gray-400">#{chat.orderId.slice(-6).toUpperCase()}</span>}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Desktop Table View */}
-                        <div className="hidden lg:block overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-gray-50 border-b border-gray-200 text-[10px] uppercase text-gray-400 font-black tracking-widest">
-                                        <th className="p-4">Conversación</th>
-                                        <th className="p-4">Tipo</th>
-                                        <th className="p-4">Pedido</th>
-                                        <th className="p-4">Último Mensaje</th>
-                                        <th className="p-4">Actividad</th>
-                                        <th className="p-4 text-right">Acciones</th>
+                        {/* DESKTOP TABLE */}
+                        <div className="flex-1 overflow-auto scrollbar-hide hidden lg:block">
+                            <table className="w-full border-separate border-spacing-0">
+                                <thead className="sticky top-0 z-10">
+                                    <tr className="bg-gray-50/95 backdrop-blur-md border-b border-gray-200">
+                                        <th className="p-4 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 w-[35%]">Participantes</th>
+                                        <th className="p-4 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 text-center w-[15%]">Categoría</th>
+                                        <th className="p-4 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 text-center w-[12%]">Pedido</th>
+                                        <th className="p-4 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 w-[20%]">Último Mensaje</th>
+                                        <th className="p-4 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 text-right w-[10%]">Actividad</th>
+                                        <th className="p-4 w-[8%]"></th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-gray-50">
+                                <tbody className="divide-y divide-gray-100">
                                     {loadingChats ? (
                                         <tr>
-                                            <td colSpan={6} className="p-12 text-center">
-                                                <RefreshCw size={32} className="animate-spin text-gray-200 mx-auto" />
+                                            <td colSpan={6} className="p-20 text-center">
+                                                <RefreshCw size={40} className="animate-spin text-emerald-500/10 mx-auto" />
                                             </td>
                                         </tr>
                                     ) : paginated.length === 0 ? (
                                         <tr>
-                                            <td colSpan={6} className="p-12 text-center text-gray-400">
-                                                <MessageSquare size={48} className="mx-auto mb-3 opacity-10" />
-                                                <p className="font-bold">No se encontraron conversaciones</p>
+                                            <td colSpan={6} className="p-20 text-center">
+                                                <div className="flex flex-col items-center justify-center gap-4 text-gray-300">
+                                                    <Inbox size={64} strokeWidth={1} />
+                                                    <p className="font-black uppercase tracking-[0.2em] text-sm">Sin coincidencias</p>
+                                                </div>
                                             </td>
                                         </tr>
                                     ) : paginated.map(chat => {
@@ -499,50 +484,47 @@ export const SupportManager: React.FC = () => {
                                             <tr 
                                                 key={chat.id}
                                                 onClick={() => selectChat(chat)}
-                                                className={`hover:bg-gray-50 transition-colors cursor-pointer ${selectedChat?.id === chat.id ? 'bg-emerald-50 border-l-4 border-l-emerald-500' : ''}`}
+                                                className={`group hover:bg-gray-50/80 transition-all cursor-pointer ${selectedChat?.id === chat.id ? 'bg-emerald-50/60' : ''}`}
                                             >
                                                 <td className="p-4">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black ${meta.color}`}>
+                                                    <div className="flex items-center gap-4">
+                                                        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-sm font-black shadow-sm group-hover:scale-105 transition-transform ${meta.bgColor} ${meta.color}`}>
                                                             {chatTitle(chat).charAt(0)}
                                                         </div>
-                                                        <div className="min-w-0">
-                                                            <p className={`text-sm truncate ${isUnread ? 'font-black text-gray-900' : 'font-bold text-gray-700'}`}>
-                                                                {chatTitle(chat)}
-                                                            </p>
-                                                            {isUnread && (
-                                                                <span className="flex items-center gap-1 text-[10px] text-red-500 font-bold">
-                                                                    <Circle size={6} className="fill-current" /> Sin leer
-                                                                </span>
-                                                            )}
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center gap-2">
+                                                                <p className={`text-sm truncate max-w-[280px] ${isUnread ? 'font-black text-gray-900 underline decoration-red-500/30' : 'font-bold text-gray-700'}`}>
+                                                                    {chatTitle(chat)}
+                                                                </p>
+                                                                {isUnread && <div className="w-2 h-2 rounded-full bg-red-500 shadow-sm shadow-red-200 shrink-0" />}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="p-4">
-                                                    <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-black ${meta.color}`}>
-                                                        {meta.icon}
-                                                        {meta.label}
+                                                <td className="p-4 text-center">
+                                                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-tighter ${meta.bgColor} ${meta.color} border border-transparent group-hover:border-current/10 transition-colors`}>
+                                                        {meta.icon} {meta.label}
                                                     </span>
                                                 </td>
-                                                <td className="p-4">
+                                                <td className="p-4 text-center">
                                                     {chat.orderId ? (
-                                                        <span className="text-xs font-mono font-bold text-gray-500">#{chat.orderId.slice(-6).toUpperCase()}</span>
+                                                        <span className="text-xs font-black text-gray-400 bg-gray-100/50 px-2 py-1 rounded-lg">#{chat.orderId.slice(-6)}</span>
                                                     ) : (
-                                                        <span className="text-xs text-gray-300">—</span>
+                                                        <span className="text-gray-200">—</span>
                                                     )}
                                                 </td>
                                                 <td className="p-4">
-                                                    <p className="text-xs text-gray-500 truncate max-w-[200px]">
-                                                        {chat.lastMessage.text || <span className="italic opacity-50">Sin contenido</span>}
+                                                    <p className="text-xs text-gray-500 truncate max-w-[180px] font-medium leading-tight">
+                                                        {chat.lastMessage.text || <span className="italic text-gray-300 font-normal">Vacío</span>}
                                                     </p>
                                                 </td>
-                                                <td className="p-4">
-                                                    <span className="text-[11px] text-gray-400 font-bold">{timeAgo(chat.updatedAt)}</span>
-                                                </td>
                                                 <td className="p-4 text-right">
+                                                    <span className="text-[11px] font-black text-gray-400 tabular-nums">{timeAgo(chat.updatedAt)}</span>
+                                                </td>
+                                                <td className="p-4 text-right" onClick={e => e.stopPropagation()}>
                                                     <button 
-                                                        onClick={(e) => { e.stopPropagation(); handleDelete(chat); }}
-                                                        className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                                                        onClick={() => handleDelete(chat)}
+                                                        className="p-2 rounded-xl text-gray-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all active:scale-90"
                                                     >
                                                         <Trash2 size={16} />
                                                     </button>
@@ -554,27 +536,57 @@ export const SupportManager: React.FC = () => {
                             </table>
                         </div>
 
-                        {/* Pagination Footer */}
+                        {/* MOBILE LIST */}
+                        <div className="block lg:hidden overflow-y-auto flex-1 divide-y divide-gray-50 scrollbar-hide">
+                            {paginated.map(chat => (
+                                <div 
+                                    key={chat.id} 
+                                    onClick={() => selectChat(chat)}
+                                    className={`p-4 active:bg-gray-100 transition-colors ${selectedChat?.id === chat.id ? 'bg-emerald-50' : ''}`}
+                                >
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black ${TYPE_LABELS[chat.type]?.bgColor} ${TYPE_LABELS[chat.type]?.color}`}>
+                                                {chatTitle(chat).charAt(0)}
+                                            </div>
+                                            <p className={`text-sm ${!chat.lastMessage.read && chat.lastMessage.senderId !== user?.id ? 'font-black text-gray-900' : 'font-bold text-gray-700'}`}>
+                                                {chatTitle(chat)}
+                                            </p>
+                                        </div>
+                                        <span className="text-[10px] font-black text-gray-400 uppercase">{timeAgo(chat.updatedAt)}</span>
+                                    </div>
+                                    <p className="text-xs text-gray-400 font-medium truncate mb-3 ml-11">{chat.lastMessage.text || 'Sin mensajes'}</p>
+                                    <div className="flex items-center gap-2 ml-11">
+                                        <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest ${TYPE_LABELS[chat.type]?.bgColor} ${TYPE_LABELS[chat.type]?.color}`}>
+                                            {TYPE_LABELS[chat.type]?.label}
+                                        </span>
+                                        {chat.orderId && <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest">#{chat.orderId.slice(-6)}</span>}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Pagination Footer - Refined */}
                         {!loadingChats && filtered.length > 0 && (
-                            <div className="p-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3 bg-gray-50/50">
-                                <p className="text-xs text-gray-400 font-bold">
-                                    {loadingMore ? 'Cargando más...' : (
-                                        <>Mostrando <span className="text-gray-700">{(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, filtered.length)}</span> de <span className="text-gray-700">{filtered.length}{hasMore ? '+' : ''}</span> conversaciones</>
+                            <div className="p-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4 bg-gray-50/50 shrink-0">
+                                <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest bg-white border border-gray-100 px-3 py-1.5 rounded-xl shadow-sm">
+                                    {loadingMore ? 'Sincronizando...' : (
+                                        <>Items <span className="text-emerald-600">{(safePage - 1) * pageSize + 1}-{Math.min(safePage * pageSize, filtered.length)}</span> de {filtered.length}{hasMore ? '+' : ''}</>
                                     )}
-                                </p>
-                                <div className="flex items-center gap-1">
-                                    <button onClick={() => goToPage(1)} disabled={safePage === 1 || loadingMore} className="p-2 rounded-xl text-gray-400 hover:bg-white hover:text-emerald-600 border border-transparent hover:border-gray-200 disabled:opacity-20 transition-all"><ChevronsLeft size={16} /></button>
-                                    <button onClick={() => goToPage(safePage - 1)} disabled={safePage === 1 || loadingMore} className="p-2 rounded-xl text-gray-400 hover:bg-white hover:text-emerald-600 border border-transparent hover:border-gray-200 disabled:opacity-20 transition-all"><ChevronLeft size={16} /></button>
+                                </div>
+                                <div className="flex items-center gap-1 bg-white p-1 rounded-2xl shadow-sm border border-gray-100">
+                                    <button onClick={() => goToPage(1)} disabled={safePage === 1 || loadingMore} className="p-2 rounded-xl text-gray-400 hover:bg-gray-50 hover:text-emerald-600 disabled:opacity-20 transition-all"><ChevronsLeft size={16} /></button>
+                                    <button onClick={() => goToPage(safePage - 1)} disabled={safePage === 1 || loadingMore} className="p-2 rounded-xl text-gray-400 hover:bg-gray-50 hover:text-emerald-600 disabled:opacity-20 transition-all"><ChevronLeft size={16} /></button>
                                     
                                     <div className="flex items-center px-1">
                                         {getPageNumbers().map((page, idx) => (
                                             page === '...' ? (
-                                                <span key={`dots-${idx}`} className="px-2 text-gray-300 text-sm">...</span>
+                                                <span key={`dots-${idx}`} className="px-2 text-gray-300 text-xs font-bold italic">..</span>
                                             ) : (
                                                 <button 
                                                     key={page} 
                                                     onClick={() => goToPage(page as number)}
-                                                    className={`w-8 h-8 rounded-xl text-xs font-black transition-all ${safePage === page ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200' : 'text-gray-500 hover:bg-white hover:border-gray-200'}`}
+                                                    className={`w-8 h-8 rounded-xl text-xs font-black transition-all ${safePage === page ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200 scale-110' : 'text-gray-400 hover:text-gray-900 hover:bg-gray-50'}`}
                                                 >
                                                     {page}
                                                 </button>
@@ -582,31 +594,33 @@ export const SupportManager: React.FC = () => {
                                         ))}
                                     </div>
 
-                                    <button onClick={() => goToPage(safePage + 1)} disabled={(safePage >= totalPages && !hasMore) || loadingMore} className="p-2 rounded-xl text-gray-400 hover:bg-white hover:text-emerald-600 border border-transparent hover:border-gray-200 disabled:opacity-20 transition-all"><ChevronRight size={16} /></button>
-                                    <button onClick={() => goToPage(totalPages)} disabled={(safePage >= totalPages && !hasMore) || loadingMore} className="p-2 rounded-xl text-gray-400 hover:bg-white hover:text-emerald-600 border border-transparent hover:border-gray-200 disabled:opacity-20 transition-all"><ChevronsRight size={16} /></button>
+                                    <button onClick={() => goToPage(safePage + 1)} disabled={(safePage >= totalPages && !hasMore) || loadingMore} className="p-2 rounded-xl text-gray-400 hover:bg-gray-50 hover:text-emerald-600 disabled:opacity-20 transition-all"><ChevronRight size={16} /></button>
+                                    <button onClick={() => goToPage(totalPages)} disabled={(safePage >= totalPages && !hasMore) || loadingMore} className="p-2 rounded-xl text-gray-400 hover:bg-gray-50 hover:text-emerald-600 disabled:opacity-20 transition-all"><ChevronsRight size={16} /></button>
                                 </div>
                             </div>
                         )}
                     </div>
                 </div>
 
-                {/* Sidebar Preview (Chat Desktop) */}
-                <div className="hidden lg:block w-[450px] shrink-0 sticky top-4 animate-in slide-in-from-right-4 duration-300">
-                    <div className="bg-gray-900 rounded-t-2xl p-3 text-white text-center text-[10px] font-black tracking-[0.2em] uppercase">
-                        VISTA DE CONVERSACIÓN
-                    </div>
-                    <div className="bg-white rounded-b-2xl border border-gray-200 shadow-2xl overflow-hidden" style={{ height: 'calc(100vh - 180px)', minHeight: '600px' }}>
-                        {selectedChat ? (
-                            <ChatPanelContent />
-                        ) : (
-                            <div className="h-full flex flex-col items-center justify-center text-gray-300 bg-gray-50/50 p-12 text-center">
-                                <div className="w-20 h-20 bg-white rounded-3xl shadow-sm border border-gray-100 flex items-center justify-center mb-6">
-                                    <MessageSquare size={32} className="opacity-20" />
+                {/* Sidebar Preview (Chat Desktop) - Synchronized Height */}
+                <div className="hidden lg:block w-[420px] shrink-0 sticky top-6 animate-in slide-in-from-right-8 duration-500">
+                    <div className="bg-gray-900 shadow-2xl rounded-[2rem] overflow-hidden flex flex-col h-[calc(100vh-280px)] min-h-[500px]">
+                        <div className="bg-emerald-500 p-2 text-white text-center text-[9px] font-black tracking-[0.3em] uppercase">
+                            Terminal de Respuesta
+                        </div>
+                        <div className="flex-1 overflow-hidden bg-white">
+                            {selectedChat ? (
+                                <ChatPanelContent />
+                            ) : (
+                                <div className="h-full flex flex-col items-center justify-center text-gray-200 p-12 text-center bg-gray-50/50">
+                                    <div className="w-24 h-24 bg-white rounded-[2.5rem] shadow-xl border border-gray-100 flex items-center justify-center mb-8 transform hover:rotate-12 transition-transform duration-500">
+                                        <Inbox size={48} className="opacity-10 text-emerald-500" />
+                                    </div>
+                                    <h4 className="font-black text-gray-400 text-xs uppercase tracking-[0.3em] mb-3">En Espera</h4>
+                                    <p className="text-[11px] font-bold text-gray-400 leading-relaxed px-6">Selecciona cualquier ticket de la consola global para iniciar la gestión del soporte</p>
                                 </div>
-                                <h4 className="font-black text-gray-400 text-sm uppercase tracking-wider mb-2">Bandeja de Entrada</h4>
-                                <p className="text-xs font-bold leading-relaxed">Selecciona una conversación de la tabla para ver el historial y responder</p>
-                            </div>
-                        )}
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -615,9 +629,9 @@ export const SupportManager: React.FC = () => {
             <MobileDrawer
                 isOpen={mobileShowChat && !!selectedChat}
                 onClose={() => setMobileShowChat(false)}
-                title="Soporte"
+                title="Consola de Soporte"
             >
-                <div className="h-[80vh]">
+                <div className="h-[85vh]">
                     <ChatPanelContent />
                 </div>
             </MobileDrawer>
