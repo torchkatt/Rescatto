@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import {
-    collection, query, orderBy, onSnapshot, limit,
-    getDocs, Unsubscribe
+    collection, query, orderBy, getDocs, limit, startAfter,
+    DocumentSnapshot, Unsubscribe
 } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { Chat, Message, UserRole } from '../../types';
@@ -12,14 +12,18 @@ import { useConfirm } from '../../context/ConfirmContext';
 import { logger } from '../../utils/logger';
 import {
     MessageSquare, Search, Send, Trash2, RefreshCw,
-    Users, Truck, Store, ShieldCheck, Circle, X
+    Users, Truck, Store, ShieldCheck, Circle, X,
+    ChevronLeft, ChevronRight
 } from 'lucide-react';
 
 // ── helpers ────────────────────────────────────────────────────────────────────
+const FETCH_SIZE = 50;   // cuántos trae de Firestore por lote
+const PAGE_SIZE  = 15;   // cuántos muestra por página en la lista
+
 const TYPE_LABELS: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
-    'customer-venue':  { label: 'Cliente ↔ Negocio', icon: <Store size={13} />,      color: 'bg-blue-100 text-blue-700' },
-    'customer-driver': { label: 'Cliente ↔ Driver',  icon: <Truck size={13} />,      color: 'bg-amber-100 text-amber-700' },
-    'venue-driver':    { label: 'Negocio ↔ Driver',  icon: <Users size={13} />,      color: 'bg-purple-100 text-purple-700' },
+    'customer-venue':  { label: 'Cliente ↔ Negocio', icon: <Store size={13} />,       color: 'bg-blue-100 text-blue-700' },
+    'customer-driver': { label: 'Cliente ↔ Driver',  icon: <Truck size={13} />,       color: 'bg-amber-100 text-amber-700' },
+    'venue-driver':    { label: 'Negocio ↔ Driver',  icon: <Users size={13} />,       color: 'bg-purple-100 text-purple-700' },
     'admin-support':   { label: 'Soporte Admin',      icon: <ShieldCheck size={13} />, color: 'bg-emerald-100 text-emerald-700' },
 };
 
@@ -44,59 +48,95 @@ export const SupportManager: React.FC = () => {
     const toast = useToast();
     const confirm = useConfirm();
 
+    // ── Chats data ─────────────────────────────────────────────────────────────
     const [chats, setChats] = useState<Chat[]>([]);
     const [loadingChats, setLoadingChats] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [hasMore, setHasMore] = useState(true);
+    const [lastDoc, setLastDoc] = useState<DocumentSnapshot | null>(null);
+
+    // ── Pagination state ───────────────────────────────────────────────────────
+    const [currentPage, setCurrentPage] = useState(1);
+
+    // ── Chat panel state ───────────────────────────────────────────────────────
     const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
     const [messages, setMessages] = useState<Message[]>([]);
     const [loadingMessages, setLoadingMessages] = useState(false);
     const [newMessage, setNewMessage] = useState('');
     const [sending, setSending] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [filterType, setFilterType] = useState<string>('all');
     const [mobileShowChat, setMobileShowChat] = useState(false);
 
+    // ── Filters ────────────────────────────────────────────────────────────────
+    const [searchTerm, setSearchTerm] = useState('');
+    const [filterType, setFilterType] = useState<string>('all');
+
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const unsubMsgsRef = useRef<Unsubscribe | null>(null);
+    const unsubMsgsRef   = useRef<Unsubscribe | null>(null);
 
-    // ── Load all chats (admin sees all) ────────────────────────────────────────
-    useEffect(() => {
-        setLoadingChats(true);
-        const q = query(
-            collection(db, 'chats'),
-            orderBy('updatedAt', 'desc'),
-            limit(100)
-        );
-        const unsub = onSnapshot(q, snap => {
-            setChats(snap.docs.map(d => ({ id: d.id, ...d.data() })) as Chat[]);
-            setLoadingChats(false);
-        }, err => {
+    // ── Load chats (cursor-based from Firestore) ───────────────────────────────
+    const loadChats = useCallback(async (initial = false) => {
+        if (initial) {
+            setLoadingChats(true);
+            setChats([]);
+            setLastDoc(null);
+            setHasMore(true);
+            setCurrentPage(1);
+        } else {
+            setLoadingMore(true);
+        }
+
+        try {
+            let q = query(
+                collection(db, 'chats'),
+                orderBy('updatedAt', 'desc'),
+                limit(FETCH_SIZE)
+            );
+            if (!initial && lastDoc) {
+                q = query(
+                    collection(db, 'chats'),
+                    orderBy('updatedAt', 'desc'),
+                    startAfter(lastDoc),
+                    limit(FETCH_SIZE)
+                );
+            }
+            const snap = await getDocs(q);
+            const newChats = snap.docs.map(d => ({ id: d.id, ...d.data() })) as Chat[];
+
+            if (initial) setChats(newChats);
+            else setChats(prev => [...prev, ...newChats]);
+
+            setLastDoc(snap.docs[snap.docs.length - 1] ?? null);
+            setHasMore(snap.docs.length === FETCH_SIZE);
+        } catch (err) {
             logger.error('Error cargando chats de soporte:', err);
+            toast.error('Error al cargar conversaciones');
+        } finally {
             setLoadingChats(false);
-        });
-        return () => unsub();
-    }, []);
+            setLoadingMore(false);
+        }
+    }, [lastDoc]);
 
-    // ── Subscribe to messages when a chat is selected ──────────────────────────
+    useEffect(() => { loadChats(true); }, []);
+
+    // ── Messages subscription ──────────────────────────────────────────────────
     useEffect(() => {
         if (unsubMsgsRef.current) { unsubMsgsRef.current(); unsubMsgsRef.current = null; }
         if (!selectedChat) { setMessages([]); return; }
-
         setLoadingMessages(true);
         unsubMsgsRef.current = subscribeToChatMessages(selectedChat.id, msgs => {
             setMessages(msgs);
             setLoadingMessages(false);
-            // Mark as read from admin's perspective (best-effort)
             if (user) markMessagesAsRead(selectedChat.id, user.id).catch(() => {});
         });
         return () => { if (unsubMsgsRef.current) unsubMsgsRef.current(); };
     }, [selectedChat?.id]);
 
-    // ── Scroll to bottom on new messages ──────────────────────────────────────
+    // Auto-scroll al último mensaje
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-    // ── Filtered list ──────────────────────────────────────────────────────────
+    // ── Derived data ───────────────────────────────────────────────────────────
     const filtered = useMemo(() => {
         let list = chats;
         if (filterType !== 'all') list = list.filter(c => c.type === filterType);
@@ -113,27 +153,32 @@ export const SupportManager: React.FC = () => {
         return list;
     }, [chats, filterType, searchTerm]);
 
-    // ── Stats ──────────────────────────────────────────────────────────────────
+    const totalPages  = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    const safePage    = Math.min(currentPage, totalPages);
+    const paginated   = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
     const stats = useMemo(() => ({
         total: chats.length,
         unread: chats.filter(c => !c.lastMessage.read && c.lastMessage.senderId !== user?.id && c.lastMessage.senderId !== '').length,
-        byType: Object.fromEntries(
-            Object.keys(TYPE_LABELS).map(t => [t, chats.filter(c => c.type === t).length])
-        ),
+        byType: Object.fromEntries(Object.keys(TYPE_LABELS).map(t => [t, chats.filter(c => c.type === t).length])),
     }), [chats, user?.id]);
+
+    // Cuando el usuario llega a la última página y hay más en Firestore, los carga
+    const goToPage = useCallback(async (page: number) => {
+        const target = Math.max(1, Math.min(page, totalPages));
+        // Si queremos ir a la última página y hay más datos sin cargar, los traemos
+        if (hasMore && target === totalPages && paginated.length > 0) {
+            await loadChats(false);
+        }
+        setCurrentPage(target);
+    }, [totalPages, hasMore, paginated.length, loadChats]);
 
     // ── Actions ────────────────────────────────────────────────────────────────
     const handleSend = async () => {
         if (!selectedChat || !newMessage.trim() || !user) return;
         setSending(true);
         try {
-            await sendMessage(
-                selectedChat.id,
-                user.id,
-                user.fullName || 'Soporte',
-                UserRole.SUPER_ADMIN,
-                newMessage.trim()
-            );
+            await sendMessage(selectedChat.id, user.id, user.fullName || 'Soporte', UserRole.SUPER_ADMIN, newMessage.trim());
             setNewMessage('');
         } catch (err) {
             logger.error('Error enviando mensaje:', err);
@@ -154,6 +199,7 @@ export const SupportManager: React.FC = () => {
         try {
             await deleteChat(chat.id);
             if (selectedChat?.id === chat.id) { setSelectedChat(null); setMobileShowChat(false); }
+            setChats(prev => prev.filter(c => c.id !== chat.id));
             toast.success('Conversación eliminada');
         } catch (err) {
             logger.error('Error eliminando chat:', err);
@@ -166,76 +212,89 @@ export const SupportManager: React.FC = () => {
         setMobileShowChat(true);
     };
 
+    const handleSearch = (v: string) => { setSearchTerm(v); setCurrentPage(1); };
+    const handleFilter = (t: string) => { setFilterType(t); setCurrentPage(1); };
+
     // ── Render ─────────────────────────────────────────────────────────────────
     return (
-        <div className="flex flex-col gap-6 overflow-x-hidden h-full">
+        <div className="flex flex-col gap-4 overflow-x-hidden" style={{ height: 'calc(100vh - 120px)', minHeight: 580 }}>
 
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
                 <div>
                     <h1 className="text-2xl font-extrabold text-gray-800 flex items-center gap-3">
                         <MessageSquare className="text-emerald-600" size={28} />
                         Soporte
                     </h1>
-                    <p className="text-gray-500 text-sm mt-1">
-                        {stats.total} conversaciones · {stats.unread > 0 && <span className="font-bold text-red-500">{stats.unread} sin leer</span>}
+                    <p className="text-gray-500 text-sm mt-0.5">
+                        {stats.total}{hasMore ? '+' : ''} conversaciones
+                        {stats.unread > 0 && <> · <span className="font-bold text-red-500">{stats.unread} sin leer</span></>}
                     </p>
                 </div>
+                <button
+                    onClick={() => loadChats(true)}
+                    disabled={loadingChats}
+                    className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 disabled:opacity-50 transition-all self-start shrink-0"
+                >
+                    <RefreshCw size={14} className={loadingChats ? 'animate-spin' : ''} />
+                    Actualizar
+                </button>
             </div>
 
-            {/* Stats chips */}
-            <div className="flex flex-wrap gap-2">
+            {/* Filter chips */}
+            <div className="flex flex-wrap gap-2 shrink-0">
                 <button
-                    onClick={() => setFilterType('all')}
+                    onClick={() => handleFilter('all')}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${filterType === 'all' ? 'bg-gray-900 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}
                 >
-                    <MessageSquare size={12} /> Todos ({stats.total})
+                    <MessageSquare size={12} /> Todos ({stats.total}{hasMore ? '+' : ''})
                 </button>
                 {Object.entries(TYPE_LABELS).map(([type, meta]) => (
                     <button
                         key={type}
-                        onClick={() => setFilterType(type)}
+                        onClick={() => handleFilter(type)}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${filterType === type ? 'bg-gray-900 text-white' : `${meta.color} hover:opacity-80`}`}
                     >
-                        {meta.icon} {meta.label} ({stats.byType[type] ?? 0})
+                        {meta.icon} {meta.label} ({stats.byType[type] ?? 0}{hasMore ? '+' : ''})
                     </button>
                 ))}
             </div>
 
-            {/* Main layout: list + chat */}
-            <div className="flex gap-4 min-h-[600px]">
+            {/* Main layout — altura fija para que los paneles tengan scroll interno */}
+            <div className="flex gap-4 flex-1 min-h-0">
 
-                {/* Chat list */}
+                {/* ── Lista de chats ── */}
                 <div className={`flex flex-col w-full md:w-80 lg:w-96 shrink-0 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden ${mobileShowChat ? 'hidden md:flex' : 'flex'}`}>
+
                     {/* Search */}
-                    <div className="p-3 border-b border-gray-100">
+                    <div className="p-3 border-b border-gray-100 shrink-0">
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
                             <input
                                 type="search"
                                 placeholder="Buscar participante, pedido..."
                                 value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
+                                onChange={e => handleSearch(e.target.value)}
                                 className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none bg-gray-50"
                             />
                         </div>
                     </div>
 
-                    {/* List */}
-                    <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
+                    {/* Lista scrolleable */}
+                    <div className="flex-1 overflow-y-auto divide-y divide-gray-50 min-h-0">
                         {loadingChats ? (
                             <div className="flex justify-center items-center h-32">
                                 <RefreshCw size={20} className="animate-spin text-gray-400" />
                             </div>
-                        ) : filtered.length === 0 ? (
+                        ) : paginated.length === 0 ? (
                             <div className="text-center py-16 text-gray-400">
                                 <MessageSquare size={32} className="mx-auto mb-2 opacity-30" />
                                 <p className="text-sm font-medium">Sin conversaciones</p>
                             </div>
-                        ) : filtered.map(chat => {
-                            const meta = TYPE_LABELS[chat.type] ?? TYPE_LABELS['admin-support'];
+                        ) : paginated.map(chat => {
+                            const meta     = TYPE_LABELS[chat.type] ?? TYPE_LABELS['admin-support'];
                             const isSelected = selectedChat?.id === chat.id;
-                            const isUnread = !chat.lastMessage.read && chat.lastMessage.senderId !== user?.id && chat.lastMessage.senderId !== '';
+                            const isUnread   = !chat.lastMessage.read && chat.lastMessage.senderId !== user?.id && chat.lastMessage.senderId !== '';
                             return (
                                 <button
                                     key={chat.id}
@@ -261,10 +320,42 @@ export const SupportManager: React.FC = () => {
                             );
                         })}
                     </div>
+
+                    {/* Footer de paginación — fuera del scroll, siempre visible */}
+                    {!loadingChats && (
+                        <div className="flex items-center justify-between px-3 py-2 border-t border-gray-100 bg-gray-50 shrink-0">
+                            <span className="text-[11px] text-gray-400">
+                                {filtered.length === 0 ? '0' : `${(safePage - 1) * PAGE_SIZE + 1}–${Math.min(safePage * PAGE_SIZE, filtered.length)}`}
+                                {' '}de {filtered.length}{hasMore ? '+' : ''}
+                            </span>
+                            <div className="flex items-center gap-1">
+                                <button
+                                    disabled={safePage <= 1}
+                                    onClick={() => goToPage(safePage - 1)}
+                                    className="p-1 rounded-lg hover:bg-gray-200 disabled:opacity-30 transition-colors"
+                                    title="Página anterior"
+                                >
+                                    <ChevronLeft size={14} />
+                                </button>
+                                <span className="text-[11px] font-semibold text-gray-600 px-1">
+                                    {safePage} / {totalPages}{hasMore ? '+' : ''}
+                                </span>
+                                <button
+                                    disabled={safePage >= totalPages && !hasMore}
+                                    onClick={() => goToPage(safePage + 1)}
+                                    className="p-1 rounded-lg hover:bg-gray-200 disabled:opacity-30 transition-colors"
+                                    title="Página siguiente"
+                                >
+                                    <ChevronRight size={14} />
+                                </button>
+                                {loadingMore && <RefreshCw size={11} className="animate-spin text-gray-400 ml-1" />}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
-                {/* Chat panel */}
-                <div className={`flex-1 flex flex-col bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden ${mobileShowChat ? 'flex' : 'hidden md:flex'}`}>
+                {/* ── Panel de chat ── */}
+                <div className={`flex-1 flex flex-col bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden min-h-0 ${mobileShowChat ? 'flex' : 'hidden md:flex'}`}>
                     {!selectedChat ? (
                         <div className="flex flex-col items-center justify-center flex-1 text-gray-400 gap-3">
                             <MessageSquare size={48} className="opacity-20" />
@@ -273,7 +364,7 @@ export const SupportManager: React.FC = () => {
                     ) : (
                         <>
                             {/* Chat header */}
-                            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
+                            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50 shrink-0">
                                 <div className="flex items-center gap-3 min-w-0">
                                     <button
                                         className="md:hidden p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
@@ -303,8 +394,8 @@ export const SupportManager: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Messages */}
-                            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-gray-50/30">
+                            {/* Mensajes — scroll interno */}
+                            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-gray-50/30 min-h-0">
                                 {loadingMessages ? (
                                     <div className="flex justify-center items-center h-32">
                                         <RefreshCw size={20} className="animate-spin text-gray-400" />
@@ -312,23 +403,17 @@ export const SupportManager: React.FC = () => {
                                 ) : messages.length === 0 ? (
                                     <div className="text-center text-gray-400 text-sm py-8">Sin mensajes aún</div>
                                 ) : messages.map(msg => {
-                                    const isAdmin = msg.senderId === user?.id;
+                                    const isAdmin  = msg.senderId === user?.id;
                                     const isSystem = msg.type === 'system' || msg.senderId === 'system';
-
                                     if (isSystem) return (
                                         <div key={msg.id} className="flex justify-center">
-                                            <span className="text-[11px] text-gray-400 bg-gray-100 px-3 py-1 rounded-full">
-                                                {msg.text}
-                                            </span>
+                                            <span className="text-[11px] text-gray-400 bg-gray-100 px-3 py-1 rounded-full">{msg.text}</span>
                                         </div>
                                     );
-
                                     return (
                                         <div key={msg.id} className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}>
                                             <div className={`max-w-[75%] rounded-2xl px-3 py-2 ${isAdmin ? 'bg-emerald-600 text-white rounded-br-sm' : 'bg-white border border-gray-100 text-gray-800 rounded-bl-sm shadow-sm'}`}>
-                                                {!isAdmin && (
-                                                    <p className="text-[10px] font-bold mb-0.5 opacity-60">{msg.senderName}</p>
-                                                )}
+                                                {!isAdmin && <p className="text-[10px] font-bold mb-0.5 opacity-60">{msg.senderName}</p>}
                                                 <p className="text-sm leading-relaxed">{msg.text}</p>
                                                 <p className={`text-[10px] mt-1 ${isAdmin ? 'text-white/60 text-right' : 'text-gray-400'}`}>
                                                     {new Date(msg.timestamp).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
@@ -341,7 +426,7 @@ export const SupportManager: React.FC = () => {
                             </div>
 
                             {/* Input */}
-                            <div className="px-4 py-3 border-t border-gray-100 bg-white">
+                            <div className="px-4 py-3 border-t border-gray-100 bg-white shrink-0">
                                 <div className="flex gap-2">
                                     <input
                                         type="text"

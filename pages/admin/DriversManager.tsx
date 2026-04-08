@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { collection, query, where, getDocs, orderBy, limit, startAfter, DocumentSnapshot } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { adminService } from '../../services/adminService';
 import { User, UserRole, OrderStatus } from '../../types';
@@ -12,7 +12,7 @@ import { logger } from '../../utils/logger';
 import { formatCOP } from '../../utils/formatters';
 import {
     Truck, Search, RefreshCw, CheckCircle, XCircle, Star,
-    Phone, MapPin, Package, DollarSign, Eye, UserCheck, UserX, X
+    Phone, MapPin, Package, DollarSign, Eye, UserCheck, UserX, X, ChevronDown
 } from 'lucide-react';
 
 interface DriverRow extends User {
@@ -24,6 +24,26 @@ interface DriverRow extends User {
 
 const PAGE_SIZE = 20;
 
+async function fetchDriverStats(driverUser: User): Promise<DriverRow> {
+    try {
+        const ordersRef = collection(db, 'orders');
+        const snap = await getDocs(query(ordersRef, where('driverId', '==', driverUser.id)));
+        const orders = snap.docs.map(d => d.data());
+        const completed = orders.filter(o => o.status === OrderStatus.COMPLETED);
+        const active = orders.filter(o =>
+            o.status === OrderStatus.DRIVER_ASSIGNED || o.status === OrderStatus.IN_TRANSIT
+        );
+        return {
+            ...driverUser,
+            totalDeliveries: completed.length,
+            totalEarnings: completed.reduce((s, o) => s + (o.deliveryFee || 0), 0),
+            activeDeliveries: active.length,
+        };
+    } catch {
+        return { ...driverUser, totalDeliveries: 0, totalEarnings: 0, activeDeliveries: 0 };
+    }
+}
+
 export const DriversManager: React.FC = () => {
     const { user: currentUser } = useAuth();
     const toast = useToast();
@@ -31,47 +51,37 @@ export const DriversManager: React.FC = () => {
 
     const [drivers, setDrivers] = useState<DriverRow[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [hasMore, setHasMore] = useState(true);
+    const [lastDoc, setLastDoc] = useState<DocumentSnapshot | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState<'all' | 'verified' | 'unverified'>('all');
     const [selectedDriver, setSelectedDriver] = useState<DriverRow | null>(null);
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [page, setPage] = useState(0);
 
-    const loadDrivers = async () => {
-        setLoading(true);
+    const loadDrivers = useCallback(async (initial = false) => {
+        if (initial) {
+            setLoading(true);
+            setDrivers([]);
+            setLastDoc(null);
+            setHasMore(true);
+        } else {
+            setLoadingMore(true);
+        }
+
         try {
-            const allUsers = await adminService.getAllUsers();
-            const driverUsers = allUsers.filter(u => u.role === UserRole.DRIVER);
+            const usersRef = collection(db, 'users');
+            let q = query(usersRef, where('role', '==', UserRole.DRIVER), limit(PAGE_SIZE));
+            if (!initial && lastDoc) {
+                q = query(usersRef, where('role', '==', UserRole.DRIVER), startAfter(lastDoc), limit(PAGE_SIZE));
+            }
+            const snap = await getDocs(q);
+            const driverUsers = snap.docs.map(d => ({ id: d.id, ...d.data() } as User));
+            const newLastDoc = snap.docs[snap.docs.length - 1] ?? null;
 
-            // Load order stats for each driver in parallel
-            const driverRows = await Promise.all(
-                driverUsers.map(async (driver): Promise<DriverRow> => {
-                    try {
-                        const ordersRef = collection(db, 'orders');
-                        const q = query(ordersRef, where('driverId', '==', driver.id));
-                        const snapshot = await getDocs(q);
-                        const orders = snapshot.docs.map(d => d.data());
-
-                        const completed = orders.filter(o => o.status === OrderStatus.COMPLETED);
-                        const active = orders.filter(o =>
-                            o.status === OrderStatus.DRIVER_ASSIGNED || o.status === OrderStatus.IN_TRANSIT
-                        );
-                        const totalEarnings = completed.reduce(
-                            (sum, o) => sum + ((o.deliveryFee || 0)),
-                            0
-                        );
-
-                        return {
-                            ...driver,
-                            totalDeliveries: completed.length,
-                            totalEarnings,
-                            activeDeliveries: active.length,
-                        };
-                    } catch {
-                        return { ...driver, totalDeliveries: 0, totalEarnings: 0, activeDeliveries: 0 };
-                    }
-                })
-            );
+            // Load order stats for each driver in this page
+            const driverRows = await Promise.all(driverUsers.map(fetchDriverStats));
 
             // Sort: active first, then by total deliveries desc
             driverRows.sort((a, b) => {
@@ -79,16 +89,21 @@ export const DriversManager: React.FC = () => {
                 return b.totalDeliveries - a.totalDeliveries;
             });
 
-            setDrivers(driverRows);
+            if (initial) setDrivers(driverRows);
+            else setDrivers(prev => [...prev, ...driverRows]);
+
+            setLastDoc(newLastDoc);
+            setHasMore(snap.docs.length === PAGE_SIZE);
         } catch (err) {
             logger.error('Error cargando conductores:', err);
             toast.error('Error al cargar conductores');
         } finally {
             setLoading(false);
+            setLoadingMore(false);
         }
-    };
+    }, [lastDoc]);
 
-    useEffect(() => { loadDrivers(); }, []);
+    useEffect(() => { loadDrivers(true); }, []);
 
     const filtered = useMemo(() => {
         let list = drivers;
@@ -164,12 +179,13 @@ export const DriversManager: React.FC = () => {
                         Conductores
                     </h1>
                     <p className="text-gray-500 text-sm mt-1">
-                        {drivers.length} conductores registrados
+                        {drivers.length}{hasMore ? '+' : ''} conductores cargados
                     </p>
                 </div>
                 <button
-                    onClick={loadDrivers}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-sm transition-all active:scale-95"
+                    onClick={() => loadDrivers(true)}
+                    disabled={loading}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-sm transition-all active:scale-95 disabled:opacity-50"
                 >
                     <RefreshCw size={16} />
                     Actualizar
@@ -291,18 +307,30 @@ export const DriversManager: React.FC = () => {
                     </table>
                 </div>
 
-                {/* Pagination */}
-                {totalPages > 1 && (
-                    <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50">
-                        <span className="text-xs text-gray-500">
-                            {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filtered.length)} de {filtered.length}
-                        </span>
-                        <div className="flex gap-2">
-                            <button disabled={page === 0} onClick={() => setPage(p => p - 1)} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white border border-gray-200 disabled:opacity-40 hover:bg-gray-100 transition-colors">Anterior</button>
-                            <button disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white border border-gray-200 disabled:opacity-40 hover:bg-gray-100 transition-colors">Siguiente</button>
-                        </div>
+                {/* Pagination (client-side) + Load more (server-side) */}
+                <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50 gap-3 flex-wrap">
+                    <span className="text-xs text-gray-500">
+                        {filtered.length === 0 ? '0' : `${page * PAGE_SIZE + 1}–${Math.min((page + 1) * PAGE_SIZE, filtered.length)}`} de {filtered.length}{hasMore ? '+' : ''} cargados
+                    </span>
+                    <div className="flex gap-2">
+                        {totalPages > 1 && (
+                            <>
+                                <button disabled={page === 0} onClick={() => setPage(p => p - 1)} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white border border-gray-200 disabled:opacity-40 hover:bg-gray-100 transition-colors">Anterior</button>
+                                <button disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white border border-gray-200 disabled:opacity-40 hover:bg-gray-100 transition-colors">Siguiente</button>
+                            </>
+                        )}
+                        {hasMore && (
+                            <button
+                                onClick={() => loadDrivers(false)}
+                                disabled={loadingMore}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-50"
+                            >
+                                {loadingMore ? <RefreshCw size={12} className="animate-spin" /> : <ChevronDown size={12} />}
+                                {loadingMore ? 'Cargando...' : 'Cargar más'}
+                            </button>
+                        )}
                     </div>
-                )}
+                </div>
             </div>
 
             {/* Cards — mobile */}
@@ -357,12 +385,24 @@ export const DriversManager: React.FC = () => {
                     </div>
                 ))}
 
-                {totalPages > 1 && (
-                    <div className="flex gap-2 justify-center pt-2">
-                        <button disabled={page === 0} onClick={() => setPage(p => p - 1)} className="px-4 py-2 rounded-xl text-sm font-bold bg-white border border-gray-200 disabled:opacity-40">Anterior</button>
-                        <button disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="px-4 py-2 rounded-xl text-sm font-bold bg-white border border-gray-200 disabled:opacity-40">Siguiente</button>
-                    </div>
-                )}
+                <div className="flex flex-wrap gap-2 justify-center pt-2">
+                    {totalPages > 1 && (
+                        <>
+                            <button disabled={page === 0} onClick={() => setPage(p => p - 1)} className="px-4 py-2 rounded-xl text-sm font-bold bg-white border border-gray-200 disabled:opacity-40">Anterior</button>
+                            <button disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="px-4 py-2 rounded-xl text-sm font-bold bg-white border border-gray-200 disabled:opacity-40">Siguiente</button>
+                        </>
+                    )}
+                    {hasMore && (
+                        <button
+                            onClick={() => loadDrivers(false)}
+                            disabled={loadingMore}
+                            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 transition-colors"
+                        >
+                            {loadingMore ? <RefreshCw size={14} className="animate-spin" /> : <ChevronDown size={14} />}
+                            {loadingMore ? 'Cargando...' : 'Cargar más'}
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* Detail Drawer */}

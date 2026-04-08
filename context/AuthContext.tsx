@@ -53,6 +53,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
     }, 10000);
 
+    // Procesar resultado de redirect de Google (si el usuario viene de signInWithRedirect)
+    authService.handleGoogleRedirectResult().catch(() => {});
+
     // Cargar Roles
     const loadRoles = async () => {
       try {
