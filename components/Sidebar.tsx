@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate, Link } from 'react-router-dom';
-import { LayoutDashboard, ShoppingBag, FileText, Settings, UtensilsCrossed, ClipboardList, LogOut, Menu, X, Package, BarChart, MessageSquare, Users, Shield, Download, Tag, RefreshCw, MapPin, DollarSign, Zap, Moon, Sun, Truck, TrendingUp, BadgeCheck, Building2, Landmark, UserCircle } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, FileText, Settings, UtensilsCrossed, ClipboardList, LogOut, Menu, X, Package, BarChart, MessageSquare, Users, Shield, Download, Tag, RefreshCw, MapPin, DollarSign, Zap, Moon, Sun, Truck, TrendingUp, BadgeCheck, Building2, Landmark, UserCircle, HelpCircle } from 'lucide-react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../context/AuthContext';
@@ -335,6 +335,20 @@ const Sidebar: React.FC = () => {
               <UserCircle size={18} className="sidebar-icon" />
             </div>
             <span className="font-medium">Mi Perfil</span>
+          </NavLink>
+          <NavLink
+            to={
+              user?.role === UserRole.DRIVER ? '/driver/help'
+              : user?.role === UserRole.SUPER_ADMIN || user?.role === UserRole.ADMIN ? '/backoffice/help'
+              : '/dashboard/help'
+            }
+            className={navClass}
+            onClick={() => setIsMobileOpen(false)}
+          >
+            <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-white/10 transition-colors">
+              <HelpCircle size={18} className="sidebar-icon text-emerald-400" />
+            </div>
+            <span className="font-medium">Centro de ayuda</span>
           </NavLink>
         </div>
 

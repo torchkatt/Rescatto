@@ -94,6 +94,9 @@ import { SearchOverlay } from './components/customer/home/SearchOverlay';
 import { useLocation } from './context/LocationContext';
 import { ImpactModal } from './components/customer/impact/ImpactModal';
 import { messagingService } from './services/messagingService';
+import { HelpCenter } from './components/help/HelpCenter';
+import { HelpFloatingButton } from './components/help/HelpFloatingButton';
+import { ManualWelcomeModal } from './components/help/ManualWelcomeModal';
 
 // Smart Redirect Component
 const RootRedirect: React.FC = () => {
@@ -216,6 +219,8 @@ const CustomerLayout: React.FC = () => {
             <CustomerBottomNav />
             {/* Botón flotante de chat */}
             <ChatButton />
+            {/* Botón flotante de ayuda */}
+            <HelpFloatingButton layout="customer" />
 
             {/* ── MODALES GLOBALES ── */}
             {showLocationSelector && (
@@ -229,6 +234,8 @@ const CustomerLayout: React.FC = () => {
                 isOpen={isImpactModalOpen}
                 onClose={() => setIsImpactModalOpen(false)}
             />
+            {/* Modal de bienvenida para usuarios nuevos */}
+            <ManualWelcomeModal />
         </div>
     );
 };
@@ -316,6 +323,7 @@ const AppRoutes: React.FC = () => {
                     <Route path="settings" element={<AdminSettingsPage />} />
                     <Route path="drivers" element={<DriversManager />} />
                     <Route path="support" element={<SupportManager />} />
+                    <Route path="help" element={<HelpCenter />} />
                 </Route>
 
                 {/* --- LEGACY ADMIN ROUTES (Will be deprecated) --- */}
@@ -380,6 +388,11 @@ const AppRoutes: React.FC = () => {
                 <Route path="/dashboard/profile" element={
                     <ProtectedRoute allowedRoles={[UserRole.VENUE_OWNER, UserRole.SUPER_ADMIN, UserRole.KITCHEN_STAFF]}>
                         <Layout><UnifiedProfile /></Layout>
+                    </ProtectedRoute>
+                } />
+                <Route path="/dashboard/help" element={
+                    <ProtectedRoute allowedRoles={[UserRole.VENUE_OWNER, UserRole.SUPER_ADMIN, UserRole.KITCHEN_STAFF]}>
+                        <Layout><HelpCenter /></Layout>
                     </ProtectedRoute>
                 } />
 
@@ -457,6 +470,11 @@ const AppRoutes: React.FC = () => {
                         <Layout><UnifiedProfile /></Layout>
                     </ProtectedRoute>
                 } />
+                <Route path="/driver/help" element={
+                    <ProtectedRoute allowedRoles={[UserRole.DRIVER, UserRole.SUPER_ADMIN]}>
+                        <Layout><HelpCenter /></Layout>
+                    </ProtectedRoute>
+                } />
 
                 {/* --- CHAT ROUTE (All roles) --- */}
                 <Route path="/chat" element={
@@ -508,6 +526,7 @@ const AppRoutes: React.FC = () => {
                             <Impact />
                         </ProtectedRoute>
                     } />
+                    <Route path="help" element={<HelpCenter />} />
                 </Route>
 
                 {/* Catch all */}

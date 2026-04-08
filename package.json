@@ -17,6 +17,7 @@
     "lint": "tsc --noEmit",
     "lint:eslint": "eslint src pages components hooks context services utils --ext .ts,.tsx",
     "analyze": "ANALYZE=true npm run build",
+    "docs:pdf": "node scripts/docs/build-pdfs.mjs",
     "prepare": "husky"
   },
   "lint-staged": {

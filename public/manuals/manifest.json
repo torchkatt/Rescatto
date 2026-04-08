@@ -1,0 +1,46 @@
+{
+  "generatedAt": "2026-04-08T20:25:34.236Z",
+  "version": "0.2.0",
+  "manuals": [
+    {
+      "role": "customer",
+      "label": "Cliente",
+      "url": "/manuals/rescatto-customer-v0.2.0.pdf",
+      "version": "0.2.0",
+      "updatedAt": "2026-04-08T20:25:35.704Z",
+      "sizeKB": 482
+    },
+    {
+      "role": "venue-owner",
+      "label": "Dueño de negocio",
+      "url": "/manuals/rescatto-venue-owner-v0.2.0.pdf",
+      "version": "0.2.0",
+      "updatedAt": "2026-04-08T20:25:36.850Z",
+      "sizeKB": 380
+    },
+    {
+      "role": "kitchen-staff",
+      "label": "Personal de cocina",
+      "url": "/manuals/rescatto-kitchen-staff-v0.2.0.pdf",
+      "version": "0.2.0",
+      "updatedAt": "2026-04-08T20:25:37.986Z",
+      "sizeKB": 307
+    },
+    {
+      "role": "driver",
+      "label": "Domiciliario",
+      "url": "/manuals/rescatto-driver-v0.2.0.pdf",
+      "version": "0.2.0",
+      "updatedAt": "2026-04-08T20:25:39.132Z",
+      "sizeKB": 307
+    },
+    {
+      "role": "admin",
+      "label": "Administrador",
+      "url": "/manuals/rescatto-admin-v0.2.0.pdf",
+      "version": "0.2.0",
+      "updatedAt": "2026-04-08T20:25:40.283Z",
+      "sizeKB": 354
+    }
+  ]
+}
