@@ -342,7 +342,7 @@ export const SupportManager: React.FC = () => {
 
     // ── Render ─────────────────────────────────────────────────────────────────
     return (
-        <div className="flex flex-col gap-6 overflow-x-hidden min-h-screen pb-10 max-w-[1600px] mx-auto px-4 lg:px-6">
+        <div className="flex flex-col gap-6 overflow-x-hidden min-h-screen pb-10">
 
             {/* Header Section */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 shrink-0 mt-2">
