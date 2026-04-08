@@ -219,29 +219,25 @@ export const authService = {
     await createUserDocument(firebaseUser, userData);
   },
 
-  loginWithGoogle: async (): Promise<void> => {
-    logger.log('authService: loginWithGoogle iniciando redirect...');
+  loginWithGoogle: async (): Promise<User> => {
+    logger.log('authService: loginWithGoogle iniciando popup...');
     const provider = new GoogleAuthProvider();
-    await signInWithRedirect(auth, provider);
-    // El resultado se procesa en handleGoogleRedirectResult al volver
+    const userCredential = await signInWithPopup(auth, provider);
+    await createUserDocument(userCredential.user);
+    const appUser = await mapFirebaseUserToAppUser(userCredential.user);
+    
+    // Registrar acción en auditoría
+    await loggerService.logAction('LOGIN', appUser.id, appUser.id, 'users', {
+      method: 'google',
+      email: appUser.email
+    });
+
+    return appUser;
   },
 
   handleGoogleRedirectResult: async (): Promise<boolean> => {
-    try {
-      const result = await getRedirectResult(auth);
-      if (!result) return false;
-      logger.log('authService: redirect de Google completado:', result.user.email);
-      await createUserDocument(result.user);
-      const appUser = await mapFirebaseUserToAppUser(result.user);
-      await loggerService.logAction('LOGIN', appUser.id, appUser.id, 'users', {
-        method: 'google',
-        email: appUser.email
-      });
-      return true;
-    } catch (error: any) {
-      logger.error('authService: ERROR en getRedirectResult:', error.code, error.message);
-      return false;
-    }
+    // Compatibilidad en caso de que alguien siga atrapado en un flujo antiguo
+    return false;
   },
 
   loginWithApple: async (): Promise<User> => {
