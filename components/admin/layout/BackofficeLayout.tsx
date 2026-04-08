@@ -23,6 +23,7 @@ const BackofficeLayout: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -90,8 +91,13 @@ const BackofficeLayout: React.FC = () => {
       <div className="p-4 border-t border-neutral-800">
         <div className="flex items-center space-x-3 mb-4 px-2">
           <div className="w-10 h-10 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center overflow-hidden">
-            {user?.avatarUrl ? (
-              <img src={user.avatarUrl} alt={user.fullName} className="w-full h-full object-cover" />
+            {user?.avatarUrl && !imageError ? (
+              <img 
+                src={user.avatarUrl} 
+                alt={user.fullName} 
+                className="w-full h-full object-cover" 
+                onError={() => setImageError(true)}
+              />
             ) : (
               <span className="text-sm font-medium text-emerald-400">
                 {user?.fullName?.charAt(0).toUpperCase()}
@@ -116,7 +122,7 @@ const BackofficeLayout: React.FC = () => {
   );
 
   return (
-    <div className="flex h-full bg-neutral-900 text-white font-sans overflow-hidden">
+    <div className="flex h-screen bg-neutral-900 text-white font-sans overflow-hidden">
       {/* Sidebar */}
       <aside className="hidden lg:flex w-64 bg-black border-r border-neutral-800 flex-col">
         <SidebarContent />
