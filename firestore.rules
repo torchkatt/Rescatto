@@ -534,11 +534,11 @@ service cloud.firestore {
           request.auth.uid == request.resource.data.senderId &&
           request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
 
-        // Only sender can edit their message, or participants can mark as read
+        // Solo el emisor puede editar su mensaje, o los participantes/admins pueden marcar como leído
         allow update: if isAuthenticated() &&
           (request.auth.uid == resource.data.senderId ||
            (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']) &&
-            request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants));
+            (isAdmin() || request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants)));
 
         allow delete: if isSuperAdmin();
       }
@@ -553,7 +553,7 @@ service cloud.firestore {
         // Participants can only write their own typing status
         allow write: if isAuthenticated() &&
           request.auth.uid == userId &&
-          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+          (isAdmin() || request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants);
       }
     }
 
@@ -569,7 +569,7 @@ service cloud.firestore {
 
       // Users can only mark their own notifications as read
       allow update: if isAuthenticated() &&
-        resource.data.userId == request.auth.uid &&
+        (resource.data.userId == request.auth.uid || isAdmin()) &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
 
       allow delete: if isAdmin() ||
