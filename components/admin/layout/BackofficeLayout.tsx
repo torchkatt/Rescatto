@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
+import { AppUpdateButton } from '../../common/AppUpdateButton';
 import {
   BarChart3,
   Users,
@@ -102,6 +103,7 @@ const BackofficeLayout: React.FC = () => {
             <p className="text-xs text-neutral-500 truncate">{user?.role}</p>
           </div>
         </div>
+        <AppUpdateButton variant="backoffice" />
         <button
           onClick={handleLogout}
           className="w-full flex items-center justify-center space-x-2 px-4 py-2 rounded-xl bg-neutral-800 text-neutral-300 hover:bg-neutral-700 hover:text-white transition-colors"

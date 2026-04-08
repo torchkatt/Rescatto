@@ -17,6 +17,7 @@ import { RatingStats } from '../../types';
 
 import { logger } from '../../utils/logger';
 import { useConfirm } from '../../context/ConfirmContext';
+import { AppUpdateButton } from '../../components/common/AppUpdateButton';
 
 const PAGE_SIZE = 20;
 
@@ -584,13 +585,16 @@ export const DriverDashboard: React.FC = () => {
                     </h1>
                     <p className="text-gray-500 mt-1 font-medium">Panel de control de {user?.fullName}</p>
                 </div>
-                <button
-                    onClick={logout}
-                    className="p-3 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                    title="Cerrar Sesión"
-                >
-                    <LogOut size={24} />
-                </button>
+                <div className="flex gap-2 items-center">
+                    <AppUpdateButton variant="driver" />
+                    <button
+                        onClick={logout}
+                        className="p-3 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                        title="Cerrar Sesión"
+                    >
+                        <LogOut size={24} />
+                    </button>
+                </div>
             </div>
 
             {/* GPS Error Alert */}

@@ -10,6 +10,7 @@ import { storage, auth, db } from '../../services/firebase';
 import { useToast } from '../../context/ToastContext';
 import { logger } from '../../utils/logger';
 import { useTranslation } from 'react-i18next';
+import { AppUpdateButton } from '../common/AppUpdateButton';
 
 interface ProfileHeaderProps {
     user: User;
@@ -108,14 +109,17 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ user }) => {
                 <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
                 <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
 
-                {/* Logout Button */}
-                <button
-                    onClick={logout}
-                    className="absolute top-4 right-4 bg-white/20 hover:bg-white/30 backdrop-blur-md text-white px-4 py-2 rounded-xl flex items-center gap-2 font-bold text-sm transition-all active:scale-95 shadow-sm border border-white/20"
-                >
-                    <LogOut size={16} />
-                    {t('logout')}
-                </button>
+                {/* Action Buttons */}
+                <div className="absolute top-4 right-4 flex gap-2">
+                    <AppUpdateButton variant="profile" />
+                    <button
+                        onClick={logout}
+                        className="bg-white/20 hover:bg-white/30 backdrop-blur-md text-white px-4 py-2 rounded-xl flex items-center gap-2 font-bold text-sm transition-all active:scale-95 shadow-sm border border-white/20"
+                    >
+                        <LogOut size={16} />
+                        {t('logout')}
+                    </button>
+                </div>
             </div>
 
             {/* Avatar & Main Info Card - Floating Over Banner */}

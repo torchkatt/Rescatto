@@ -11,6 +11,7 @@ import { UserRole } from '../types';
 import { Logo } from './common/Logo';
 import { PWANotification } from './PWANotification';
 import { useLocation } from '../context/LocationContext';
+import { AppUpdateButton } from './common/AppUpdateButton';
 import { LocationSelector } from './customer/home/LocationSelector';
 import { logger } from '../utils/logger';
 import { getUserVenueId } from '../utils/getUserVenueId';
@@ -353,6 +354,7 @@ const Sidebar: React.FC = () => {
             <span className="font-medium text-sm">{isDarkMode ? 'Claro' : 'Oscuro'}</span>
           </button>
         </div>
+        <AppUpdateButton variant="sidebar" />
         <button
           onClick={handleLogout}
           className="w-full flex items-center justify-center space-x-2 px-4 py-3 rounded-xl text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors group cursor-pointer"
