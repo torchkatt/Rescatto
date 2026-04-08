@@ -32,6 +32,9 @@
         /* Prevents elastic bounce effect on iOS/Android */
         overflow-x: hidden;
         max-width: 100vw;
+        /* Pinta html con el mismo color del fondo de la app: evita la "barra negra"
+           del home indicator en PWA iOS cuando body no llega al borde inferior. */
+        background-color: var(--background-color);
     }
 
     *,
@@ -54,6 +57,9 @@
         overflow-x: hidden;
         /* Prevent horizontal scroll */
         width: 100%;
+        /* Garantiza que body cubra hasta el home indicator en iOS PWA */
+        min-height: 100vh;
+        min-height: 100dvh;
         position: relative;
         -webkit-user-select: none;
         /* Prevent accidental text selection */
