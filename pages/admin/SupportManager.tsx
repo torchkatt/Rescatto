@@ -342,7 +342,7 @@ export const SupportManager: React.FC = () => {
 
     // ── Render ─────────────────────────────────────────────────────────────────
     return (
-        <div className="flex flex-col gap-4 overflow-x-hidden min-h-screen pb-10">
+        <div className="flex flex-col gap-4 overflow-x-hidden">
 
             {/* Header Section Compact */}
             <div className="flex items-center justify-between shrink-0 mt-2 bg-emerald-900/40 border border-emerald-500/20 rounded-2xl p-4 backdrop-blur-md">
