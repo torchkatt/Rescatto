@@ -14,7 +14,7 @@ import {
 import { db } from '../../services/firebase';
 import { AuditLog } from '../../types';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
-import { Shield, Search, Calendar, User, Activity, Trash2, Download, X, AlertCircle, Info, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { Shield, Search, Calendar, User, Activity, Trash2, Download, X, AlertCircle, Info, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, RotateCw } from 'lucide-react';
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100];
 import { cacheService } from '../../services/cacheService';
@@ -271,6 +271,20 @@ export const AuditLogs: React.FC = () => {
         return matchesSearch && matchesCategory && matchesDate;
     }), [logs, searchTerm, entityNames, selectedCategory, dateRange]);
 
+    const categoryStats = useMemo(() => {
+        const counts: Record<string, number> = { 'all': filteredLogs.length };
+        Object.keys(ACTION_CATEGORIES).forEach(key => {
+            counts[ACTION_CATEGORIES[key].label] = 0;
+        });
+
+        filteredLogs.forEach(log => {
+            const cat = getCategory(log.action).label;
+            counts[cat] = (counts[cat] || 0) + 1;
+        });
+
+        return counts;
+    }, [filteredLogs]);
+
     const totalPages = Math.max(1, Math.ceil(filteredLogs.length / pageSize));
     const safePage = Math.min(currentPage, totalPages);
     const paginatedLogs = filteredLogs.slice((safePage - 1) * pageSize, safePage * pageSize);
@@ -395,19 +409,53 @@ export const AuditLogs: React.FC = () => {
     if (loading && logs.length === 0) return <LoadingSpinner fullPage />;
 
     return (
-        <div className="max-w-7xl mx-auto relative overflow-x-hidden">
-            <div className="mb-8">
-                <h1 className="text-3xl font-bold text-white">Centro de Auditoría</h1>
-                <p className="text-gray-400 mt-2">Monitoreo forense y control de seguridad en tiempo real.</p>
+        <div className="relative overflow-x-hidden flex flex-col gap-4">
+            {/* Header Section Compact */}
+            <div className="flex items-center justify-between shrink-0 mt-2 bg-emerald-900/40 border border-emerald-500/20 rounded-2xl p-4 backdrop-blur-md">
+                <div className="flex items-center gap-4">
+                    <div className="p-2.5 bg-emerald-600 rounded-xl shadow-lg shadow-emerald-500/20">
+                        <Shield className="text-white" size={20} />
+                    </div>
+                    <div>
+                        <h1 className="text-xl font-black text-white tracking-tight leading-none mb-1">Centro de Auditoría</h1>
+                        <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-[0.2em] flex items-center gap-1.5">
+                            <Activity size={6} className="fill-emerald-400 animate-pulse" />
+                            Security Hub · {totalLogCount} eventos totales
+                        </p>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                    <div className="hidden lg:flex items-center gap-1 mr-4 border-r border-white/10 pr-4">
+                         <div className="px-3 py-1 bg-white/5 rounded-lg border border-white/10">
+                            <p className="text-[8px] text-gray-400 font-black uppercase tracking-widest leading-none mb-1">Total</p>
+                            <p className="text-sm font-black text-white leading-none">{totalLogCount.toLocaleString()}</p>
+                         </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <button 
+                            onClick={() => exportToCSV(filteredLogs, entityNames, false)}
+                            className="flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-emerald-400 bg-white/5 border border-emerald-500/20 rounded-xl hover:bg-emerald-500/10 transition-all"
+                        >
+                            <Download size={14} /> <span>CSV</span>
+                        </button>
+                        <button 
+                            onClick={() => fetchLogs()}
+                            disabled={loading}
+                            className="flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-900/40"
+                        >
+                            <RotateCw size={14} className={loading ? 'animate-spin' : ''} />
+                            Refrescar
+                        </button>
+                    </div>
+                </div>
             </div>
 
-            {/* STATS & CHARTS */}
-            <AuditLogStats logs={statsLogs} totalCount={totalLogCount} />
-
             {/* TABLE */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden min-h-[400px]">
+            <div className="bg-white rounded-[2rem] shadow-xl border border-gray-100 overflow-hidden flex flex-col h-[calc(100vh-220px)] min-h-[500px]">
                 {/* Table Header */}
-                <div className="p-4 border-b bg-gray-50 flex flex-col xl:flex-row gap-3 xl:items-center justify-between">
+                <div className="p-4 border-b bg-gray-50/80 flex flex-col xl:flex-row gap-3 xl:items-center justify-between">
                     <div className="flex items-center gap-3">
                         <h3 className="font-bold text-gray-800 shrink-0">Registros de Auditoría</h3>
                         <div className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2 bg-white flex-1 xl:w-72">
@@ -422,26 +470,37 @@ export const AuditLogs: React.FC = () => {
                         </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                        <select
-                            value={selectedCategory}
-                            onChange={(e) => setSelectedCategory(e.target.value)}
-                            className="text-sm py-2 px-3 border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:border-emerald-400"
-                        >
-                            <option value="ALL">Todas las Categorías</option>
-                            {Object.values(ACTION_CATEGORIES).map(cat => (
-                                <option key={cat.label} value={cat.label}>{cat.label}</option>
+                        <div className="flex items-center gap-2 w-full xl:w-auto overflow-x-auto scrollbar-hide pb-1">
+                            <button
+                                onClick={() => setSelectedCategory('ALL')}
+                                className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all border flex items-center gap-2 ${selectedCategory === 'ALL' ? 'bg-gray-900 text-white border-gray-900 shadow-lg shadow-gray-200' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50'}`}
+                            >
+                                Todas
+                                <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${selectedCategory === 'ALL' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-400'}`}>
+                                    {categoryStats['all'] || 0}
+                                </span>
+                            </button>
+                            {Object.entries(ACTION_CATEGORIES).map(([id, cat]) => (
+                                <button
+                                    key={id}
+                                    onClick={() => setSelectedCategory(cat.label)}
+                                    className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all border flex items-center gap-2 ${selectedCategory === cat.label ? 'bg-gray-900 text-white border-gray-900 shadow-lg shadow-gray-200' : `border-transparent ${cat.color} hover:brightness-95`}`}
+                                >
+                                    {cat.icon}
+                                    {cat.label}
+                                    <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${selectedCategory === cat.label ? 'bg-white/20 text-white' : 'bg-current/10 opacity-70'}`}>
+                                        {categoryStats[cat.label] || 0}
+                                    </span>
+                                </button>
                             ))}
-                        </select>
+                        </div>
                         <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg px-2 py-1.5">
                             <input type="date" className="text-sm bg-transparent border-none focus:ring-0 text-gray-600 outline-none" value={dateRange.start} onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })} title="Desde" />
                             <span className="text-gray-400 text-xs">—</span>
                             <input type="date" className="text-sm bg-transparent border-none focus:ring-0 text-gray-600 outline-none" value={dateRange.end} onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })} title="Hasta" />
                         </div>
-                        <button onClick={() => exportToCSV(filteredLogs, entityNames, false)} className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 border border-emerald-100 text-emerald-700 font-medium rounded-lg hover:bg-emerald-100 transition text-sm" title="Exportar con datos completos">
-                            <Download size={14} /><span>CSV</span>
-                        </button>
-                        <button onClick={() => exportToCSV(filteredLogs, entityNames, true)} className="flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-200 text-gray-600 font-medium rounded-lg hover:bg-gray-50 transition text-sm" title="IPs parciales, nombres como iniciales">
-                            <Download size={14} /><span>Anonimizado</span>
+                        <button onClick={() => exportToCSV(filteredLogs, entityNames, true)} className="flex lg:hidden items-center gap-1.5 px-3 py-2 bg-white border border-gray-200 text-gray-600 font-medium rounded-lg hover:bg-gray-50 transition text-sm" title="Anominizado">
+                            <Download size={14} />
                         </button>
                     </div>
                 </div>
@@ -455,7 +514,7 @@ export const AuditLogs: React.FC = () => {
                                 <th className="p-3 sm:p-4 text-left">Evento</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-100 text-sm">
+                        <tbody className="divide-y divide-gray-100 text-sm scrollbar-hide">
                             {paginatedLogs.length === 0 ? (
                                 <tr>
                                     <td colSpan={4} className="p-12 text-center text-gray-400 flex flex-col items-center justify-center gap-2">
