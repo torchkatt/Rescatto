@@ -342,63 +342,45 @@ export const SupportManager: React.FC = () => {
 
     // ── Render ─────────────────────────────────────────────────────────────────
     return (
-        <div className="flex flex-col gap-6 overflow-x-hidden min-h-screen pb-10">
+        <div className="flex flex-col gap-4 overflow-x-hidden min-h-screen pb-10">
 
-            {/* Header Section */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 shrink-0 mt-2">
-                <div>
-                    <div className="flex items-center gap-3 mb-1">
-                        <div className="p-2 bg-emerald-500 rounded-xl shadow-lg shadow-emerald-500/20">
-                            <MessageSquare className="text-white" size={24} />
-                        </div>
-                        <h1 className="text-3xl font-black text-white tracking-tight">Consola de Soporte</h1>
+            {/* Header Section Compact */}
+            <div className="flex items-center justify-between shrink-0 mt-2 bg-emerald-900/40 border border-emerald-500/20 rounded-2xl p-4 backdrop-blur-md">
+                <div className="flex items-center gap-4">
+                    <div className="p-2.5 bg-emerald-600 rounded-xl shadow-lg shadow-emerald-500/20">
+                        <MessageSquare className="text-white" size={20} />
                     </div>
-                    <p className="text-gray-400 text-sm font-medium flex items-center gap-2 ml-1">
-                        <Circle size={8} className="fill-emerald-500 text-emerald-500 animate-pulse" />
-                        {stats.total} conversaciones procesadas
-                        {stats.unread > 0 && <span className="bg-red-500/10 text-red-500 px-2 py-0.5 rounded-lg text-xs font-black">· {stats.unread} pendientes</span>}
-                    </p>
+                    <div>
+                        <h1 className="text-xl font-black text-white tracking-tight leading-none mb-1">Consola de Soporte</h1>
+                        <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-[0.2em] flex items-center gap-1.5">
+                            <Circle size={6} className="fill-emerald-400 animate-pulse" />
+                            Global Hub · {stats.total} activos
+                        </p>
+                    </div>
                 </div>
-                <button
-                    onClick={() => loadChats(true)}
-                    disabled={loadingChats}
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-bold text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 hover:border-gray-300 disabled:opacity-50 transition-all shadow-sm active:scale-95"
-                >
-                    <RefreshCw size={16} className={loadingChats ? 'animate-spin' : ''} />
-                    Refrescar Bandeja
-                </button>
-            </div>
 
-            {/* Premium Stats Display */}
-            <div className="bg-emerald-900/60 border border-emerald-500/20 rounded-[2rem] p-6 shadow-2xl backdrop-blur-md">
-                <div className="flex flex-col lg:flex-row gap-6 items-center justify-between">
-                    <div className="flex items-center gap-5">
-                        <div className="w-16 h-16 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center text-emerald-400 shadow-inner">
-                            <ShieldCheck size={32} />
+                <div className="flex items-center gap-3">
+                    {stats.unread > 0 && (
+                        <div className="hidden sm:flex items-center gap-2 bg-red-500/10 border border-red-500/20 px-3 py-1.5 rounded-xl transition-all">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                            <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">{stats.unread} Pendientes</span>
                         </div>
-                        <div>
-                            <p className="text-[10px] text-emerald-400 font-black uppercase tracking-[0.3em] mb-1">Centro de Operaciones</p>
-                            <h3 className="text-xl font-black text-white">Bandeja de Entrada Global</h3>
-                        </div>
-                    </div>
-                    <div className="flex flex-wrap justify-center gap-3">
-                        {Object.entries(TYPE_LABELS).map(([type, meta]) => (
-                            <div key={type} className="bg-white/5 border border-white/10 px-4 py-2 rounded-2xl flex items-center gap-3 hover:bg-white/10 transition-colors group cursor-default">
-                                <span className={`p-1.5 rounded-lg ${meta.bgColor} ${meta.color}`}>{meta.icon}</span>
-                                <div className="flex flex-col">
-                                    <span className="text-[9px] text-gray-400 font-black uppercase tracking-widest">{meta.label}</span>
-                                    <span className="text-white text-sm font-black">{stats.byType[type] ?? 0}</span>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                    )}
+                    <button
+                        onClick={() => loadChats(true)}
+                        disabled={loadingChats}
+                        className="flex items-center gap-2 px-3 py-2 text-xs font-black uppercase tracking-widest text-emerald-500 bg-white/5 border border-emerald-500/20 rounded-xl hover:bg-emerald-500/10 hover:border-emerald-500/40 disabled:opacity-50 transition-all active:scale-95"
+                    >
+                        <RefreshCw size={14} className={loadingChats ? 'animate-spin' : ''} />
+                        Refrescar
+                    </button>
                 </div>
             </div>
 
             <div className="flex flex-col lg:flex-row gap-6 items-start flex-1 min-h-0">
                 {/* Main Content (Table) */}
                 <div className="flex-1 w-full min-w-0">
-                    <div className="bg-white rounded-[2rem] shadow-xl border border-gray-100 overflow-hidden flex flex-col h-[calc(100vh-280px)] min-h-[500px]">
+                    <div className="bg-white rounded-[2rem] shadow-xl border border-gray-100 overflow-hidden flex flex-col h-[calc(100vh-210px)] min-h-[500px]">
                         
                         {/* Table Controls - Refined Layout */}
                         <div className="p-4 bg-gray-50/80 border-b border-gray-100">
@@ -431,17 +413,23 @@ export const SupportManager: React.FC = () => {
                                 <div className="flex items-center gap-2 w-full xl:w-auto overflow-x-auto scrollbar-hide pb-1">
                                     <button
                                         onClick={() => handleFilter('all')}
-                                        className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all border ${filterType === 'all' ? 'bg-gray-900 text-white border-gray-900 shadow-lg shadow-gray-200' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50'}`}
+                                        className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all border flex items-center gap-2 ${filterType === 'all' ? 'bg-gray-900 text-white border-gray-900 shadow-lg shadow-gray-200' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50'}`}
                                     >
                                         Todos
+                                        <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${filterType === 'all' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-400'}`}>
+                                            {stats.total}
+                                        </span>
                                     </button>
                                     {Object.entries(TYPE_LABELS).map(([type, meta]) => (
                                         <button
                                             key={type}
                                             onClick={() => handleFilter(type)}
-                                            className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all border ${filterType === type ? 'bg-gray-900 text-white border-gray-900 shadow-lg shadow-gray-200' : `border-transparent ${meta.bgColor} ${meta.color} hover:brightness-95`}`}
+                                            className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all border flex items-center gap-2 ${filterType === type ? 'bg-gray-900 text-white border-gray-900 shadow-lg shadow-gray-200' : `border-transparent ${meta.bgColor} ${meta.color} hover:brightness-95`}`}
                                         >
                                             {meta.label}
+                                            <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${filterType === type ? 'bg-white/20 text-white' : 'bg-current/10 opacity-70'}`}>
+                                                {stats.byType[type] ?? 0}
+                                            </span>
                                         </button>
                                     ))}
                                 </div>
@@ -603,8 +591,8 @@ export const SupportManager: React.FC = () => {
                 </div>
 
                 {/* Sidebar Preview (Chat Desktop) - Synchronized Height */}
-                <div className="hidden lg:block w-[420px] shrink-0 sticky top-6 animate-in slide-in-from-right-8 duration-500">
-                    <div className="bg-gray-900 shadow-2xl rounded-[2rem] overflow-hidden flex flex-col h-[calc(100vh-280px)] min-h-[500px]">
+                <div className="hidden lg:block w-[420px] shrink-0 sticky top-4 animate-in slide-in-from-right-8 duration-500">
+                    <div className="bg-gray-900 shadow-2xl rounded-[2rem] overflow-hidden flex flex-col h-[calc(100vh-210px)] min-h-[500px]">
                         <div className="bg-emerald-500 p-2 text-white text-center text-[9px] font-black tracking-[0.3em] uppercase">
                             Terminal de Respuesta
                         </div>
