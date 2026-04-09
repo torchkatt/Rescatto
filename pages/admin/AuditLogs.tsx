@@ -453,55 +453,66 @@ export const AuditLogs: React.FC = () => {
             </div>
 
             {/* TABLE */}
-            <div className="bg-white rounded-[2rem] shadow-xl border border-gray-100 overflow-hidden flex flex-col h-[calc(100vh-220px)] min-h-[500px]">
-                {/* Table Header */}
-                <div className="p-4 border-b bg-gray-50/80 flex flex-col xl:flex-row gap-3 xl:items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <h3 className="font-bold text-gray-800 shrink-0">Registros de Auditoría</h3>
-                        <div className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2 bg-white flex-1 xl:w-72">
-                            <Search className="text-gray-400 shrink-0" size={16} />
-                            <input
-                                type="text"
-                                placeholder="Buscar actor, acción, ID..."
-                                value={searchTerm}
-                                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                                className="flex-1 outline-none text-gray-700 bg-transparent text-sm"
-                            />
+            <div className="bg-white rounded-[2rem] shadow-xl border border-gray-100 overflow-hidden flex flex-col h-[calc(100vh-240px)] min-h-[500px]">
+                {/* Table Header - Organized in 2 rows to avoid overlapping */}
+                <div className="p-4 border-b bg-gray-50/80 flex flex-col gap-4">
+                    {/* Row 1: Title, Search and Dates */}
+                    <div className="flex flex-col xl:flex-row gap-3 xl:items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <h3 className="font-bold text-gray-800 shrink-0 hidden md:block">Registros</h3>
+                            <div className="flex items-center gap-2 border border-gray-200 rounded-xl px-3 py-2 bg-white w-full sm:w-64 xl:w-80 shadow-sm focus-within:border-emerald-400 transition-colors">
+                                <Search className="text-gray-400 shrink-0" size={16} />
+                                <input
+                                    type="text"
+                                    placeholder="Buscar por actor, acción..."
+                                    value={searchTerm}
+                                    onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                                    className="flex-1 outline-none text-gray-700 bg-transparent text-xs"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-xl px-3 py-1.5 shadow-sm">
+                                <Calendar size={12} className="text-gray-400" />
+                                <input type="date" className="text-[10px] bg-transparent border-none focus:ring-0 text-gray-600 outline-none" value={dateRange.start} onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })} />
+                                <span className="text-gray-400 text-[10px]">→</span>
+                                <input type="date" className="text-[10px] bg-transparent border-none focus:ring-0 text-gray-600 outline-none" value={dateRange.end} onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })} />
+                            </div>
+                            <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-1.5 shadow-sm">
+                                <span className="text-[9px] text-gray-400 font-black uppercase tracking-tighter">Filas</span>
+                                <select value={pageSize} onChange={(e) => handlePageSizeChange(Number(e.target.value))} className="text-xs font-black bg-transparent text-emerald-600 outline-none cursor-pointer">
+                                    {PAGE_SIZE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                            </div>
                         </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                        <div className="flex items-center gap-2 w-full xl:w-auto overflow-x-auto scrollbar-hide pb-1">
+
+                    {/* Row 2: Category Filter Chips (Full width scrollable) */}
+                    <div className="flex items-center gap-2 w-full overflow-x-auto scrollbar-hide py-1">
+                        <button
+                            onClick={() => setSelectedCategory('ALL')}
+                            className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all border flex items-center gap-2 ${selectedCategory === 'ALL' ? 'bg-gray-900 text-white border-gray-900 shadow-lg shadow-gray-200 scale-105 z-10' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50 shadow-sm'}`}
+                        >
+                            Todas 
+                            <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${selectedCategory === 'ALL' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-400'}`}>
+                                {categoryStats['all'] || 0}
+                            </span>
+                        </button>
+                        <div className="w-[1px] h-6 bg-gray-200 mx-1 shrink-0" />
+                        {Object.entries(ACTION_CATEGORIES).map(([id, cat]) => (
                             <button
-                                onClick={() => setSelectedCategory('ALL')}
-                                className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all border flex items-center gap-2 ${selectedCategory === 'ALL' ? 'bg-gray-900 text-white border-gray-900 shadow-lg shadow-gray-200' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50'}`}
+                                key={id}
+                                onClick={() => setSelectedCategory(cat.label)}
+                                className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all border flex items-center gap-2 ${selectedCategory === cat.label ? 'bg-gray-900 text-white border-gray-900 shadow-lg shadow-gray-200 scale-105 z-10' : `border-transparent ${cat.color} hover:brightness-95 shadow-sm`}`}
                             >
-                                Todas
-                                <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${selectedCategory === 'ALL' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-400'}`}>
-                                    {categoryStats['all'] || 0}
+                                {cat.icon}
+                                {cat.label}
+                                <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${selectedCategory === cat.label ? 'bg-white/20 text-white' : 'bg-current/10 opacity-70'}`}>
+                                    {categoryStats[cat.label] || 0}
                                 </span>
                             </button>
-                            {Object.entries(ACTION_CATEGORIES).map(([id, cat]) => (
-                                <button
-                                    key={id}
-                                    onClick={() => setSelectedCategory(cat.label)}
-                                    className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all border flex items-center gap-2 ${selectedCategory === cat.label ? 'bg-gray-900 text-white border-gray-900 shadow-lg shadow-gray-200' : `border-transparent ${cat.color} hover:brightness-95`}`}
-                                >
-                                    {cat.icon}
-                                    {cat.label}
-                                    <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${selectedCategory === cat.label ? 'bg-white/20 text-white' : 'bg-current/10 opacity-70'}`}>
-                                        {categoryStats[cat.label] || 0}
-                                    </span>
-                                </button>
-                            ))}
-                        </div>
-                        <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg px-2 py-1.5">
-                            <input type="date" className="text-sm bg-transparent border-none focus:ring-0 text-gray-600 outline-none" value={dateRange.start} onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })} title="Desde" />
-                            <span className="text-gray-400 text-xs">—</span>
-                            <input type="date" className="text-sm bg-transparent border-none focus:ring-0 text-gray-600 outline-none" value={dateRange.end} onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })} title="Hasta" />
-                        </div>
-                        <button onClick={() => exportToCSV(filteredLogs, entityNames, true)} className="flex lg:hidden items-center gap-1.5 px-3 py-2 bg-white border border-gray-200 text-gray-600 font-medium rounded-lg hover:bg-gray-50 transition text-sm" title="Anominizado">
-                            <Download size={14} />
-                        </button>
+                        ))}
                     </div>
                 </div>
                 <div className="overflow-x-auto -mx-4 sm:mx-0">
