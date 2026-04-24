@@ -22,10 +22,10 @@ import MobileDrawer from '../../components/common/MobileDrawer';
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
 const TYPE_LABELS: Record<string, { label: string; icon: React.ReactNode; color: string; bgColor: string }> = {
-    'customer-venue':  { label: 'Negocio', icon: <Store size={12} />,       color: 'text-blue-700',    bgColor: 'bg-blue-50' },
-    'customer-driver': { label: 'Driver',  icon: <Truck size={12} />,       color: 'text-amber-700',   bgColor: 'bg-amber-50' },
-    'venue-driver':    { label: 'Logística',  icon: <Users size={12} />,       color: 'text-purple-700',  bgColor: 'bg-purple-50' },
-    'admin-support':   { label: 'Admin',      icon: <ShieldCheck size={12} />, color: 'text-emerald-700', bgColor: 'bg-emerald-50' },
+    'customer-venue': { label: 'Negocio', icon: <Store size={12} />, color: 'text-blue-700', bgColor: 'bg-blue-50' },
+    'customer-driver': { label: 'Driver', icon: <Truck size={12} />, color: 'text-amber-700', bgColor: 'bg-amber-50' },
+    'venue-driver': { label: 'Logística', icon: <Users size={12} />, color: 'text-purple-700', bgColor: 'bg-purple-50' },
+    'admin-support': { label: 'Admin', icon: <ShieldCheck size={12} />, color: 'text-emerald-700', bgColor: 'bg-emerald-50' },
 };
 
 function chatTitle(chat: Chat): string {
@@ -73,7 +73,7 @@ export const SupportManager: React.FC = () => {
     const [filterType, setFilterType] = useState<string>('all');
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const unsubMsgsRef   = useRef<Unsubscribe | null>(null);
+    const unsubMsgsRef = useRef<Unsubscribe | null>(null);
 
     // ── Load chats (cursor-based from Firestore) ───────────────────────────────
     const loadChats = useCallback(async (initial = false, size = pageSize) => {
@@ -89,13 +89,13 @@ export const SupportManager: React.FC = () => {
 
         try {
             const currentLastDoc = initial ? null : lastDocs[currentPage - 1];
-            
+
             let q = query(
                 collection(db, 'chats'),
                 orderBy('updatedAt', 'desc'),
                 limit(size)
             );
-            
+
             if (!initial && currentLastDoc) {
                 q = query(
                     collection(db, 'chats'),
@@ -104,7 +104,7 @@ export const SupportManager: React.FC = () => {
                     limit(size)
                 );
             }
-            
+
             const snap = await getDocs(q);
             const newChats = snap.docs.map(d => ({ id: d.id, ...d.data() })) as Chat[];
 
@@ -123,7 +123,7 @@ export const SupportManager: React.FC = () => {
                     [initial ? 1 : currentPage]: snap.docs[snap.docs.length - 1]
                 }));
             }
-            
+
             setHasMore(snap.docs.length === size);
         } catch (err) {
             logger.error('Error cargando chats de soporte:', err);
@@ -144,7 +144,7 @@ export const SupportManager: React.FC = () => {
         unsubMsgsRef.current = subscribeToChatMessages(selectedChat.id, msgs => {
             setMessages(msgs);
             setLoadingMessages(false);
-            if (user) markMessagesAsRead(selectedChat.id, user.id).catch(() => {});
+            if (user) markMessagesAsRead(selectedChat.id, user.id).catch(() => { });
         });
         return () => { if (unsubMsgsRef.current) unsubMsgsRef.current(); };
     }, [selectedChat?.id]);
@@ -381,7 +381,7 @@ export const SupportManager: React.FC = () => {
                 {/* Main Content (Table) */}
                 <div className="flex-1 w-full min-w-0">
                     <div className="bg-white rounded-[2rem] shadow-xl border border-gray-100 overflow-hidden flex flex-col h-[calc(100vh-210px)] min-h-[500px]">
-                        
+
                         {/* Table Controls - Refined Layout */}
                         <div className="p-4 bg-gray-50/80 border-b border-gray-100">
                             <div className="flex flex-col xl:flex-row gap-4 justify-between items-center">
@@ -399,8 +399,8 @@ export const SupportManager: React.FC = () => {
                                     </div>
                                     <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-1.5 shadow-sm">
                                         <span className="text-[10px] text-gray-400 font-black uppercase tracking-tighter">Filas</span>
-                                        <select 
-                                            value={pageSize} 
+                                        <select
+                                            value={pageSize}
                                             onChange={e => handlePageSizeChange(Number(e.target.value))}
                                             className="text-sm font-black bg-transparent text-emerald-600 outline-none cursor-pointer"
                                         >
@@ -408,7 +408,7 @@ export const SupportManager: React.FC = () => {
                                         </select>
                                     </div>
                                 </div>
-                                
+
                                 {/* Filter Chips - Horizontal Scrollable */}
                                 <div className="flex items-center gap-2 w-full xl:w-auto overflow-x-auto scrollbar-hide pb-1">
                                     <button
@@ -416,7 +416,7 @@ export const SupportManager: React.FC = () => {
                                         className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all border flex items-center gap-2 ${filterType === 'all' ? 'bg-gray-900 text-white border-gray-900 shadow-lg shadow-gray-200' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50'}`}
                                     >
                                         Todos
-                                        <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${filterType === 'all' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-400'}`}>
+                                        <span className={`px-1.5 py-0.5 rounded-md text-[15px] ${filterType === 'all' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-400'}`}>
                                             {stats.total}
                                         </span>
                                     </button>
@@ -424,10 +424,10 @@ export const SupportManager: React.FC = () => {
                                         <button
                                             key={type}
                                             onClick={() => handleFilter(type)}
-                                            className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all border flex items-center gap-2 ${filterType === type ? 'bg-gray-900 text-white border-gray-900 shadow-lg shadow-gray-200' : `border-transparent ${meta.bgColor} ${meta.color} hover:brightness-95`}`}
+                                            className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all border flex items-center gap-3 ${filterType === type ? 'bg-gray-900 text-white border-gray-900 shadow-lg shadow-gray-200' : `border-transparent ${meta.bgColor} ${meta.color} hover:brightness-95`}`}
                                         >
                                             {meta.label}
-                                            <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${filterType === type ? 'bg-white/20 text-white' : 'bg-current/10 opacity-70'}`}>
+                                            <span className={`px-1.5 py-0.5 rounded-md text-[15px] ${filterType === type ? 'bg-white/20 text-white' : 'bg-current/10 opacity-70'}`}>
                                                 {stats.byType[type] ?? 0}
                                             </span>
                                         </button>
@@ -469,7 +469,7 @@ export const SupportManager: React.FC = () => {
                                         const meta = TYPE_LABELS[chat.type] || TYPE_LABELS['admin-support'];
                                         const isUnread = !chat.lastMessage.read && chat.lastMessage.senderId !== user?.id && chat.lastMessage.senderId !== '';
                                         return (
-                                            <tr 
+                                            <tr
                                                 key={chat.id}
                                                 onClick={() => selectChat(chat)}
                                                 className={`group hover:bg-gray-50/80 transition-all cursor-pointer ${selectedChat?.id === chat.id ? 'bg-emerald-50/60' : ''}`}
@@ -510,7 +510,7 @@ export const SupportManager: React.FC = () => {
                                                     <span className="text-[11px] font-black text-gray-400 tabular-nums">{timeAgo(chat.updatedAt)}</span>
                                                 </td>
                                                 <td className="p-4 text-right" onClick={e => e.stopPropagation()}>
-                                                    <button 
+                                                    <button
                                                         onClick={() => handleDelete(chat)}
                                                         className="p-2 rounded-xl text-gray-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all active:scale-90"
                                                     >
@@ -527,8 +527,8 @@ export const SupportManager: React.FC = () => {
                         {/* MOBILE LIST */}
                         <div className="block lg:hidden overflow-y-auto flex-1 divide-y divide-gray-50 scrollbar-hide">
                             {paginated.map(chat => (
-                                <div 
-                                    key={chat.id} 
+                                <div
+                                    key={chat.id}
                                     onClick={() => selectChat(chat)}
                                     className={`p-4 active:bg-gray-100 transition-colors ${selectedChat?.id === chat.id ? 'bg-emerald-50' : ''}`}
                                 >
@@ -565,14 +565,14 @@ export const SupportManager: React.FC = () => {
                                 <div className="flex items-center gap-1 bg-white p-1 rounded-2xl shadow-sm border border-gray-100">
                                     <button onClick={() => goToPage(1)} disabled={safePage === 1 || loadingMore} className="p-2 rounded-xl text-gray-400 hover:bg-gray-50 hover:text-emerald-600 disabled:opacity-20 transition-all"><ChevronsLeft size={16} /></button>
                                     <button onClick={() => goToPage(safePage - 1)} disabled={safePage === 1 || loadingMore} className="p-2 rounded-xl text-gray-400 hover:bg-gray-50 hover:text-emerald-600 disabled:opacity-20 transition-all"><ChevronLeft size={16} /></button>
-                                    
+
                                     <div className="flex items-center px-1">
                                         {getPageNumbers().map((page, idx) => (
                                             page === '...' ? (
                                                 <span key={`dots-${idx}`} className="px-2 text-gray-300 text-xs font-bold italic">..</span>
                                             ) : (
-                                                <button 
-                                                    key={page} 
+                                                <button
+                                                    key={page}
                                                     onClick={() => goToPage(page as number)}
                                                     className={`w-8 h-8 rounded-xl text-xs font-black transition-all ${safePage === page ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200 scale-110' : 'text-gray-400 hover:text-gray-900 hover:bg-gray-50'}`}
                                                 >
@@ -593,7 +593,7 @@ export const SupportManager: React.FC = () => {
                 {/* Sidebar Preview (Chat Desktop) - Synchronized Height */}
                 <div className="hidden lg:block w-[420px] shrink-0 sticky top-4 animate-in slide-in-from-right-8 duration-500">
                     <div className="bg-gray-900 shadow-2xl rounded-[2rem] overflow-hidden flex flex-col h-[calc(100vh-210px)] min-h-[500px]">
-                        <div className="bg-emerald-500 p-2 text-white text-center text-[9px] font-black tracking-[0.3em] uppercase">
+                        <div className="bg-emerald-500 p-2 text-white text-center text-[11px] font-black tracking-[0.3em] uppercase">
                             Terminal de Respuesta
                         </div>
                         <div className="flex-1 overflow-hidden bg-white">

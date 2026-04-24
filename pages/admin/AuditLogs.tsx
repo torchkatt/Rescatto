@@ -238,9 +238,9 @@ export const AuditLogs: React.FC = () => {
             case 'ORDER_STATUS_CHANGE': return <span>Cambió el estado del pedido {B(targetName, log.targetId)} a {B(details.status)}</span>;
             case 'LOGIN':
                 const method = details.method === 'google' ? 'Google' :
-                               details.method === 'apple' ? 'Apple' :
-                               details.method === 'facebook' ? 'Facebook' :
-                               details.method === 'guest' ? 'Invitado' : 'Email';
+                    details.method === 'apple' ? 'Apple' :
+                        details.method === 'facebook' ? 'Facebook' :
+                            details.method === 'guest' ? 'Invitado' : 'Email';
                 return <span>Inició sesión exitosamente vía {B(method)}</span>;
             case 'LOGOUT': return <span>Cerró su sesión</span>;
             case 'SYSTEM_SEED_CATEGORIES': return <span>Cargó las etiquetas predeterminadas del sistema ({details.count} categorías)</span>;
@@ -427,20 +427,20 @@ export const AuditLogs: React.FC = () => {
 
                 <div className="flex items-center gap-3">
                     <div className="hidden lg:flex items-center gap-1 mr-4 border-r border-white/10 pr-4">
-                         <div className="px-3 py-1 bg-white/5 rounded-lg border border-white/10">
+                        <div className="px-3 py-1 bg-white/5 rounded-lg border border-white/10">
                             <p className="text-[8px] text-gray-400 font-black uppercase tracking-widest leading-none mb-1">Total</p>
                             <p className="text-sm font-black text-white leading-none">{totalLogCount.toLocaleString()}</p>
-                         </div>
+                        </div>
                     </div>
 
                     <div className="flex items-center gap-2">
-                        <button 
+                        <button
                             onClick={() => exportToCSV(filteredLogs, entityNames, false)}
                             className="flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-emerald-400 bg-white/5 border border-emerald-500/20 rounded-xl hover:bg-emerald-500/10 transition-all"
                         >
                             <Download size={14} /> <span>CSV</span>
                         </button>
-                        <button 
+                        <button
                             onClick={() => fetchLogs()}
                             disabled={loading}
                             className="flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-900/40"
@@ -494,7 +494,7 @@ export const AuditLogs: React.FC = () => {
                             onClick={() => setSelectedCategory('ALL')}
                             className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all border flex items-center gap-2 ${selectedCategory === 'ALL' ? 'bg-gray-900 text-white border-gray-900 shadow-lg shadow-gray-200 scale-105 z-10' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50 shadow-sm'}`}
                         >
-                            Todas 
+                            Todas
                             <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${selectedCategory === 'ALL' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-400'}`}>
                                 {categoryStats['all'] || 0}
                             </span>

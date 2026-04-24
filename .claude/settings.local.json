@@ -29,7 +29,8 @@
       "Bash(git commit:*)",
       "Bash(git add:*)",
       "Bash(git push:*)",
-      "Bash(ls /Users/alexandersandoval/Documents/PERSONAL/DESARROLLO/rescatto-business-dashboard/.env*)"
+      "Bash(ls /Users/alexandersandoval/Documents/PERSONAL/DESARROLLO/rescatto-business-dashboard/.env*)",
+      "Bash(firebase deploy:*)"
     ]
   }
 }

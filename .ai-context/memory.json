@@ -1,0 +1,40 @@
+{
+  "project": {
+    "name": "rescatto-business-dashboard",
+    "description": "Business dashboard for Rescatto app - food rescue & sustainability platform",
+    "tech_stack": ["React 18", "TypeScript", "Firebase (Firestore, Auth, Functions, Messaging)", "Vite", "Tailwind CSS", "Zustand", "Vitest", "Playwright", "PWA"],
+    "architecture": "SPA with Firebase backend, role-based routing (admin, business, customer, driver, backoffice)"
+  },
+  "last_session": "2026-04-24T19:00:00Z",
+  "sessions": [
+    {
+      "date": "2026-04-24",
+      "features_worked": ["ai-router-setup"],
+      "files_modified": ["scripts/ai-router.ts", "AGENTS.md", ".ai-context/memory.json"]
+    }
+  ],
+  "active_features": [],
+  "patterns": {
+    "testing": "vitest for unit, playwright for e2e",
+    "state_management": "zustand stores in /stores/",
+    "api_services": "service classes in /services/",
+    "routing": "react-router-dom v6 with role-based ProtectedRoute",
+    "ui": "Tailwind CSS utility-first, custom components in /components/",
+    "i18n": "i18next with /locales/ es/en",
+    "ai": "Gemini API (commented out), DeepSeek API via ai-router.ts"
+  },
+  "architecture_decisions": [
+    {
+      "id": "ADR-001",
+      "date": "2026-04-24",
+      "title": "AI Router PRO→FLASH con DeepSeek",
+      "decision": "Usar deepseek-v4-pro para planificación estratégica y deepseek-v4-flash para implementación",
+      "rationale": "90% ahorro de tokens vs usar pro siempre. Flash suficiente para implementación de tareas atómicas.",
+      "status": "implemented"
+    }
+  ],
+  "notes": {
+    "graphify": "graphify-out/ no existe aún. Reglas en AGENTS.md preservadas.",
+    "gemini_service": "Comentado para evitar costos. Usar DeepSeek como alternativa."
+  }
+}
