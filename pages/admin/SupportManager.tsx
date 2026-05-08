@@ -14,8 +14,12 @@ import {
     MessageSquare, Search, Send, Trash2, RefreshCw,
     Users, Truck, Store, ShieldCheck, Circle, X,
     ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
-    Inbox
+    Inbox, Scale, CheckCircle, XCircle, AlertCircle
 } from 'lucide-react';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../../services/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { Order, OrderStatus } from '../../types';
 import MobileDrawer from '../../components/common/MobileDrawer';
 
 // ── helpers ────────────────────────────────────────────────────────────────────
@@ -68,9 +72,13 @@ export const SupportManager: React.FC = () => {
     const [sending, setSending] = useState(false);
     const [mobileShowChat, setMobileShowChat] = useState(false);
 
-    // ── Filters ────────────────────────────────────────────────────────────────
     const [searchTerm, setSearchTerm] = useState('');
     const [filterType, setFilterType] = useState<string>('all');
+
+    // ── Order & Dispute resolution state ──
+    const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+    const [loadingOrder, setLoadingOrder] = useState(false);
+    const [resolving, setResolving] = useState(false);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const unsubMsgsRef = useRef<Unsubscribe | null>(null);
@@ -148,6 +156,30 @@ export const SupportManager: React.FC = () => {
         });
         return () => { if (unsubMsgsRef.current) unsubMsgsRef.current(); };
     }, [selectedChat?.id]);
+
+    // Fetch order details if chat is linked to an order
+    useEffect(() => {
+        if (!selectedChat?.orderId) {
+            setSelectedOrder(null);
+            return;
+        }
+
+        const fetchOrder = async () => {
+            setLoadingOrder(true);
+            try {
+                const snap = await getDoc(doc(db, 'orders', selectedChat.orderId!));
+                if (snap.exists()) {
+                    setSelectedOrder({ id: snap.id, ...snap.data() } as Order);
+                }
+            } catch (err) {
+                logger.error('Error fetching order for support:', err);
+            } finally {
+                setLoadingOrder(false);
+            }
+        };
+
+        fetchOrder();
+    }, [selectedChat?.orderId]);
 
     // Auto-scroll al último mensaje
     useEffect(() => {
@@ -247,6 +279,38 @@ export const SupportManager: React.FC = () => {
         setMobileShowChat(true);
     };
 
+    const handleResolveDispute = async (resolution: 'REFUND_CUSTOMER' | 'PAY_DRIVER_AND_VENUE' | 'CANCEL_ALL') => {
+        if (!selectedOrder || !user) return;
+
+        const confirmed = await confirm({
+            title: 'Resolver Disputa',
+            message: `¿Confirmas la resolución "${resolution}" para el pedido #${selectedOrder.id.slice(-6)}?`,
+            confirmLabel: 'Confirmar Resolución',
+            variant: resolution === 'REFUND_CUSTOMER' ? 'warning' : 'primary',
+        });
+
+        if (!confirmed) return;
+
+        setResolving(true);
+        try {
+            const resolveDisputeFn = httpsCallable(functions, 'resolveDispute');
+            await resolveDisputeFn({
+                orderId: selectedOrder.id,
+                resolution,
+                adminComment: 'Resuelto desde la consola de soporte central.'
+            });
+
+            toast.success('Disputa resuelta exitosamente');
+            // Refrescar el pedido localmente
+            setSelectedOrder(prev => prev ? { ...prev, status: resolution === 'PAY_DRIVER_AND_VENUE' ? OrderStatus.COMPLETED : OrderStatus.CANCELLED } : null);
+        } catch (err) {
+            logger.error('Error resolviendo disputa:', err);
+            toast.error('Error al resolver la disputa');
+        } finally {
+            setResolving(false);
+        }
+    };
+
     const handleSearch = (v: string) => { setSearchTerm(v); setCurrentPage(1); };
     const handleFilter = (t: string) => { setFilterType(t); setCurrentPage(1); };
 
@@ -275,6 +339,72 @@ export const SupportManager: React.FC = () => {
                         </button>
                     </div>
                 </div>
+
+                {/* ── Order Context Panel (NEW) ── */}
+                {selectedOrder && (
+                    <div className="px-4 py-3 bg-emerald-50/50 border-b border-emerald-100 animate-in fade-in slide-in-from-top-2 duration-300">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-white rounded-lg shadow-sm border border-emerald-100">
+                                    <Scale size={16} className="text-emerald-600" />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">Contexto del Pedido</p>
+                                    <div className="flex items-center gap-2">
+                                        <p className="text-sm font-bold text-gray-900">Total: ${selectedOrder.totalAmount?.toLocaleString()}</p>
+                                        <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase ${selectedOrder.status === OrderStatus.DISPUTED ? 'bg-red-100 text-red-700 animate-pulse' : 'bg-gray-200 text-gray-600'}`}>
+                                            {selectedOrder.status}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Dispute Controls */}
+                            {selectedOrder.status === OrderStatus.DISPUTED && (
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => handleResolveDispute('REFUND_CUSTOMER')}
+                                        disabled={resolving}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-red-200 text-red-600 rounded-lg text-[10px] font-black uppercase hover:bg-red-50 transition-all disabled:opacity-50"
+                                    >
+                                        <XCircle size={12} /> Reembolsar
+                                    </button>
+                                    <button
+                                        onClick={() => handleResolveDispute('PAY_DRIVER_AND_VENUE')}
+                                        disabled={resolving}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-[10px] font-black uppercase hover:bg-emerald-700 transition-all shadow-sm shadow-emerald-200 disabled:opacity-50"
+                                    >
+                                        <CheckCircle size={12} /> Pagar Aliados
+                                    </button>
+                                    <button
+                                        onClick={() => handleResolveDispute('CANCEL_ALL')}
+                                        disabled={resolving}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-[10px] font-black uppercase hover:bg-gray-200 transition-all disabled:opacity-50"
+                                        title="Cerrar sin pagos ni reembolsos"
+                                    >
+                                        <Ban size={12} /> Anular Todo
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Resolution Details */}
+                            {selectedOrder.disputeResolvedAt && (
+                                <div className="flex flex-col items-end gap-1">
+                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Resuelto el {new Date(selectedOrder.disputeResolvedAt).toLocaleDateString()}</p>
+                                    <span className="px-2 py-0.5 rounded-md text-[9px] font-black uppercase bg-gray-100 text-gray-600">
+                                        {selectedOrder.disputeResolution}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+                {loadingOrder && (
+                    <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
+                        <RefreshCw size={12} className="animate-spin text-emerald-500" />
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Cargando detalles del pedido...</span>
+                    </div>
+                )}
 
                 {/* Mensajes */}
                 <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-gray-50/30 min-h-0">

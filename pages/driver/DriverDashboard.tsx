@@ -18,6 +18,7 @@ import { RatingStats } from '../../types';
 import { logger } from '../../utils/logger';
 import { useConfirm } from '../../context/ConfirmContext';
 import { AppUpdateButton } from '../../components/common/AppUpdateButton';
+import LocationTracker from '../../components/driver/LocationTracker';
 
 const PAGE_SIZE = 20;
 
@@ -577,6 +578,9 @@ export const DriverDashboard: React.FC = () => {
 
     return (
         <div className="space-y-6 overflow-x-hidden pb-[env(safe-area-inset-bottom)]">
+            {/* Tracking de ubicación en tiempo real */}
+            <LocationTracker isActive={user?.role === UserRole.DRIVER} />
+            
             <div className="flex justify-between items-center">
                 <div>
                     <h1 className="text-3xl font-extrabold text-gray-800 flex items-center gap-3">

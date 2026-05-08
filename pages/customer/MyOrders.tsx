@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { collection, query, where, orderBy, doc, getDoc, getDocs, limit, updateDoc, startAfter, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
+import { collection, query, where, orderBy, doc, getDoc, getDocs, limit, updateDoc, startAfter, QueryDocumentSnapshot, DocumentData, onSnapshot } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
@@ -18,6 +18,7 @@ import { logger } from '../../utils/logger';
 import { GuestConversionBanner } from '../../components/customer/common/GuestConversionBanner';
 import { formatCOP } from '../../utils/formatters';
 import { useTranslation } from 'react-i18next';
+import TrackingMap from '../../components/customer/orders/TrackingMap';
 
 export const MyOrders: React.FC = () => {
     const { t, i18n } = useTranslation();
@@ -486,6 +487,11 @@ export const MyOrders: React.FC = () => {
                                     ref={order.id === highlightParam ? highlightRef : null}
                                     className={`bg-white rounded-xl p-6 shadow-sm border transition-all duration-500 ${order.id === highlightParam ? 'border-emerald-400 ring-2 ring-emerald-300 shadow-emerald-100' : 'border-gray-100'}`}
                                 >
+                                    {/* Mapa de Seguimiento (Logística Fase 3) */}
+                                    {(order.status === OrderStatus.DRIVER_ASSIGNED || order.status === OrderStatus.IN_TRANSIT) && (
+                                        <TrackingOrderMap order={order} />
+                                    )}
+
                                     <div className="flex justify-between items-start mb-4">
                                         <div>
                                             {order.metadata?.venueName && (
@@ -731,6 +737,53 @@ export const MyOrders: React.FC = () => {
                 </div>
             )}
         </div>
+    );
+};
+
+/**
+ * Helper component to handle driver location subscription for a single order
+ */
+const TrackingOrderMap: React.FC<{ order: Order }> = ({ order }) => {
+    const [driverLoc, setDriverLoc] = useState<{ lat: number, lng: number } | undefined>();
+    const [venueLoc, setVenueLoc] = useState<{ lat: number, lng: number } | undefined>();
+
+    useEffect(() => {
+        if (!order.driverId) return;
+        
+        // Listener para ubicación del driver
+        const unsubDriver = onSnapshot(doc(db, 'users', order.driverId), (snap) => {
+            const data = snap.data();
+            if (data?.lastLocation) {
+                setDriverLoc({
+                    lat: data.lastLocation.latitude,
+                    lng: data.lastLocation.longitude
+                });
+            }
+        });
+
+        // Obtener ubicación del venue (una vez es suficiente)
+        getDoc(doc(db, 'venues', order.venueId)).then(snap => {
+            const data = snap.data();
+            if (data?.latitude && data?.longitude) {
+                setVenueLoc({ lat: data.latitude, lng: data.longitude });
+            }
+        });
+
+        return () => unsubDriver();
+    }, [order.driverId, order.venueId]);
+
+    // Coordenadas de destino del cliente (si están en el pedido)
+    const destLoc = (order as any).customerLat && (order as any).customerLng 
+        ? { lat: (order as any).customerLat, lng: (order as any).customerLng }
+        : undefined;
+
+    return (
+        <TrackingMap 
+            orderStatus={order.status}
+            driverCoords={driverLoc}
+            venueCoords={venueLoc}
+            destinationCoords={destLoc}
+        />
     );
 };
 

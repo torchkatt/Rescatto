@@ -4,8 +4,11 @@ const { HttpsError } = require("firebase-functions/v2/https");
 const { onCall } = require("firebase-functions/v2/https");
 const { db, admin } = require("../admin");
 const { checkRateLimit } = require("../utils/rateLimit");
-const { withErrorHandling } = require("../utils/errorHandler");
+const { withErrorHandling, withSecurityBunker } = require("../utils/errorHandler");
+
 const { DeleteUserAccountSchema } = require("../schemas");
+const { onDocumentUpdated, onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { log, error: logError } = require("../utils/logger");
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -124,9 +127,8 @@ const getReferralStats = onCall(withErrorHandling("getReferralStats", async (req
         return { count: 0, referralCode: "" };
     }
 
-    // Count users invited by this code using Admin SDK (bypasses rules)
     const countSnap = await db.collection("users")
-        .where("invitedBy", "==", referralCode)
+        .where("referredBy", "==", referralCode)
         .count()
         .get();
 
@@ -136,11 +138,115 @@ const getReferralStats = onCall(withErrorHandling("getReferralStats", async (req
     };
 }));
 
+/**
+ * Actualiza la ubicación en tiempo real de un driver.
+ * Protegida por Búnker: Solo accesible para DRIVER.
+ */
+const updateDriverLocation = onCall(withSecurityBunker("updateDriverLocation", async (request) => {
+    const { lat, lng } = request.data || {};
+    
+    if (typeof lat !== "number" || typeof lng !== "number") {
+        throw new HttpsError("invalid-argument", "Latitud y Longitud deben ser números.");
+    }
+
+    // Validar rango de coordenadas
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        throw new HttpsError("invalid-argument", "Coordenadas fuera de rango.");
+    }
+
+    const userId = request.auth.uid;
+    const userRole = request.auth.token.role;
+
+    if (userRole !== "DRIVER") {
+        throw new HttpsError("permission-denied", "Solo los drivers pueden actualizar su ubicación.");
+    }
+
+    const userRef = db.collection("users").doc(userId);
+    
+    await userRef.update({
+        lastLocation: new admin.firestore.GeoPoint(lat, lng),
+        lastSeen: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    return { success: true };
+}, { requiredRoles: ["DRIVER"] }));
+
+// ─── Custom Claims (Bunker Security) ──────────────────────────────────────────
+
+/**
+ * Sincroniza los Custom Claims de un usuario basándose en su perfil de Firestore.
+ * Esto es el corazón del Búnker: los permisos viven en el token JWT.
+ */
+async function syncUserClaims(userId) {
+    if (!userId) return;
+    try {
+        const userDoc = await db.collection("users").doc(userId).get();
+        if (!userDoc.exists) {
+            // Si el perfil no existe, limpiamos los claims
+            await admin.auth().setCustomUserClaims(userId, null);
+            return;
+        }
+
+        const data = userDoc.data();
+        const role = data.role || "CUSTOMER";
+        const venueIds = normalizeVenueIds(data);
+        
+        // Estructura de claims compacta para no exceder el límite de 1KB
+        const claims = {
+            role,
+            v: venueIds.length > 0 ? venueIds.slice(0, 5) : [], // v = venues (limitado a 5 por tamaño)
+            isBunker: true, // Flag para indicar que el token pasó por el búnker
+        };
+
+        if (isAdminRole(role)) claims.isAdmin = true;
+
+        await admin.auth().setCustomUserClaims(userId, claims);
+
+        // Notificar al frontend para refresco silencioso (getIdToken(true))
+        await db.collection("users").doc(userId).update({
+            claimsVersion: admin.firestore.FieldValue.increment(1),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        log(`[SecurityBunker] Claims sincronizados para ${userId}`, { role });
+    } catch (e) {
+        logError(`[SecurityBunker] Error sincronizando claims para ${userId}`, e);
+    }
+}
+
+/**
+ * Trigger: Cuando el perfil de un usuario cambia, sincronizamos sus claims.
+ */
+const onUserUpdated = onDocumentUpdated("users/{userId}", async (event) => {
+    const newData = event.data.after.data();
+    const oldData = event.data.before.data();
+    
+    // Solo resincronizar si cambió el rol o los venues asociados
+    const roleChanged = newData.role !== oldData.role;
+    const venuesChanged = JSON.stringify(normalizeVenueIds(newData)) !== JSON.stringify(normalizeVenueIds(oldData));
+
+    if (roleChanged || venuesChanged) {
+        await syncUserClaims(event.params.userId);
+    }
+});
+
+/**
+ * Trigger: Cuando se crea un usuario, sincronizamos sus claims iniciales.
+ */
+const onUserCreated = onDocumentCreated("users/{userId}", async (event) => {
+    await syncUserClaims(event.params.userId);
+});
+
 module.exports = {
     ensureReferralCode,
     deleteUserAccount,
     getReferralStats,
+    updateDriverLocation,
     normalizeVenueIds,
     isAdminRole,
-    createUniqueReferralCode
+    createUniqueReferralCode,
+    syncUserClaims,
+    onUserUpdated,
+    onUserCreated
 };

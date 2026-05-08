@@ -107,6 +107,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               // Usar el estado de Auth si es true (es la fuente de verdad)
               const finalIsVerified = isAuthVerified || isFirestoreVerified;
 
+              // ─── Silent Token Refresh (Bunker Security) ───
+              const claimsVersion = userData.claimsVersion || 0;
+              const lastRefreshedVersion = (window as any)._lastClaimsVersion || 0;
+              if (claimsVersion > lastRefreshedVersion && firebaseUser) {
+                firebaseUser.getIdToken(true).then(() => {
+                  (window as any)._lastClaimsVersion = claimsVersion;
+                  logger.log(`AuthContext: Token refrescado (v${claimsVersion})`);
+                }).catch(err => logger.error('AuthContext: Error refrescando token', err));
+              }
+
               setUser({
                 id: firebaseUser.uid,
                 email: firebaseUser.email || '',

@@ -9,7 +9,10 @@
 const {
     ensureReferralCode,
     deleteUserAccount,
-    getReferralStats
+    getReferralStats,
+    updateDriverLocation,
+    onUserUpdated,
+    onUserCreated
 } = require("./src/services/userService");
 
 // ─── Notification & Messaging ─────────────────────────────────────────────────
@@ -41,9 +44,12 @@ const {
     releaseToDriverPool,
     assignDriver,
     takeDelivery,
+    markOrderInTransit,
     markDeliveredByDriver,
     confirmDelivery,
     disputeDelivery,
+    markOrderReady,
+    resolveDispute,
 } = require("./src/services/orderService");
 
 // ─── Loyalty & Reward Services ───────────────────────────────────────────────
@@ -61,7 +67,8 @@ const {
     getFinanceStats,
     aggregateAdminStats,
     migrateVenueIdToVenueIds,
-    recordManualSettlement
+    recordManualSettlement,
+    updateVenueDeliveryConfig
 } = require("./src/services/adminService");
 
 // ─── Cron & Scheduled Jobs ────────────────────────────────────────────────────
@@ -77,7 +84,9 @@ const {
     handleOrderAcceptanceTimeout,
     handleDriverConfirmationTimeout,
     backupFirestore,
+    cleanupData,
 } = require("./src/services/cronService");
+
 
 // ─── Miscellaneous Services ───────────────────────────────────────────────────
 const {
@@ -117,6 +126,9 @@ module.exports = {
     ensureReferralCode,
     deleteUserAccount,
     getReferralStats,
+    updateDriverLocation,
+    onUserUpdated,
+    onUserCreated,
     sendVerificationEmail,
 
     // Notifications
@@ -139,9 +151,12 @@ module.exports = {
     releaseToDriverPool,
     assignDriver,
     takeDelivery,
+    markOrderInTransit,
     markDeliveredByDriver,
     confirmDelivery,
     disputeDelivery,
+    markOrderReady,
+    resolveDispute,
 
     // Rewards
     redeemPoints,
@@ -154,6 +169,7 @@ module.exports = {
     aggregateAdminStats,
     migrateVenueIdToVenueIds,
     recordManualSettlement,
+    updateVenueDeliveryConfig,
 
     // Cron
     applyDynamicPricing,
@@ -167,8 +183,10 @@ module.exports = {
     handleOrderAcceptanceTimeout,
     handleDriverConfirmationTimeout,
     backupFirestore,
+    cleanupData,
 
     // Misc
+
     healthCheck,
     scheduledHealthCheck,
 

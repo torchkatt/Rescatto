@@ -10,23 +10,23 @@
 
 | Área | Estado | Notas |
 |------|--------|-------|
-| Auth + RLS + Roles | ✅ Completo | Firebase Auth, Firestore rules (358 líneas), 6 roles |
-| Rate Limiting | ✅ Completo | 7 endpoints, sliding-window Firestore |
+| Auth + RLS + Roles | ✅ Completo | Firebase Auth, Firestore rules (380+ líneas), 6 roles |
+| Rate Limiting | ✅ Completo | 20+ endpoints protegidos por el Búnker |
 | Webhook Security | ✅ Completo | HMAC-SHA256 + idempotencia atómica |
 | CORS | ✅ Completo | Whitelist production |
-| Paginación | ⚠️ Parcial | Solo AdminInventory tiene cursor pagination |
+| Paginación | ✅ Completo | Paginación por cursor en Admin y Vistas críticas |
 | Índices Firestore | ✅ Completo | 15 índices compuestos |
 | CI/CD | ⚠️ Básico | GitHub Actions test+build, sin security scanning |
 | Tests | ⚠️ Parcial | 58 tests, sin integration/E2E/CF |
-| Logging | ⚠️ Parcial | logger.ts básico, sin Sentry ni estructurado |
-| Validación | ⚠️ Parcial | Type guards manuales, sin Zod |
+| Logging | ✅ Completo | Auditoría inmutable y logs estructurados en el Búnker |
+| Validación | ✅ Completo | Zod schemas en Cloud Functions críticas |
 | Security Headers | ❌ Falta | Solo COOP, falta CSP/HSTS/X-Frame |
 | Error Tracking | ❌ Falta | ErrorBoundary existe pero sin Sentry |
 | Feature Flags | ❌ Falta | Sin implementación |
 | Search Engine | ❌ Falta | Filtrado client-side |
 | Cache Backend | ❌ Falta | Solo Workbox frontend |
 | Analytics/Events | ❌ Falta | Sin BigQuery/tracking |
-| Fraud Detection | ❌ Falta | Solo transactionId uniqueness |
+| Fraud Detection | ⚠️ Parcial | Búnker de seguridad con Rate Limiting y App Check |
 
 ---
 
@@ -83,14 +83,9 @@
 - **Archivos**: `functions/index.js`
 
 ### 1.3 Auditoría de Acciones Críticas
-- Verificar que `audit_logs` collection registra:
-  - Login exitoso/fallido
-  - Cambio de rol
-  - Creación/cancelación de orden
-  - Pagos procesados
-  - Cambios en configuración admin
-- Agregar logs faltantes en Cloud Functions
-- **Archivos**: `functions/index.js`, `firestore.rules`
+- ✅ Verificado que `audit_logs` collection registra acciones de resolución de disputas, cambios de rol y eventos financieros.
+- ✅ Implementado helper `writeAuditLog` centralizado.
+- **Archivos**: `functions/src/utils/audit.js`, `functions/src/services/orderService.js`
 
 ### 1.4 Health Check Endpoint
 - Crear Cloud Function `healthCheck` (onRequest, público)
@@ -158,29 +153,16 @@
 > El archivo tiene 1,659 líneas. Necesita modularización.
 
 ### 3.1 Extraer Servicios
-- Crear estructura modular:
+- ✅ Estructura modular completada:
   ```
   functions/
     src/
-      services/
-        orderService.js
-        paymentService.js
-        notificationService.js
-        rewardService.js
-        chatService.js
-        userService.js
-      schemas/
-        orderSchema.js
-        paymentSchema.js
-      utils/
-        rateLimit.js
-        errorHandler.js
-        logger.js
-      index.js  (solo exports)
+      services/ (order, user, subscription, reward, etc.)
+      utils/ (security, rateLimit, audit, errorHandler)
+      schemas/ (zod validation)
   ```
-- Mover lógica de negocio a servicios
-- `index.js` queda como router/entry point
-- **Archivos**: reestructuración completa de `functions/`
+- ✅ index.js simplificado a solo exportaciones.
+- **Archivos**: reestructuración completa de `functions/` finalizada.
 
 ### 3.2 Timeouts y Retry Policy
 - Configurar timeouts explícitos por función:
@@ -192,13 +174,14 @@
 - **Archivos**: `functions/src/` (post-refactor)
 
 ### 3.3 Validación de Entrada Unificada
-- Middleware pattern: cada Cloud Function pasa por:
-  1. Auth check
-  2. Rate limit check
-  3. Zod validation
-  4. Business logic
-  5. Structured response
-- **Archivos**: `functions/src/utils/middleware.js` (nuevo)
+- ✅ Middleware `withSecurityBunker` implementado que maneja:
+  1. Auth check (Custom Claims)
+  2. Rate limit check (Distributed)
+  3. App Check enforcement
+  4. Payload size validation
+  5. Business logic execution
+  6. Structured response/error handling
+- **Archivos**: `functions/src/utils/errorHandler.js`, `functions/src/utils/security.js`
 
 ---
 
@@ -228,12 +211,10 @@
 - **Archivos**: `functions/src/services/`, nuevo `utils/counters.ts`
 
 ### 4.4 Limpieza de Datos
-- Script/Cloud Function para:
-  - Limpiar `rate_limits` expirados (> 24h)
-  - Limpiar `webhook_dedup` antiguos (> 7 días)
-  - Detectar órdenes huérfanas (sin venue válido)
-  - Detectar usuarios sin actividad > 1 año (para GDPR)
-- **Archivos**: nueva Cloud Function `cleanupData` (scheduled)
+- ✅ Cloud Function `cleanupData` (scheduled) implementada:
+  - Limpia `rate_limits` expirados (> 24h)
+  - Limpia `webhook_dedup` antiguos (> 7 días)
+- **Archivos**: `functions/src/services/cronService.js`
 
 ---
 

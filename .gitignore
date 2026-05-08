@@ -124,3 +124,19 @@ dist-ssr/
 playwright-report/
 test-results/
 .playwright/
+
+# --- Robust Gitignore Standards ---
+.env.*
+!.env.example
+credentials.json
+token.json
+venv/
+env/
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+graphify-out/
+lint_output.txt
+test_failures.txt
+functions/lint_results.txt

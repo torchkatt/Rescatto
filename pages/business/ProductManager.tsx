@@ -725,6 +725,21 @@ export const ProductManager: React.FC = () => {
                                         className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-base font-bold text-emerald-600 transition-all duration-200"
                                         required
                                     />
+                                    <div className="flex items-center gap-2 mt-2">
+                                        <input
+                                            type="checkbox"
+                                            id="is-dynamic-pricing"
+                                            className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500"
+                                            checked={formData.isDynamicPricing}
+                                            onChange={e => setFormData({ ...formData, isDynamicPricing: e.target.checked })}
+                                        />
+                                        <label htmlFor="is-dynamic-pricing" className="text-xs text-gray-600 cursor-pointer select-none">
+                                            Habilitar <span className="font-bold text-emerald-700">Precio Dinámico</span> (Auto-descuento)
+                                        </label>
+                                        <Tooltip text="Baja el precio automáticamente en la última hora para asegurar la venta." position="top">
+                                            <AlertTriangle size={12} className="text-amber-500" />
+                                        </Tooltip>
+                                    </div>
                                 </div>
 
                                 <div>

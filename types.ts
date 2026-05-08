@@ -328,7 +328,14 @@ export interface Order {
   // Confirmación de entrega por driver
   awaitingClientConfirmation?: boolean; // true cuando driver marca como completado
   driverMarkedCompletedAt?: string;     // para el cron de auto-confirmación (15min)
+
+  // Disputas [NUEVO]
+  disputeResolvedAt?: string;
+  disputeResolution?: 'REFUND_CUSTOMER' | 'PAY_DRIVER_AND_VENUE' | 'CANCEL_ALL';
+  disputeResolvedBy?: string;
+  disputeAdminComment?: string;
 }
+
 
 export interface DonationCenter {
   id: string;

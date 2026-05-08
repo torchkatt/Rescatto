@@ -1,9 +1,9 @@
-// import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { logger } from '../utils/logger';
 
-// Initialize Gemini (Desactivado temporalmente para no generar costos)
-// const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-// const genAI = new GoogleGenerativeAI(API_KEY);
+// Initialize Gemini
+const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+const genAI = new GoogleGenerativeAI(API_KEY);
 
 export interface AIMessage {
     role: 'user' | 'assistant';
@@ -27,73 +27,48 @@ class GeminiService {
     private readonly maxHistoryLength = 10;
 
     constructor() {
-        // Use gemini-1.5-flash as the most compatible stable model with tuned parameters
-        // Inicialización comentada para ahorrar costos de API
-        /*
-        this.model = genAI.getGenerativeModel({
-            model: 'gemini-2.0-flash',
-            generationConfig: {
-                temperature: 0.7,
-                topP: 0.8,
-                topK: 40,
-                maxOutputTokens: 2048,
-            }
-        });
-        */
-        this.model = null;
+        // Use gemini-2.0-flash for high speed and low cost
+        if (API_KEY && API_KEY !== 'your_api_key_here') {
+            this.model = genAI.getGenerativeModel({
+                model: 'gemini-2.0-flash',
+                generationConfig: {
+                    temperature: 0.7,
+                    topP: 0.8,
+                    topK: 40,
+                    maxOutputTokens: 2048,
+                }
+            });
+        } else {
+            logger.warn('Gemini API Key missing or default. AI Assistant running in Fallback mode.');
+            this.model = null;
+        }
     }
 
     /**
      * Generate the system prompt with dynamic context
      */
     private getSystemPrompt(context: AIContext): string {
-        return `Eres RescattoBot 🤖, el asistente virtual experto de Rescatto.
-Tu misión es combatir el desperdicio de alimentos conectando restaurantes con clientes para vender comida excedente a precios reducidos.
+        return `Eres RescattoBot 🤖, el asistente virtual de Rescatto. Tu diseño es minimalista, intencional y elegante.
 
-📋 INFORMACIÓN DEL USUARIO:
-- Nombre: ${context.userName}
-- Rol: ${context.userRole}
+MISIÓN: Combatir el desperdicio de alimentos conectando restaurantes con clientes de forma eficiente.
+
+📋 CONTEXTO ACTUAL:
+- Usuario: ${context.userName} (Rol: ${context.userRole})
 - Ubicación: ${context.location}
+- Negocios Cerca: ${context.nearbyVenues.length > 0 ? context.nearbyVenues.join(', ') : 'Ninguno detectado'}
+- Pedidos: ${context.userOrders.length > 0 ? context.userOrders.join(', ') : 'Sin pedidos activos'}
 
-📍 RESTAURANTES CERCANOS (Prioridad de recomendación):
-${context.nearbyVenues.length > 0 ? context.nearbyVenues.join('\n') : 'No hay restaurantes cercanos en este momento.'}
+🧠 REGLAS DE ORO:
+1. **Concisión Extrema**: Responde con elegancia y brevedad. Máximo 3 oraciones si es posible.
+2. **Packs Sorpresa**: Promociónalos como la mejor opción de sostenibilidad (hasta 70% dto).
+3. **Personalidad**: Eres entusiasta pero profesional. Usa emojis con moderación.
+4. **Soporte**: Si detectas frustración, guía al usuario hacia 'Mi Perfil > Soporte'.
 
-🥡 PEDIDOS DEL USUARIO:
-${context.userOrders.length > 0 ? context.userOrders.join('\n') : 'No tiene pedidos activos.'}
-
-🏷️ OFERTAS ACTIVAS:
-${context.activeOffers.length > 0 ? context.activeOffers.join('\n') : 'No hay ofertas especiales en este momento.'}
-
-🍔 PRODUCTOS DESTACADOS:
-${context.featuredProducts.length > 0 ? context.featuredProducts.join('\n') : 'Sin productos destacados.'}
-
-🧠 TUS CAPACIDADES Y REGLAS:
-1. **Sé conciso y directo**: Respuestas cortas y al grano. Usa emojis para dar calidez.
-2. **Pack Sorpresa**: Siempre que sea relevante, promociona el "Pack Sorpresa" (comida variada con hasta 70% dto).
-3. **Ubicación**: Recomienda restaurantes basándote estrictamente en la lista de "RESTAURANTES CERCANOS".
-4. **Pedidos**: Si preguntan por "mi pedido", consulta la sección "PEDIDOS DEL USUARIO".
-5. **Estilo**: Amigable, entusiasta y ecológico.
-6. **Desconocido**: Si no sabes algo, sugiere revisar la app, no inventes información.
-
-📚 BASE DE CONOCIMIENTO TÉCNICO (Solo usar si preguntan explícitamente):
-- **Crear Cliente Restaurante / Nuevo Negocio**:
-  1. El usuario debe registrarse normalmente como cliente en la app o web.
-  2. Un Administrador debe ir al Panel Admin > Gestión de Usuarios.
-  3. Buscar al usuario y cambiar su rol a "VENUE_OWNER".
-  4. Luego, ir a Gestión de Negocios y crear el perfil del restaurante asignándolo a ese usuario (si aplica) o simplemente crear el negocio.
-
-- **Reconocimiento de Roles**:
-  - Si el rol del usuario es "Super Administrador", reconócelo como tal. Tienen acceso total al sistema. Ofréceles ayuda técnica o administrativa avanzada si lo requieren.
-  - "Hola Super Admin [Nombre], ¿en qué puedo asistirte con la gestión de la plataforma?"
-
-💡 EJEMPLO DE RESPUESTA IDEAL:
-Usuario: "¿Qué puedo comer?"
-RescattoBot: "¡Hola ${context.userName}! 😋 Cerca de ti, [Nombre Restaurante] tiene un Pack Sorpresa delicioso. También veo que [Producto Destacado] está disponible. ¿Te gustaría ver el menú? 🍔"`;
+BASE TÉCNICA:
+- Para ser Vendedor: Registrarse -> Pedir a Admin cambiar rol a VENUE_OWNER -> Crear sede.
+- Super Admins: Tienen acceso total. Salúdalos con especial deferencia técnica.`;
     }
 
-    /**
-     * Send a message to the AI assistant
-     */
     /**
      * Send a message to the AI assistant with streaming response
      */
@@ -106,30 +81,25 @@ RescattoBot: "¡Hola ${context.userName}! 😋 Cerca de ti, [Nombre Restaurante]
                 timestamp: new Date()
             });
 
-            // Trim history if too long
+            // Trim history
             if (this.conversationHistory.length > this.maxHistoryLength) {
                 this.conversationHistory = this.conversationHistory.slice(-this.maxHistoryLength);
             }
 
-            // Build the conversation context
-            const systemPrompt = this.getSystemPrompt(context);
+            // Fallback if no model or key
+            if (!this.model) {
+                throw new Error('API_KEY_DISABLED');
+            }
 
-            // Format conversation history for Gemini
+            // Build prompt
+            const systemPrompt = this.getSystemPrompt(context);
             const conversationText = this.conversationHistory
                 .map(msg => `${msg.role === 'user' ? 'Usuario' : 'RescattoBot'}: ${msg.content}`)
                 .join('\n\n');
 
-            // Combine system prompt with conversation
             const fullPrompt = `${systemPrompt}\n\n---\n\nCONVERSACIÓN:\n${conversationText}\n\nRescattoBot:`;
 
-            // Basic validation
-            if (!this.model) {
-                // Forzamos el fallback ya que el modelo está desactivado manualmente
-                throw new Error('API_KEY_DISABLED');
-            }
-
-            // Generate streaming response (Comentado para evitar costos)
-            /*
+            // Generate streaming response
             const result = await this.model.generateContentStream(fullPrompt);
 
             let fullResponse = '';
@@ -148,19 +118,10 @@ RescattoBot: "¡Hola ${context.userName}! 😋 Cerca de ti, [Nombre Restaurante]
             });
 
             return fullResponse;
-            */
-            return '';
         } catch (error: any) {
-            logger.error('Error communicating with Gemini:', error);
-
-            // Determine if it's an API key issue
-            if (error?.toString().includes('API_KEY')) {
-                logger.error('Check your VITE_GEMINI_API_KEY in .env file');
-            }
-
-            // Fallback response mechanism
+            logger.error('Gemini Error:', error);
             const fallbackResponse = this.getFallbackResponse(userMessage, context);
-
+            
             this.conversationHistory.push({
                 role: 'assistant',
                 content: fallbackResponse,

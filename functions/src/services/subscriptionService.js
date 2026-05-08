@@ -4,6 +4,7 @@ const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { db, admin, messaging } = require("../admin");
 const { log, error: logError } = require("../utils/logger");
 const { writeAuditLog } = require("../utils/audit");
+const { withSecurityBunker } = require("../utils/errorHandler");
 const nodemailer = require("nodemailer");
 // const { CONFIG } = require("../utils/config"); // unused after Gmail migration
 const crypto = require("crypto");
@@ -26,14 +27,6 @@ const PLANS = {
     annual:  { amount: 149000, durationMonths: 12, label: "Anual" },
 };
 
-async function assertAdmin(uid) {
-    const userDoc = await db.collection("users").doc(uid).get();
-    const role = userDoc.data()?.role;
-    if (!userDoc.exists || (role !== "SUPER_ADMIN" && role !== "ADMIN")) {
-        throw new HttpsError("permission-denied", "Solo administradores.");
-    }
-    return role;
-}
 
 /**
  * Genera un código de referencia seguro:
@@ -144,8 +137,8 @@ async function notifyAdminsOfPaymentProof(requestData) {
 /**
  * Crea una solicitud de suscripción prepago con código de referencia seguro.
  */
-exports.createSubscriptionRequest = onCall(async (request) => {
-    if (!request.auth) throw new HttpsError("unauthenticated", "Debe iniciar sesión.");
+exports.createSubscriptionRequest = onCall(
+    withSecurityBunker("createSubscriptionRequest", async (request) => {
 
     const { planId } = request.data;
     if (!PLANS[planId]) throw new HttpsError("invalid-argument", "Plan no válido.");
@@ -196,15 +189,15 @@ exports.createSubscriptionRequest = onCall(async (request) => {
 
     log("createSubscriptionRequest", { requestId: docRef.id, userId, planId, referenceCode });
     return { id: docRef.id, ...requestData };
-});
+    })
+);
 
 /**
  * El cliente sube el comprobante → pasa a pending_review y notifica a los admins.
  */
 exports.submitPaymentProof = onCall(
     { secrets: ["GMAIL_USER", "GMAIL_APP_PASSWORD"] },
-    async (request) => {
-        if (!request.auth) throw new HttpsError("unauthenticated", "Debe iniciar sesión.");
+    withSecurityBunker("submitPaymentProof", async (request) => {
 
         const { requestId, transactionNumber, paymentProofUrl } = request.data;
         if (!requestId || !transactionNumber) {
@@ -241,7 +234,7 @@ exports.submitPaymentProof = onCall(
 
         log("submitPaymentProof", { requestId });
         return { success: true };
-    }
+    })
 );
 
 /**
@@ -249,9 +242,7 @@ exports.submitPaymentProof = onCall(
  */
 exports.approveSubscriptionRequest = onCall(
     { secrets: ["GMAIL_USER", "GMAIL_APP_PASSWORD"] },
-    async (request) => {
-        if (!request.auth) throw new HttpsError("unauthenticated", "Debe iniciar sesión.");
-        await assertAdmin(request.auth.uid);
+    withSecurityBunker("approveSubscriptionRequest", async (request) => {
 
         const { requestId } = request.data;
         if (!requestId) throw new HttpsError("invalid-argument", "requestId requerido.");
@@ -316,15 +307,14 @@ exports.approveSubscriptionRequest = onCall(
 
         log("approveSubscriptionRequest", { requestId, userId: data.userId });
         return { success: true };
-    }
+    }, { requiredRoles: ["ADMIN", "SUPER_ADMIN"] })
 );
 
 /**
  * (Admin) Rechaza la solicitud con motivo.
  */
-exports.rejectSubscriptionRequest = onCall(async (request) => {
-    if (!request.auth) throw new HttpsError("unauthenticated", "Debe iniciar sesión.");
-    await assertAdmin(request.auth.uid);
+exports.rejectSubscriptionRequest = onCall(
+    withSecurityBunker("rejectSubscriptionRequest", async (request) => {
 
     const { requestId, reason } = request.data;
     if (!requestId) throw new HttpsError("invalid-argument", "requestId requerido.");
@@ -350,7 +340,7 @@ exports.rejectSubscriptionRequest = onCall(async (request) => {
 
     log("rejectSubscriptionRequest", { requestId });
     return { success: true };
-});
+}, { requiredRoles: ["ADMIN", "SUPER_ADMIN"] }));
 
 // ── Email templates ───────────────────────────────────────────────────────────
 

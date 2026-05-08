@@ -4,23 +4,11 @@ const { onCall } = require("firebase-functions/v2/https");
 const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { HttpsError } = require("firebase-functions/v2/https");
 const { admin, db } = require("../admin");
-const { withErrorHandling } = require("../utils/errorHandler");
+const { withErrorHandling, withSecurityBunker } = require("../utils/errorHandler");
 const { GetFinanceStatsSchema } = require("../schemas");
 const { log, error: logError } = require("../utils/logger");
 const { checkRateLimit } = require("../utils/rateLimit");
 
-/**
- * Verifies caller is SUPER_ADMIN or ADMIN. Throws HttpsError if not.
- */
-async function verifyAdminAccess(uid) {
-    const userDoc = await db.collection("users").doc(uid).get();
-    if (!userDoc.exists) throw new HttpsError("permission-denied", "User not found.");
-    const role = userDoc.data().role;
-    if (role !== "SUPER_ADMIN" && role !== "ADMIN") {
-        throw new HttpsError("permission-denied", "Admin access required.");
-    }
-    return { role, userData: userDoc.data() };
-}
 
 /**
  * Global and per-venue stats aggregation on COMPLETED orders.
@@ -63,9 +51,8 @@ const aggregateAdminStats = onDocumentUpdated("orders/{orderId}", async (event) 
 /**
  * Returns platform financial stats (Super Admin only).
  */
-const getFinanceStats = onCall(withErrorHandling("getFinanceStats", async (request) => {
-    if (!request.auth) throw new HttpsError("unauthenticated", "Auth required.");
-    await verifyAdminAccess(request.auth.uid);
+const getFinanceStats = onCall(
+    withSecurityBunker("getFinanceStats", async (request) => {
 
     const finParsed = GetFinanceStatsSchema.safeParse(request.data || {});
     if (!finParsed.success) throw new HttpsError("invalid-argument", "Invalid dates.");
@@ -105,20 +92,20 @@ const getFinanceStats = onCall(withErrorHandling("getFinanceStats", async (reque
         venueBreakdown[vId].platformFee += platformFee;
     });
 
-    return {
-        totalRevenue, totalPlatformFee, totalVenueEarnings, totalOrders,
-        averageOrderValue: totalOrders > 0 ? totalRevenue / totalOrders : 0,
-        topVenues: Object.values(venueBreakdown).sort((a,b) => b.revenue - a.revenue).slice(0, 10),
-        periodStart: startDate || null, periodEnd: endDate || null,
-    };
-}));
+        return {
+            totalRevenue, totalPlatformFee, totalVenueEarnings, totalOrders,
+            averageOrderValue: totalOrders > 0 ? totalRevenue / totalOrders : 0,
+            topVenues: Object.values(venueBreakdown).sort((a,b) => b.revenue - a.revenue).slice(0, 10),
+            periodStart: startDate || null, periodEnd: endDate || null,
+        };
+    }, { requiredRoles: ["SUPER_ADMIN", "ADMIN"] })
+);
 
 /**
  * Admin utility: migrate venueId to venueIds array.
  */
-const migrateVenueIdToVenueIds = onCall(withErrorHandling("migrateVenueIdToVenueIds", async (request) => {
-    if (!request.auth) throw new HttpsError("unauthenticated", "Auth required.");
-    await verifyAdminAccess(request.auth.uid);
+const migrateVenueIdToVenueIds = onCall(
+    withSecurityBunker("migrateVenueIdToVenueIds", async (request) => {
 
     const allowed = await checkRateLimit(`migrate:${request.auth.uid}`, 1, 86400000);
     if (!allowed) throw new HttpsError("resource-exhausted", "Esta migración solo puede ejecutarse una vez por día.");
@@ -146,16 +133,15 @@ const migrateVenueIdToVenueIds = onCall(withErrorHandling("migrateVenueIdToVenue
 
     log(`migrateVenueIdToVenueIds: ${migrated} users migrated by ${request.auth.uid}`);
     return { migrated };
-}));
+}, { requiredRoles: ["SUPER_ADMIN", "ADMIN"] }));
 
 /**
  * Admin: registra un pago manual de comisión o liquidación a un negocio. Solo SUPER_ADMIN.
  * - type "DEBT_PAYMENT": el negocio paga su deuda a Rescatto → balance sube (deuda disminuye)
  * - type "PAYOUT": Rescatto le paga al negocio sus ganancias → balance baja
  */
-const recordManualSettlement = onCall(withErrorHandling("recordManualSettlement", async (request) => {
-    if (!request.auth) throw new HttpsError("unauthenticated", "Auth required.");
-    await verifyAdminAccess(request.auth.uid);
+const recordManualSettlement = onCall(
+    withSecurityBunker("recordManualSettlement", async (request) => {
 
     const { venueId, amount, type, description } = request.data || {};
     if (!venueId || !amount || !type || !description) {
@@ -198,6 +184,50 @@ const recordManualSettlement = onCall(withErrorHandling("recordManualSettlement"
 
     log(`Settlement recorded for venue ${venueId}: type=${type}, amount=${amount}`);
     return { success: true };
-}));
+}, { requiredRoles: ["SUPER_ADMIN"] }));
 
-module.exports = { aggregateAdminStats, getFinanceStats, migrateVenueIdToVenueIds, recordManualSettlement };
+/**
+ * Actualiza la configuración de domicilio de un local.
+ * Accesible por ADMIN, SUPER_ADMIN y el VENUE_OWNER del local.
+ */
+const updateVenueDeliveryConfig = onCall(
+    withSecurityBunker("updateVenueDeliveryConfig", async (request) => {
+    const { venueId, config } = request.data || {};
+    
+    if (!venueId || !config) {
+        throw new HttpsError("invalid-argument", "Faltan venueId o config.");
+    }
+
+    // Verificar permisos: Admin o Dueño del local
+    const callerSnap = await db.collection("users").doc(request.auth.uid).get();
+    const callerData = callerSnap.data() || {};
+    const callerVenueIds = callerData.venueIds || (callerData.venueId ? [callerData.venueId] : []);
+    
+    const isOwner = callerVenueIds.includes(venueId);
+    const isAdmin = ["SUPER_ADMIN", "ADMIN"].includes(callerData.role);
+
+    if (!isOwner && !isAdmin) {
+        throw new HttpsError("permission-denied", "No tienes permiso para editar este local.");
+    }
+
+    const venueRef = db.collection("venues").doc(venueId);
+    
+    await venueRef.update({
+        "deliveryConfig.isEnabled": !!config.isEnabled,
+        "deliveryConfig.maxDistance": Number(config.maxDistance) || 10,
+        "deliveryConfig.baseFee": Number(config.baseFee) || 0,
+        "deliveryConfig.pricePerKm": Number(config.pricePerKm) || 0,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    log(`Delivery config updated for venue ${venueId}`, { config });
+    return { success: true };
+}, { requiredRoles: ["SUPER_ADMIN", "ADMIN", "VENUE_OWNER"] }));
+
+module.exports = { 
+    aggregateAdminStats, 
+    getFinanceStats, 
+    migrateVenueIdToVenueIds, 
+    recordManualSettlement,
+    updateVenueDeliveryConfig 
+};

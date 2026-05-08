@@ -16,30 +16,25 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuthenticated() && 
-        (getUserData() != null && 
-         (getUserData().role == 'SUPER_ADMIN' || getUserData().role == 'ADMIN' || 
-          (('activeMembershipId' in getUserData() && getUserData().activeMembershipId != null) ? 
-           get(/databases/$(database)/documents/memberships/$(getUserData().activeMembershipId)).data.role in ['SUPER_ADMIN', 'ADMIN'] : 
-           false)));
+      return isAuthenticated() && (
+        request.auth.token.role == 'SUPER_ADMIN' || 
+        request.auth.token.role == 'ADMIN' ||
+        (getUserData() != null && (getUserData().role == 'SUPER_ADMIN' || getUserData().role == 'ADMIN'))
+      );
     }
 
     function isSuperAdmin() {
-      return isAuthenticated() && 
-        (getUserData() != null && 
-         (getUserData().role == 'SUPER_ADMIN' || 
-          (('activeMembershipId' in getUserData() && getUserData().activeMembershipId != null) ? 
-           get(/databases/$(database)/documents/memberships/$(getUserData().activeMembershipId)).data.role == 'SUPER_ADMIN' : 
-           false)));
+      return isAuthenticated() && (
+        request.auth.token.role == 'SUPER_ADMIN' ||
+        (getUserData() != null && getUserData().role == 'SUPER_ADMIN')
+      );
     }
 
     function hasRole(roleName) {
-      return isAuthenticated() && 
-        (getUserData() != null && 
-         (getUserData().role == roleName || 
-          (('activeMembershipId' in getUserData() && getUserData().activeMembershipId != null) ? 
-           get(/databases/$(database)/documents/memberships/$(getUserData().activeMembershipId)).data.role == roleName : 
-           false)));
+      return isAuthenticated() && (
+        request.auth.token.role == roleName ||
+        (getUserData() != null && getUserData().role == roleName)
+      );
     }
 
     function isOwner(userId) {
@@ -113,29 +108,17 @@ service cloud.firestore {
 
     function belongsToVenue(venueId) {
       return isAuthenticated() && (
-        (
-          getUserData() != null &&
-          getUserData().role in ['VENUE_OWNER', 'KITCHEN_STAFF'] &&
-          (getUserData().venueId == venueId || ('venueIds' in getUserData() && venueId in getUserData().venueIds))
-        ) ||
-        (
-          (getUserData() != null && 'activeMembershipId' in getUserData() && getUserData().activeMembershipId != null) ?
-          (get(/databases/$(database)/documents/memberships/$(getUserData().activeMembershipId)).data.role in ['VENUE_OWNER', 'KITCHEN_STAFF'] &&
-           get(/databases/$(database)/documents/memberships/$(getUserData().activeMembershipId)).data.venueId == venueId) :
-          false
-        )
+        venueId in request.auth.token.v ||
+        isAdmin() ||
+        (getUserData() != null && (getUserData().venueId == venueId || ('venueIds' in getUserData() && venueId in getUserData().venueIds)))
       );
     }
 
     function isVenueOwnerOf(venueId) {
       return isAuthenticated() && (
-        (getUserData() != null && getUserData().role == 'VENUE_OWNER' && (getUserData().venueId == venueId || ('venueIds' in getUserData() && venueId in getUserData().venueIds))) ||
-        (
-          (getUserData() != null && 'activeMembershipId' in getUserData() && getUserData().activeMembershipId != null) ?
-          (get(/databases/$(database)/documents/memberships/$(getUserData().activeMembershipId)).data.role == 'VENUE_OWNER' &&
-           get(/databases/$(database)/documents/memberships/$(getUserData().activeMembershipId)).data.venueId == venueId) :
-          false
-        )
+        (request.auth.token.role == 'VENUE_OWNER' && venueId in request.auth.token.v) ||
+        isAdmin() ||
+        (getUserData() != null && getUserData().role == 'VENUE_OWNER' && (getUserData().venueId == venueId || ('venueIds' in getUserData() && venueId in getUserData().venueIds)))
       );
     }
 

@@ -11,6 +11,7 @@ vi.mock('../../services/authService', () => ({
         login: vi.fn(),
         logout: vi.fn(),
         loginWithGoogle: vi.fn(),
+        handleGoogleRedirectResult: vi.fn().mockResolvedValue(false),
         loginWithApple: vi.fn(),
         loginWithFacebook: vi.fn(),
         loginAsGuest: vi.fn(),

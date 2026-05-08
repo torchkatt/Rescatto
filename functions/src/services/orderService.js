@@ -5,12 +5,13 @@ const { onDocumentUpdated, onDocumentCreated } = require("firebase-functions/v2/
 const { HttpsError } = require("firebase-functions/v2/https");
 const { admin, db, messaging } = require("../admin");
 const { checkRateLimit } = require("../utils/rateLimit");
-const { withErrorHandling } = require("../utils/errorHandler");
+const { withErrorHandling, withSecurityBunker } = require("../utils/errorHandler");
 const { CreateOrderSchema } = require("../schemas");
 const { log, error: logError } = require("../utils/logger");
 const { CONFIG } = require("../utils/config");
 const { writeAuditLog } = require("../utils/audit");
 const { publishMessage } = require("../utils/pubsub");
+const { calculateDistance } = require("../utils/location");
 
 // ─── Helpers internos ────────────────────────────────────────────────────────
 
@@ -81,15 +82,33 @@ async function sendFcmToVenueOwner(venueId, title, body, data = {}) {
 
 /**
  * Envía FCM a todos los drivers de una ciudad con una orden disponible.
+ * Ahora prioriza a los drivers que están cerca (si tienen ubicación reciente).
  */
-async function notifyDriversInCity(city, orderId, venueName, venueNeighborhood, deliveryAddress) {
+async function notifyDriversInCity(city, orderId, venueName, venueNeighborhood, deliveryAddress, venueCoords = null) {
     try {
-        const driversSnap = await db.collection("users")
+        let query = db.collection("users")
             .where("role", "==", "DRIVER")
             .where("city", "==", city)
-            .where("isActive", "==", true)
-            .get();
-        if (driversSnap.empty) return;
+            .where("isActive", "==", true);
+
+        // Si tenemos coordenadas del local, filtramos por proximidad "Box" (aprox 11km)
+        if (venueCoords && venueCoords.latitude && venueCoords.longitude) {
+            const lat = venueCoords.latitude;
+            const lng = venueCoords.longitude;
+            const delta = 0.1; 
+            query = query
+                .where("lastLocation", ">=", new admin.firestore.GeoPoint(lat - delta, lng - delta))
+                .where("lastLocation", "<=", new admin.firestore.GeoPoint(lat + delta, lng + delta));
+        }
+
+        const driversSnap = await query.get();
+        if (driversSnap.empty) {
+            // Fallback: si no hay nadie cerca, notificar a toda la ciudad (recursivo sin coords)
+            if (venueCoords) {
+                return notifyDriversInCity(city, orderId, venueName, venueNeighborhood, deliveryAddress, null);
+            }
+            return;
+        }
 
         const tokens = [];
         driversSnap.forEach(doc => { if (doc.data().fcmToken) tokens.push(doc.data().fcmToken); });
@@ -100,7 +119,7 @@ async function notifyDriversInCity(city, orderId, venueName, venueNeighborhood, 
         await messaging.sendEachForMulticast({
             tokens,
             notification: { title, body },
-            data: { orderId, type: "NEW_DELIVERY_AVAILABLE", city },
+            data: { orderId, type: "NEW_DELIVERY_AVAILABLE", city }
         });
     } catch (e) {
         logError("notifyDriversInCity error", e);
@@ -118,16 +137,9 @@ const createOrder = onCall(
         timeoutSeconds: 30,
         memory: "256MiB"
     },
-    withErrorHandling("createOrder", async (request) => {
-        if (!request.auth) {
-            throw new HttpsError("unauthenticated", "User must be logged in.");
-        }
-
+    withSecurityBunker("createOrder", async (request) => {
         const userId = request.auth.uid;
-        const allowed = await checkRateLimit(`${userId}:createOrder`, 10, 10 * 60 * 1000);
-        if (!allowed) {
-            throw new HttpsError("resource-exhausted", "Has realizado demasiados pedidos en poco tiempo.");
-        }
+        // La validación de rate limit y payload ya la hace withSecurityBunker
 
         const orderParsed = CreateOrderSchema.safeParse(request.data || {});
         if (!orderParsed.success) {
@@ -164,6 +176,21 @@ const createOrder = onCall(
                 venueNameForMeta = vd.name || null;
                 venueNeighborhoodForMeta = vd.neighborhood || null;
                 venueDeliveryModel = vd.deliveryModel || "none";
+
+                // --- VALIDACIÓN DE ZONIFICACIÓN (Logística Fase 3) ---
+                if (normalizedDeliveryMethod === "delivery" && vd.deliveryConfig && vd.deliveryConfig.isEnabled) {
+                    const maxKm = vd.deliveryConfig.maxDistance || 10;
+                    // Si el cliente envió coordenadas, validamos distancia real
+                    if (request.data.customerLat && request.data.customerLng && vd.latitude && vd.longitude) {
+                        const dist = calculateDistance(
+                            vd.latitude, vd.longitude,
+                            request.data.customerLat, request.data.customerLng
+                        );
+                        if (dist > maxKm) {
+                            throw new HttpsError("failed-precondition", `El domicilio está fuera del radio de cobertura (${dist}km > ${maxKm}km).`);
+                        }
+                    }
+                }
             }
             const [byVenueIds, byVenueId] = await Promise.all([
                 db.collection("users").where("role", "==", "VENUE_OWNER").where("venueIds", "array-contains", venueId).limit(1).get(),
@@ -353,8 +380,7 @@ const createOrder = onCall(
  * Solo VENUE_OWNER o KITCHEN_STAFF del venue pueden llamar esto.
  */
 const acceptOrder = onCall(
-    withErrorHandling("acceptOrder", async (request) => {
-        if (!request.auth) throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+    withSecurityBunker("acceptOrder", async (request) => {
         const { orderId } = request.data || {};
         if (!orderId) throw new HttpsError("invalid-argument", "orderId requerido.");
 
@@ -392,7 +418,55 @@ const acceptOrder = onCall(
             { orderId, status: "ACCEPTED" }
         );
 
+        // Auditoría
+        await writeAuditLog({
+            action: "ORDER_ACCEPTED",
+            performedBy: request.auth.uid,
+            targetId: orderId,
+            targetType: "order",
+            metadata: { venueId: order.venueId }
+        });
+
         log("acceptOrder: Pedido aceptado", { orderId, by: request.auth.uid });
+        return { success: true };
+    })
+);
+
+/**
+ * El negocio marca un pedido como LISTO (READY).
+ * ACCEPTED -> READY.
+ */
+const markOrderReady = onCall(
+    withSecurityBunker("markOrderReady", async (request) => {
+        const { orderId } = request.data || {};
+        if (!orderId) throw new HttpsError("invalid-argument", "orderId requerido.");
+
+        const orderRef = db.collection("orders").doc(orderId);
+        const orderSnap = await orderRef.get();
+        if (!orderSnap.exists) throw new HttpsError("not-found", "Pedido no encontrado.");
+        const order = orderSnap.data();
+
+        if (order.status !== "ACCEPTED" && order.status !== "IN_PREPARATION") {
+            throw new HttpsError("failed-precondition", `El pedido debe estar ACCEPTED o IN_PREPARATION para marcarlo como READY.`);
+        }
+
+        const callerSnap = await db.collection("users").doc(request.auth.uid).get();
+        const callerData = callerSnap.data();
+        const callerVenueIds = callerData.venueIds || (callerData.venueId ? [callerData.venueId] : []);
+        if (!callerVenueIds.includes(order.venueId) && !["ADMIN", "SUPER_ADMIN"].includes(callerData.role)) {
+            throw new HttpsError("permission-denied", "No tienes permiso para gestionar este pedido.");
+        }
+
+        const now = new Date();
+        await orderRef.update({
+            status: "READY",
+            readyAt: now.toISOString(),
+            // El cliente tiene 20 min para recoger desde que está READY (si es pickup)
+            pickupDeadline: new Date(now.getTime() + 20 * 60000).toISOString(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        log("markOrderReady: Pedido listo", { orderId });
         return { success: true };
     })
 );
@@ -404,8 +478,7 @@ const acceptOrder = onCall(
  * Notifica al dueño del negocio con los detalles del pedido.
  */
 const rejectOrder = onCall(
-    withErrorHandling("rejectOrder", async (request) => {
-        if (!request.auth) throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+    withSecurityBunker("rejectOrder", async (request) => {
         const { orderId, reason } = request.data || {};
         if (!orderId) throw new HttpsError("invalid-argument", "orderId requerido.");
 
@@ -560,6 +633,22 @@ const releaseToDriverPool = onCall(
             order.deliveryAddress || ""
         );
 
+        // Notificar a drivers cercanos (Lógica de proximidad mejorada)
+        const venueSnap = await db.collection("venues").doc(order.venueId).get();
+        const venueData = venueSnap.data() || {};
+        const venueCoords = (venueData.latitude && venueData.longitude) 
+            ? { latitude: venueData.latitude, longitude: venueData.longitude } 
+            : null;
+
+        await notifyDriversInCity(
+            order.city || "Bogotá",
+            orderId,
+            venueData.name || "Negocio",
+            venueData.neighborhood || "",
+            order.address || "",
+            venueCoords
+        );
+
         log("releaseToDriverPool", { orderId });
         return { success: true };
     })
@@ -572,8 +661,7 @@ const releaseToDriverPool = onCall(
  * READY → DRIVER_ASSIGNED.
  */
 const assignDriver = onCall(
-    withErrorHandling("assignDriver", async (request) => {
-        if (!request.auth) throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+    withSecurityBunker("assignDriver", async (request) => {
         const { orderId, driverId } = request.data || {};
         if (!orderId || !driverId) throw new HttpsError("invalid-argument", "orderId y driverId requeridos.");
 
@@ -697,6 +785,39 @@ const takeDelivery = onCall(
     })
 );
 
+/**
+ * El driver marca el pedido como RECOGIDO (IN_TRANSIT).
+ * DRIVER_ASSIGNED -> IN_TRANSIT.
+ */
+const markOrderInTransit = onCall(
+    withErrorHandling("markOrderInTransit", async (request) => {
+        if (!request.auth) throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+        const { orderId } = request.data || {};
+        if (!orderId) throw new HttpsError("invalid-argument", "orderId requerido.");
+
+        const orderRef = db.collection("orders").doc(orderId);
+        const orderSnap = await orderRef.get();
+        if (!orderSnap.exists) throw new HttpsError("not-found", "Pedido no encontrado.");
+        const order = orderSnap.data();
+
+        if (order.driverId !== request.auth.uid) {
+            throw new HttpsError("permission-denied", "Este pedido no te fue asignado.");
+        }
+        if (order.status !== "DRIVER_ASSIGNED") {
+            throw new HttpsError("failed-precondition", "El pedido debe estar en DRIVER_ASSIGNED para marcarlo como IN_TRANSIT.");
+        }
+
+        await orderRef.update({
+            status: "IN_TRANSIT",
+            pickedUpAt: new Date().toISOString(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        log("markOrderInTransit: Pedido en camino", { orderId });
+        return { success: true };
+    })
+);
+
 // ─── markDeliveredByDriver ────────────────────────────────────────────────────
 
 /**
@@ -749,8 +870,7 @@ const markDeliveredByDriver = onCall(
  * También usado por el cron de auto-confirmación tras 15 minutos.
  */
 const confirmDelivery = onCall(
-    withErrorHandling("confirmDelivery", async (request) => {
-        if (!request.auth) throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+    withSecurityBunker("confirmDelivery", async (request) => {
         const { orderId } = request.data || {};
         if (!orderId) throw new HttpsError("invalid-argument", "orderId requerido.");
 
@@ -792,8 +912,7 @@ const confirmDelivery = onCall(
  * IN_TRANSIT (awaitingClientConfirmation=true) → DISPUTED.
  */
 const disputeDelivery = onCall(
-    withErrorHandling("disputeDelivery", async (request) => {
-        if (!request.auth) throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+    withSecurityBunker("disputeDelivery", async (request) => {
         const { orderId, reason } = request.data || {};
         if (!orderId) throw new HttpsError("invalid-argument", "orderId requerido.");
 
@@ -927,6 +1046,30 @@ const onOrderUpdated = onDocumentUpdated("orders/{orderId}", async (event) => {
                 }
             }
         } catch (e) { logError("FCM Error onOrderUpdated", e); }
+    }
+
+    // ─── Notificar al NEGOCIO sobre cambios importantes ──────────────────────
+    if (newData.status !== oldData.status && newData.venueId) {
+        try {
+            let title = "";
+            let body = "";
+            const orderIdForBody = newData.metadata?.orderNumber || orderId.slice(-6).toUpperCase();
+
+            if (newData.status === "COMPLETED") {
+                title = "¡Pedido completado! ✅";
+                body = `El pedido #${orderIdForBody} de ${newData.customerName} ha sido entregado exitosamente.`;
+            } else if (newData.status === "DISPUTED") {
+                title = "⚠️ Pedido en disputa";
+                body = `El cliente ${newData.customerName} reporta que no recibió el pedido #${orderIdForBody}.`;
+            } else if (newData.status === "DRIVER_ASSIGNED") {
+                title = "Repartidor asignado 🏍️";
+                body = `${newData.driverName || "Un repartidor"} ha tomado el pedido #${orderIdForBody} y va en camino a tu local.`;
+            }
+
+            if (title) {
+                await sendFcmToVenueStaff(newData.venueId, title, body, { orderId, status: newData.status, type: "ORDER_STATUS_UPDATE" });
+            }
+        } catch (e) { logError("Business FCM notify error", e); }
     }
 
     // ─── Notificar a drivers cuando el pedido pasa a AWAITING_DRIVER ─────────
@@ -1076,6 +1219,69 @@ const onOrderUpdated = onDocumentUpdated("orders/{orderId}", async (event) => {
     }
 });
 
+
+/**
+ * (Admin) Resuelve una disputa de pedido.
+ * 
+ * Acciones posibles (resolution):
+ * - REFUND_CUSTOMER: Cancela el pedido (reembolso lógico).
+ * - PAY_DRIVER_AND_VENUE: Completa el pedido (pago a los proveedores).
+ * - CANCEL_ALL: Cancela sin efectos secundarios.
+ */
+const resolveDispute = onCall(
+    withSecurityBunker("resolveDispute", async (request) => {
+        const { orderId, resolution, adminComment } = request.data;
+        if (!orderId || !resolution) {
+            throw new HttpsError("invalid-argument", "orderId y resolution son requeridos.");
+        }
+
+        const orderRef = db.collection("orders").doc(orderId);
+        const orderSnap = await orderRef.get();
+        if (!orderSnap.exists) {
+            throw new HttpsError("not-found", "Pedido no encontrado.");
+        }
+
+        const orderData = orderSnap.data();
+        if (orderData.status !== "DISPUTED") {
+            throw new HttpsError("failed-precondition", "Solo se pueden resolver pedidos en disputa.");
+        }
+
+        let newStatus = "COMPLETED";
+        if (resolution === "REFUND_CUSTOMER" || resolution === "CANCEL_ALL") {
+            newStatus = "CANCELLED";
+        }
+
+        const updateData = {
+            status: newStatus,
+            disputeResolution: resolution,
+            disputeResolvedAt: new Date().toISOString(),
+            disputeResolvedBy: request.auth.uid,
+            disputeAdminComment: adminComment || "",
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+
+        await orderRef.update(updateData);
+
+        await writeAuditLog({
+            action: "order_dispute_resolved",
+            performedBy: request.auth.uid,
+            targetId: orderId,
+            targetType: "order",
+            metadata: { resolution, previousStatus: orderData.status, adminComment },
+        });
+
+        // Notificar al cliente
+        await sendFcmToUser(
+            orderData.userId, 
+            "Disputa Resuelta ⚖️", 
+            `La disputa del pedido #${orderId.slice(-6)} ha sido resuelta como: ${resolution}.`
+        );
+
+        log(`[resolveDispute] Resolved ${orderId} as ${resolution}`, { adminId: request.auth.uid });
+        return { success: true, newStatus };
+    }, { requiredRoles: ["ADMIN", "SUPER_ADMIN"] })
+);
+
 // ─── onOrderCreated ───────────────────────────────────────────────────────────
 
 /**
@@ -1103,12 +1309,15 @@ module.exports = {
     onOrderUpdated,
     onOrderCreated,
     acceptOrder,
+    markOrderReady,
     rejectOrder,
     cancelOrderByClient,
     releaseToDriverPool,
     assignDriver,
     takeDelivery,
+    markOrderInTransit,
     markDeliveredByDriver,
     confirmDelivery,
     disputeDelivery,
+    resolveDispute,
 };

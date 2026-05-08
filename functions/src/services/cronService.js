@@ -536,6 +536,49 @@ const backupFirestore = onSchedule(
     }
 );
 
+/**
+ * Cron: cleans up old system data to maintain database hygiene.
+ * - rate_limits > 24h
+ * - webhook_dedup > 7 days
+ * Runs every day at 03:00 UTC.
+ */
+const cleanupData = onSchedule("0 3 * * *", async () => {
+    const now = Date.now();
+    const twentyFourHoursAgo = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+    const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    try {
+        let deletedRateLimits = 0;
+        let deletedWebhooks = 0;
+
+        // Cleanup rate_limits
+        const rateLimitsSnap = await db.collection("rate_limits")
+            .where("lastRequest", "<", twentyFourHoursAgo)
+            .limit(500).get();
+        
+        if (!rateLimitsSnap.empty) {
+            const batch = db.batch();
+            rateLimitsSnap.docs.forEach(doc => batch.delete(doc.ref));
+            await batch.commit();
+            deletedRateLimits = rateLimitsSnap.size;
+        }
+
+        // Cleanup webhook_dedup
+        const webhooksSnap = await db.collection("webhook_dedup")
+            .where("createdAt", "<", sevenDaysAgo)
+            .limit(500).get();
+
+        if (!webhooksSnap.empty) {
+            const batch = db.batch();
+            webhooksSnap.docs.forEach(doc => batch.delete(doc.ref));
+            await batch.commit();
+            deletedWebhooks = webhooksSnap.size;
+        }
+
+        log(`cleanupData: deleted ${deletedRateLimits} rate_limits and ${deletedWebhooks} webhooks.`);
+    } catch (e) { logError("cleanupData error", e); }
+});
+
 module.exports = {
     applyDynamicPricing,
     deactivateExpiredProducts,
@@ -548,4 +591,6 @@ module.exports = {
     handleOrderAcceptanceTimeout,
     handleDriverConfirmationTimeout,
     backupFirestore,
+    cleanupData,
 };
+
