@@ -813,6 +813,8 @@ const markOrderInTransit = onCall(
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 
+        // El trigger onOrderStatusChanged maneja la notificación al cliente en IN_TRANSIT.
+
         log("markOrderInTransit: Pedido en camino", { orderId });
         return { success: true };
     })
