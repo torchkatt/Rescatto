@@ -23,6 +23,7 @@ import { calculateDistance } from '../../services/locationService';
 import { productService } from '../../services/productService';
 import { logger } from '../../utils/logger';
 import { SEO } from '../../components/common/SEO';
+import { ErrorState } from '../../components/common/ErrorState';
 import { NotificationDisplay } from '../../components/common/NotificationDisplay';
 import { DesktopActiveVenues } from '../../components/customer/home/DesktopActiveVenues';
 import { ProductSmallCard } from '../../components/customer/home/ProductSmallCard';
@@ -36,6 +37,7 @@ const CustomerHome: React.FC = () => {
     const { city, latitude, longitude } = useLocation();
     const [venues, setVenues] = useState<Venue[]>([]);
     const [loading, setLoading] = useState(true);
+    const [fetchError, setFetchError] = useState<Error | null>(null);
     const [venueExpiryMap, setVenueExpiryMap] = useState<Map<string, string>>(new Map());
     const [venueStockMap, setVenueStockMap] = useState<Map<string, number>>(new Map());
     const [venueProductCountMap, setVenueProductCountMap] = useState<Map<string, number>>(new Map());
@@ -57,6 +59,7 @@ const CustomerHome: React.FC = () => {
     useEffect(() => {
         const fetchInitial = async () => {
             if (loading === false && !user) return;
+            setFetchError(null);
             try {
                 setLoading(true);
                 const [venuesPage, expiryMap, stockResult, dynIds, activeProductsPage] = await Promise.all([
@@ -91,6 +94,7 @@ const CustomerHome: React.FC = () => {
             } catch (error: any) {
                 if (error?.code !== 'permission-denied') {
                     logger.error('Error fetching venues:', error);
+                    setFetchError(error instanceof Error ? error : new Error('Error al cargar los restaurantes'));
                 }
             } finally {
                 setLoading(false);
@@ -239,6 +243,15 @@ const CustomerHome: React.FC = () => {
     }, [allActiveProducts, venuesById]);
 
     if (loading) return <HomeSkeletonLoader />;
+
+    if (fetchError) return (
+        <ErrorState
+            error={fetchError}
+            title="No pudimos cargar los restaurantes"
+            message="Verifica tu conexión a internet e intenta de nuevo."
+            resetErrorBoundary={() => { setFetchError(null); setLoading(true); }}
+        />
+    );
 
     return (
         <div className="pb-nav bg-brand-bg min-h-screen">

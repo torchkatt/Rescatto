@@ -15,6 +15,8 @@ import { isProductAvailable, isProductExpired } from '../../utils/productAvailab
 import { isVenueOpen } from '../../utils/venueAvailability';
 import { formatCOP } from '../../utils/formatters';
 import { SEO } from '../../components/common/SEO';
+import { ErrorState } from '../../components/common/ErrorState';
+import { useRetry } from '../../hooks/useRetry';
 import { useTranslation } from 'react-i18next';
 import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 
@@ -37,6 +39,7 @@ function getDiscountBadge(original: number, discounted: number): string {
 export const VenueDetail: React.FC = () => {
     const { venueId } = useParams<{ venueId: string }>();
     const navigate = useNavigate();
+    const { executeWithRetry } = useRetry();
     const { addToCart } = useCart();
     const { success, error } = useToast();
     const { t } = useTranslation();
@@ -45,6 +48,7 @@ export const VenueDetail: React.FC = () => {
     const [products, setProducts] = useState<Product[]>([]);
     const [ratingStats, setRatingStats] = useState<RatingStats | null>(null);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState<Error | null>(null);
     const [productSearch, setProductSearch] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [productsLastDoc, setProductsLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
@@ -62,8 +66,12 @@ export const VenueDetail: React.FC = () => {
 
     const loadVenueData = async (id: string) => {
         setLoading(true);
+        setLoadError(null);
         try {
-            const venueData = await venueService.getVenueById(id);
+            const venueData = await executeWithRetry(
+                () => venueService.getVenueById(id),
+                { maxRetries: 2, initialDelay: 800 }
+            );
             setVenue(venueData);
             if (venueData) {
                 const [productsResult, statsResult] = await Promise.allSettled([
@@ -81,8 +89,9 @@ export const VenueDetail: React.FC = () => {
                     setRatingStats(statsResult.value);
                 }
             }
-        } catch (err) {
+        } catch (err: any) {
             logger.error('Failed to load venue', err);
+            setLoadError(err instanceof Error ? err : new Error('Error al cargar el restaurante'));
         } finally {
             setLoading(false);
         }
@@ -138,6 +147,15 @@ export const VenueDetail: React.FC = () => {
     }, [availableProducts, productSearch, selectedCategory]);
 
     if (loading) return <VenueDetailSkeletonLoader />;
+
+    if (loadError) return (
+        <ErrorState
+            error={loadError}
+            title="No pudimos cargar el restaurante"
+            message="Verifica tu conexión e intenta de nuevo."
+            resetErrorBoundary={() => { if (venueId) loadVenueData(venueId); }}
+        />
+    );
 
     if (!venue) {
         return (
