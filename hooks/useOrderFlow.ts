@@ -7,7 +7,6 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useLocation } from '../context/LocationContext';
 import { logger } from '../utils/logger';
-import { isProductExpired } from '../utils/productAvailability';
 import { Analytics } from '../utils/analytics';
 import { hasAskedForNotifications } from '../components/customer/common/NotificationPermissionModal';
 

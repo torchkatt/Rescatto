@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next';
 import { geminiService, AIMessage } from '../../services/geminiService';
 import { AIContextBuilder } from '../../services/aiContextBuilder';
 import { Send, Loader2, Sparkles, HelpCircle, Package, MapPin } from 'lucide-react';
-import { LoadingSpinner } from '../customer/common/Loading';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { UserRole } from '../../types';

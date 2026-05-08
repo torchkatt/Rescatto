@@ -1,7 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { GoogleMap, useJsApiLoader, HeatmapLayerF } from '@react-google-maps/api';
 import { adminService } from '../../../services/adminService';
-import { Venue } from '../../../types';
 import { LoadingSpinner } from '../../customer/common/Loading';
 import { Map as MapIcon, Info, Filter } from 'lucide-react';
 import { logger } from '../../../utils/logger';

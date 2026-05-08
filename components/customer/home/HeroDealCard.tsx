@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Product } from '../../../types';
-import { Clock, Zap, ArrowRight } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { Countdown } from '../common/Countdown';
 import { useTranslation } from 'react-i18next';
 

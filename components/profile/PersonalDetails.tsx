@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User } from '../../types';
-import { User as UserIcon, Mail, Phone, MapPin, Save, X } from 'lucide-react';
+import { User as UserIcon, Mail, Phone, MapPin } from 'lucide-react';
 import { Button } from '../customer/common/Button';
 import { logger } from '../../utils/logger';
 import { useTranslation } from 'react-i18next';

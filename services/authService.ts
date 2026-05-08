@@ -2,8 +2,6 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
   signOut as firebaseSignOut,
   updatePassword as firebaseUpdatePassword,
   GoogleAuthProvider,
@@ -14,7 +12,6 @@ import {
   User as FirebaseUser,
   getAuth,
   signOut,
-  sendEmailVerification,
   signInAnonymously,
   sendPasswordResetEmail,
   reauthenticateWithCredential

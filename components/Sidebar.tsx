@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate, Link } from 'react-router-dom';
-import { LayoutDashboard, ShoppingBag, FileText, Settings, UtensilsCrossed, ClipboardList, LogOut, Menu, X, Package, BarChart, MessageSquare, Users, Shield, Download, Tag, RefreshCw, MapPin, DollarSign, Zap, Moon, Sun, Truck, TrendingUp, BadgeCheck, Building2, Landmark, UserCircle, HelpCircle } from 'lucide-react';
+import { LayoutDashboard, FileText, Settings, UtensilsCrossed, ClipboardList, LogOut, Menu, X, Package, BarChart, MessageSquare, Users, Shield, Download, Tag, RefreshCw, MapPin, DollarSign, Zap, Moon, Sun, Truck, TrendingUp, BadgeCheck, Building2, Landmark, UserCircle, HelpCircle } from 'lucide-react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../context/AuthContext';

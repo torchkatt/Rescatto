@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Venue } from '../../types';
 import { aiService } from '../../services/aiService';
 import { dataService } from '../../services/dataService';
-import { Zap, CloudRain, Sun, Cloud, Wind, TrendingDown, Package, AlertCircle, Loader2, RefreshCw } from 'lucide-react';
+import { Zap, CloudRain, Cloud, TrendingDown, Package, AlertCircle, Loader2, RefreshCw } from 'lucide-react';
 import { logger } from '../../utils/logger';
 
 interface Props {
@@ -121,7 +121,7 @@ export const MerchantAIPredictions: React.FC<Props> = ({ venue }) => {
               <span className="text-xs font-black text-emerald-700 uppercase tracking-tighter">AI Insight</span>
             </div>
             <p className="text-slate-800 font-medium leading-relaxed italic">
-              "{prediction?.insight || 'Analizando variables de entorno...'}"
+              &ldquo;{prediction?.insight || 'Analizando variables de entorno...'}&rdquo;
             </p>
           </div>
         </div>

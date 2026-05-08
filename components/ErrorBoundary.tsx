@@ -1,6 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import * as Sentry from '@sentry/react';
-import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 
 import { ErrorState } from './common/ErrorState';
 

@@ -6,7 +6,7 @@ import { useCart } from '../../context/CartContext';
 import { useToast } from '../../context/ToastContext';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
 import { Button } from '../../components/customer/common/Button';
-import { ArrowLeft, ShoppingCart, Info, Store, Clock, MapPin, Star, ChevronRight, Zap } from 'lucide-react';
+import { ArrowLeft, ShoppingCart, Store, Clock, MapPin, Star, ChevronRight, Zap } from 'lucide-react';
 import { logger } from '../../utils/logger';
 import { isProductAvailable, isProductExpired } from '../../utils/productAvailability';
 import { formatCOP } from '../../utils/formatters';

@@ -1,5 +1,5 @@
 import React, { ReactNode } from 'react';
-import { AlertTriangle, HelpCircle, X } from 'lucide-react';
+import { AlertTriangle, HelpCircle } from 'lucide-react';
 import { Button } from '../components/customer/common/Button';
 import { useConfirmStore } from '../stores/useConfirmStore';
 

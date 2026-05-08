@@ -9,7 +9,7 @@ import { useToast } from '../../context/ToastContext';
 import { Order, OrderStatus, Permission, UserRole } from '../../types';
 import { PermissionGate } from '../../components/PermissionGate';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
-import { Package, Clock, CheckCircle, ChefHat, MessageSquare, Search, RotateCw, Heart, MapPin, Truck, X, User, ChevronDown, ThumbsUp, ThumbsDown, Send, Users } from 'lucide-react';
+import { Package, Clock, CheckCircle, ChefHat, MessageSquare, Search, RotateCw, Heart, MapPin, Truck, X, User, ChevronDown, Users } from 'lucide-react';
 import { formatCOP, formatKgCO2 } from '../../utils/formatters';
 import { useNotifications } from '../../context/NotificationContext';
 import { Leaf, Gift } from 'lucide-react';

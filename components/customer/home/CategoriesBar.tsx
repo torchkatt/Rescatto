@@ -1,5 +1,4 @@
 import React from 'react';
-import { Pizza, Coffee, ShoppingBag, Utensils, Carrot, Croissant } from 'lucide-react';
 
 interface Category {
     id: string;

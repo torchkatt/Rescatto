@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
 import { GoogleMap, useJsApiLoader, Marker, Polyline } from '@react-google-maps/api';
-import { logger } from '../../../utils/logger';
 
 interface TrackingMapProps {
   driverCoords?: { lat: number, lng: number };

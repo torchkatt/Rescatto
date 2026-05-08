@@ -184,7 +184,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ user }) => {
                         </span>
 
                         {user.impact?.level && (
-                            <Tooltip text={`${t('impact_level_label')}: ${t(user.impact.level)}` || `Nivel de Impacto: ${user.impact.level}`}>
+                            <Tooltip text={`${t('impact_level_label')}: ${t(user.impact.level)}`}>
                                 <span className="px-3 py-1 rounded-full text-xs font-bold bg-gradient-to-r from-yellow-400 to-amber-500 text-white border border-yellow-300 shadow-sm flex items-center gap-1.5">
                                     <Award size={12} />
                                     {t(user.impact.level) || user.impact.level}

@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { AuditLogStats } from './AuditLogStats';
 import {
     collection,
     query,
@@ -8,7 +7,6 @@ import {
     getDocs,
     doc,
     getDoc,
-    startAfter,
     getCountFromServer
 } from 'firebase/firestore';
 import { db } from '../../services/firebase';

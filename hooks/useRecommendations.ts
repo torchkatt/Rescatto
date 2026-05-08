@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Product, Venue } from '../types';
+import { Product } from '../types';
 import { aiService } from '../services/aiService';
 import { dataService } from '../services/dataService';
 import { venueService } from '../services/venueService';

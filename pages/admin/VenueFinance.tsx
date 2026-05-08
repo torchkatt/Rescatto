@@ -4,7 +4,7 @@ import { getUserVenueId } from '../../utils/getUserVenueId';
 import { UserRole } from '../../types';
 import { walletService, VenueWallet, WalletTransaction } from '../../services/walletService';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
-import { DollarSign, ArrowUpRight, ArrowDownLeft, AlertCircle, Mail, Info, Download } from 'lucide-react';
+import { ArrowUpRight, AlertCircle, Mail, Info, Download } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import { logger } from '../../utils/logger';
 import { formatCOP } from '../../utils/formatters';

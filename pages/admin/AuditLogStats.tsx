@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { AuditLog } from '../../types';
 import { Activity, ShieldAlert, Users, Zap } from 'lucide-react';
 

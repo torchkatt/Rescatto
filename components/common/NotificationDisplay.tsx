@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bell, X, Info, CheckCircle, AlertTriangle, AlertCircle } from 'lucide-react';
+import { Bell, Info, CheckCircle, AlertTriangle, AlertCircle } from 'lucide-react';
 import { useNotifications, Notification } from '../../context/NotificationContext';
 import { format } from 'date-fns';
 import { es, enUS } from 'date-fns/locale';

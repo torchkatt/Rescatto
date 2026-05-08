@@ -1,7 +1,6 @@
 import React from 'react';
 import { ChatList } from '../components/chat/ChatList';
 import { ChatWindow } from '../components/chat/ChatWindow';
-import { MessageSquare } from 'lucide-react';
 import Layout from '../components/Layout';
 import { useChat } from '../context/ChatContext';
 

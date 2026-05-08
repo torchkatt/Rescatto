@@ -5,7 +5,7 @@ import { User, UserRole, Permission, ROLE_PERMISSIONS } from '../../types';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
 import { PermissionGate } from '../../components/PermissionGate';
 import { useAuth } from '../../context/AuthContext';
-import { Pencil, Trash2, Shield, User as UserIcon, Search, CheckCircle2, Eye, EyeOff, RotateCw, MapPin, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { Pencil, Trash2, Shield, User as UserIcon, Search, CheckCircle2, RotateCw, MapPin, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
 

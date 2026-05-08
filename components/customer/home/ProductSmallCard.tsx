@@ -1,8 +1,8 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Product, ProductType } from '../../../types';
+import { Product } from '../../../types';
 import { Card } from '../common/Card';
-import { Clock, Tag, ShoppingBag, Zap } from 'lucide-react';
+import { ShoppingBag, Zap } from 'lucide-react';
 import { Countdown } from '../common/Countdown';
 import { useTranslation } from 'react-i18next';
 

@@ -1,6 +1,5 @@
 import React from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
-import { Button } from './customer/common/Button';
 import { RefreshCw, X } from 'lucide-react';
 import { logger } from '../utils/logger';
 

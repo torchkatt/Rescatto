@@ -1,15 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
-    X, Leaf, Zap, Star, Award, TrendingUp,
-    TreePine, ShoppingBag, Gift, Share2, Flame,
-    Trophy, ChevronRight, Bell, Medal, Info
+    X, Leaf, Zap, Star, TrendingUp,
+    TreePine, ShoppingBag, Gift, Flame
 } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../../services/firebase';
 import { useToast } from '../../../context/ToastContext';
 import { logger } from '../../../utils/logger';
-import { messagingService } from '../../../services/messagingService';
 import { leaderboardService, LeaderboardEntry } from '../../../services/leaderboardService';
 import { useTranslation } from 'react-i18next';
 

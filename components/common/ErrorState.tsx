@@ -51,7 +51,7 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
                             // Reset del boundary + recarga forzada: si el error vino de un
                             // chunk/estado roto, solo limpiar state re-explota. El reload
                             // es el único reintento confiable.
-                            try { resetErrorBoundary(); } catch {}
+                            try { resetErrorBoundary(); } catch (_e) { /* ignorar errores del boundary reset */ }
                             window.location.reload();
                         }}
                         className="w-full sm:w-auto px-8 py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all flex items-center justify-center gap-2 shadow-xl active:scale-95"

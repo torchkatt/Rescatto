@@ -1,7 +1,7 @@
 import React, { useMemo, useCallback } from 'react';
-import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
+import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
 import { DriverLocation } from '../../../types';
-import { MapPin, Navigation, Clock } from 'lucide-react';
+import { Navigation, Clock } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 

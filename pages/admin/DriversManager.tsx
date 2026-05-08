@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { collection, query, where, getDocs, orderBy, limit, startAfter, DocumentSnapshot } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, startAfter, DocumentSnapshot } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { adminService } from '../../services/adminService';
 import { User, UserRole, OrderStatus } from '../../types';
@@ -12,7 +12,7 @@ import { logger } from '../../utils/logger';
 import { formatCOP } from '../../utils/formatters';
 import {
     Truck, Search, RefreshCw, CheckCircle, XCircle, Star,
-    Phone, MapPin, Package, DollarSign, Eye, UserCheck, UserX, X, ChevronDown
+    Phone, MapPin, Package, DollarSign, Eye, UserCheck, UserX, ChevronDown
 } from 'lucide-react';
 
 interface DriverRow extends User {

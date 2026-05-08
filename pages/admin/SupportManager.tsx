@@ -14,7 +14,7 @@ import {
     MessageSquare, Search, Send, Trash2, RefreshCw,
     Users, Truck, Store, ShieldCheck, Circle, X,
     ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
-    Inbox, Scale, CheckCircle, XCircle, AlertCircle, Ban
+    Inbox, Scale, CheckCircle, XCircle, Ban
 } from 'lucide-react';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../services/firebase';

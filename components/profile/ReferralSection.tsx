@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { User } from '../../types';
-import { Share2, Copy, Gift, Users, Check, Star, Trophy, Award, Zap } from 'lucide-react';
+import { Share2, Copy, Gift, Check, Star, Award, Zap } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import { QRCodeSVG } from 'qrcode.react';
-import { collection, query, where, getCountFromServer } from 'firebase/firestore';
-import { db, functions } from '../../services/firebase';
+import { functions } from '../../services/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { logger } from '../../utils/logger';
 import { useTranslation } from 'react-i18next';

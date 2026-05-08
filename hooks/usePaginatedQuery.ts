@@ -64,7 +64,6 @@ export function usePaginatedQuery<T = DocumentData & { id: string }>(
             lastDocRef.current = snap.docs[snap.docs.length - 1] ?? null;
             return { items, exhausted: snap.docs.length < pageSize };
         },
-        // eslint-disable-next-line react-hooks/exhaustive-deps
         [buildQuery, pageSize]
     );
 

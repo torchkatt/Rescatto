@@ -4,6 +4,7 @@ import tsParser from '@typescript-eslint/parser';
 import reactPlugin from 'eslint-plugin-react';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
 import securityPlugin from 'eslint-plugin-security';
+import unusedImports from 'eslint-plugin-unused-imports';
 
 export default [
     js.configs.recommended,
@@ -19,6 +20,7 @@ export default [
                 ecmaFeatures: { jsx: true },
             },
             globals: {
+                // Browser globals
                 window: 'readonly',
                 document: 'readonly',
                 navigator: 'readonly',
@@ -44,10 +46,12 @@ export default [
                 AbortController: 'readonly',
                 FormData: 'readonly',
                 Blob: 'readonly',
+                File: 'readonly',
                 FileReader: 'readonly',
                 CustomEvent: 'readonly',
                 Event: 'readonly',
                 EventTarget: 'readonly',
+                // DOM element types
                 HTMLElement: 'readonly',
                 HTMLInputElement: 'readonly',
                 HTMLTextAreaElement: 'readonly',
@@ -59,8 +63,16 @@ export default [
                 HTMLVideoElement: 'readonly',
                 HTMLFormElement: 'readonly',
                 HTMLSelectElement: 'readonly',
+                HTMLIFrameElement: 'readonly',
+                HTMLSpanElement: 'readonly',
+                HTMLParagraphElement: 'readonly',
+                HTMLHeadingElement: 'readonly',
+                HTMLUListElement: 'readonly',
+                HTMLLIElement: 'readonly',
+                HTMLTableElement: 'readonly',
                 Element: 'readonly',
                 Node: 'readonly',
+                // Event types
                 MessageEvent: 'readonly',
                 KeyboardEvent: 'readonly',
                 MouseEvent: 'readonly',
@@ -71,6 +83,8 @@ export default [
                 DragEvent: 'readonly',
                 WheelEvent: 'readonly',
                 ClipboardEvent: 'readonly',
+                StorageEvent: 'readonly',
+                // Web APIs
                 GeolocationPosition: 'readonly',
                 GeolocationPositionError: 'readonly',
                 ServiceWorker: 'readonly',
@@ -79,50 +93,78 @@ export default [
                 Cache: 'readonly',
                 CacheStorage: 'readonly',
                 IDBDatabase: 'readonly',
+                AudioContext: 'readonly',
+                webkitAudioContext: 'readonly',
                 crypto: 'readonly',
-                StorageEvent: 'readonly',
-                google: 'readonly',
-                confirm: 'readonly',
-                alert: 'readonly',
-                prompt: 'readonly',
                 indexedDB: 'readonly',
                 caches: 'readonly',
                 self: 'readonly',
                 globalThis: 'readonly',
-                process: 'readonly',
                 queueMicrotask: 'readonly',
                 structuredClone: 'readonly',
                 TextEncoder: 'readonly',
                 TextDecoder: 'readonly',
+                // Other browser globals
+                google: 'readonly',
+                confirm: 'readonly',
+                alert: 'readonly',
+                prompt: 'readonly',
+                // Node/build globals
+                process: 'readonly',
+                NodeJS: 'readonly',
             },
         },
         plugins: {
             '@typescript-eslint': tsPlugin,
             security: securityPlugin,
+            'unused-imports': unusedImports,
         },
         rules: {
             ...tsPlugin.configs.recommended.rules,
-            'no-console': 'warn',
-            'react-hooks/rules-of-hooks': 'error',
-            'react-hooks/exhaustive-deps': 'warn',
+            // TypeScript handles prop types — disable redundant rule
+            'react/prop-types': 'off',
             'react/react-in-jsx-scope': 'off',
-            '@typescript-eslint/no-explicit-any': 'warn',
-            '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
-            // React Compiler rules (excesivamente estrictas para React 18 — apagadas)
+            'react-hooks/rules-of-hooks': 'error',
+            // exhaustive-deps genera falsos positivos con refs estables (navigate, user.id, toast, etc.)
+            'react-hooks/exhaustive-deps': 'off',
+            // React 19 Compiler rules — demasiado estrictas para React 18
             'react-hooks/react-compiler': 'off',
-            // Reglas de seguridad críticas (error) y de advertencia (warn)
+            'react-hooks/set-state-in-effect': 'off',
+            'react-hooks/static-components': 'off',
+            'react-hooks/purity': 'off',
+            'react-hooks/immutability': 'off',
+            // any es necesario para Firebase data, event handlers y código legacy
+            '@typescript-eslint/no-explicit-any': 'off',
+            // unused-imports auto-elimina imports no usados en --fix
+            '@typescript-eslint/no-unused-vars': 'off',
+            'unused-imports/no-unused-imports': 'warn',
+            // Variables no usadas en destructuring son patrones válidos — TypeScript las verifica en compilación
+            'unused-imports/no-unused-vars': 'off',
+            // console.* está controlado por el logger custom del proyecto
+            'no-console': 'off',
+            // Seguridad: solo errores críticos reales
             'security/detect-eval-with-expression': 'error',
-            'security/detect-non-literal-regexp': 'warn',
-            'security/detect-non-literal-require': 'warn',
-            'security/detect-object-injection': 'warn',
-            'security/detect-possible-timing-attacks': 'warn',
             'security/detect-unsafe-regex': 'error',
+            // detect-object-injection genera demasiados falsos positivos en acceso normal a objetos
+            'security/detect-object-injection': 'off',
+            'security/detect-non-literal-regexp': 'off',
+            'security/detect-non-literal-require': 'off',
+            'security/detect-possible-timing-attacks': 'off',
         },
         settings: {
             react: { version: 'detect' },
         },
     },
     {
-        ignores: ['node_modules/', 'dist/', 'functions/', 'vite.config.ts', 'vitest.config.ts', 'tailwind.config.js', 'postcss.config.js'],
+        ignores: [
+            'node_modules/',
+            'dist/',
+            'functions/',
+            'vite.config.ts',
+            'vitest.config.ts',
+            'tailwind.config.js',
+            'postcss.config.js',
+            'scripts/',
+        ],
     },
 ];

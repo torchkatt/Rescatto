@@ -4,7 +4,7 @@ import { signInWithEmailAndPassword } from 'firebase/auth';
 import { deleteDoc, doc, collection, getDocs } from 'firebase/firestore';
 import { auth, db } from '../../services/firebase';
 import { UserRole } from '../../types';
-import { Loader2, CheckCircle, AlertCircle, RefreshCw, Trash2 } from 'lucide-react';
+import { Loader2, AlertCircle, RefreshCw, Trash2 } from 'lucide-react';
 import { logger } from '../../utils/logger';
 import { Navigate } from 'react-router-dom';
 

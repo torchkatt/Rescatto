@@ -1,5 +1,5 @@
 import React from 'react';
-import { Leaf, DollarSign, Cloud, Award } from 'lucide-react';
+import { DollarSign, Cloud, Award } from 'lucide-react';
 import { User } from '../../../types';
 
 interface ImpactStatsProps {

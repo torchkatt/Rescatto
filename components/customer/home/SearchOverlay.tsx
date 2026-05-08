@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Search, X, MapPin, Star, Clock, Filter, ShoppingBag, Leaf, Flame, TrendingUp } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, X, Star, ShoppingBag, Leaf, Flame, TrendingUp } from 'lucide-react';
 import { Product, Venue } from '../../../types';
 import { productService } from '../../../services/productService';
 import { venueService } from '../../../services/venueService';

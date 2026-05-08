@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
     ArrowLeft, Leaf, Zap, Star, Award, TrendingUp,
     TreePine, ShoppingBag, Gift, Share2, Flame,
-    Trophy, ChevronRight, Bell, Medal, Target, User,
-    ShieldCheck, Info, InfoIcon, Heart, Tag
+    Trophy, ChevronRight, Bell, Medal
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { GuestPromptBanner } from '../../components/customer/common/GuestPromptBanner';

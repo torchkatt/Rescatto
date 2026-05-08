@@ -1,6 +1,6 @@
 import { collection, doc, getDocs, getDoc, addDoc, updateDoc, deleteDoc, query, where, Timestamp, limit, orderBy, startAfter, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { db } from './firebase';
-import { Product, ProductType } from '../types';
+import { Product } from '../types';
 import { logger } from '../utils/logger';
 import { isProductExpired } from '../utils/productAvailability';
 

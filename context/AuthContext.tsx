@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, ReactNode } from 'react';
 import { User, UserRole, Membership } from '../types';
 import { authService } from '../services/authService';
-import { onAuthStateChanged, sendEmailVerification, User as FirebaseUser } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../services/firebase';
-import { doc, getDoc, setDoc, updateDoc, onSnapshot, Unsubscribe, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { roleService, RoleDefinition } from '../services/roleService';
 import { logger } from '../utils/logger';

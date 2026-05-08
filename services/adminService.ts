@@ -5,7 +5,6 @@ import {
     updateDoc,
     addDoc,
     deleteDoc,
-    setDoc,
     query,
     orderBy,
     limit,
@@ -17,7 +16,7 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from './firebase';
-import { User, Venue, UserRole, Product, Order } from '../types';
+import { User, Venue, Product, Order } from '../types';
 import { loggerService } from './loggerService';
 import { logger } from '../utils/logger';
 

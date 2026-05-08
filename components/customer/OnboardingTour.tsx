@@ -15,10 +15,10 @@ const slideImages = [
 ];
 
 const slideIcons = [
-    <Sparkles size={48} className="text-emerald-500 mb-6 mx-auto animate-pulse" />,
-    <Package size={48} className="text-amber-500 mb-6 mx-auto animate-bounce-slow" />,
-    <Leaf size={48} className="text-green-500 mb-6 mx-auto animate-spin-slow" />,
-    <Users size={48} className="text-indigo-500 mb-6 mx-auto animate-bounce-slow" />
+    <Sparkles key="sparkles" size={48} className="text-emerald-500 mb-6 mx-auto animate-pulse" />,
+    <Package key="package" size={48} className="text-amber-500 mb-6 mx-auto animate-bounce-slow" />,
+    <Leaf key="leaf" size={48} className="text-green-500 mb-6 mx-auto animate-spin-slow" />,
+    <Users key="users" size={48} className="text-indigo-500 mb-6 mx-auto animate-bounce-slow" />
 ];
 
 interface Props {

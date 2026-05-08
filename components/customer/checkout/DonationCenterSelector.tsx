@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { DonationCenter } from '../../../types';
 import { dataService } from '../../../services/dataService';
-import { Heart, MapPin, Phone, Building2, Info, CheckCircle2 } from 'lucide-react';
+import { Heart, MapPin, Building2, Info, CheckCircle2 } from 'lucide-react';
 import { logger } from '../../../utils/logger';
 
 interface DonationCenterSelectorProps {

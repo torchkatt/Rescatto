@@ -34,7 +34,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     const [isAtBottom, setIsAtBottom] = useState(true);
     const [hasNewMessages, setHasNewMessages] = useState(false);
     const [newMessagesCount, setNewMessagesCount] = useState(0);
-    const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Typing presence logic
     useEffect(() => {

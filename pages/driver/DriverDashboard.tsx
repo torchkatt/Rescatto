@@ -9,7 +9,7 @@ import { useChat } from '../../context/ChatContext';
 import { useToast } from '../../context/ToastContext';
 import { OrderStatus, Venue, UserRole } from '../../types';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
-import { Truck, MapPin, Phone, Package, DollarSign, Star, Award, LogOut, Search, Filter, X, SlidersHorizontal, ArrowUpDown, PhoneCall, Navigation, MessageSquare } from 'lucide-react';
+import { Truck, MapPin, Package, DollarSign, Star, Award, LogOut, Search, X, SlidersHorizontal, ArrowUpDown, PhoneCall, Navigation, MessageSquare } from 'lucide-react';
 import { formatCOP } from '../../utils/formatters';
 import { getRatingStats } from '../../services/ratingService';
 import { RatingDisplay } from '../../components/rating/RatingDisplay';

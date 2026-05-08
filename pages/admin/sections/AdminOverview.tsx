@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { collection, getDocs, getDoc, doc, query, where, Timestamp, getCountFromServer } from 'firebase/firestore';
+import { collection, getDocs, query, where, Timestamp, getCountFromServer } from 'firebase/firestore';
 import { db } from '../../../services/firebase';
 import {
     Users,

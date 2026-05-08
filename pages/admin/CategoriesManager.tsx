@@ -6,8 +6,6 @@ import { LoadingSpinner } from '../../components/customer/common/Loading';
 import { Plus, Edit2, Trash2, Tag, X, Save, Search, Archive, Store, Package, RotateCw, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
-import { PermissionGate } from '../../components/PermissionGate';
-import { Permission } from '../../types';
 import { useToast } from '../../context/ToastContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import { Tooltip } from '../../components/common/Tooltip';

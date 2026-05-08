@@ -546,7 +546,7 @@ export const VenuesManager: React.FC = () => {
                                     !isInColombia(formData.latitude, formData.longitude) && (
                                     <div className="mb-2 flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2">
                                         <MapPin size={13} className="shrink-0" />
-                                        Las coordenadas actuales están fuera de Colombia. Usa "Autocompletar con dirección" para corregirlas.
+                                        Las coordenadas actuales están fuera de Colombia. Usa &ldquo;Autocompletar con dirección&rdquo; para corregirlas.
                                     </div>
                                 )}
                                 <div className="grid grid-cols-2 gap-3">

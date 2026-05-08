@@ -202,8 +202,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         });
 
         return () => unsubForeground();
-    // Re-run only when the logged-in user identity changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.id, user?.isGuest]);
     // ──────────────────────────────────────────────────────────────────────
 

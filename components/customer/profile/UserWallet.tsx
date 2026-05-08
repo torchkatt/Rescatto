@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { Wallet, Gift, ArrowRight, CheckCircle, CreditCard, Sparkles } from 'lucide-react';
-import { Button } from '../common/Button';
+import { Wallet, Gift, CreditCard, Sparkles } from 'lucide-react';
 
 interface UserWalletProps {
     points: number;

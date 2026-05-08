@@ -1,3 +1,4 @@
+import React from 'react';
 import { X, Share, MoreVertical, Smartphone, Download, CheckCircle2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -68,7 +69,7 @@ export const PWANotification: React.FC<PWANotificationProps> = ({ onClose }) => 
                                 </div>
                                 <p className="text-sm text-slate-700 font-medium">
                                     {t('pwa_add_home').split('"').map((text, i) => (
-                                        i === 1 ? <span key={i} className="text-emerald-600 font-bold">"{text}"</span> : text
+                                        i === 1 ? <span key={i} className="text-emerald-600 font-bold">&ldquo;{text}&rdquo;</span> : text
                                     ))}
                                 </p>
                             </div>

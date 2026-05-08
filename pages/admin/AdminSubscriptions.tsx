@@ -6,7 +6,7 @@ import { SubscriptionRequest } from '../../types';
 import { formatCOP } from '../../utils/formatters';
 import { logger } from '../../utils/logger';
 import {
-    CheckCircle, XCircle, Clock, Eye, Filter, Loader2, ExternalLink
+    CheckCircle, XCircle, Eye, Filter, Loader2
 } from 'lucide-react';
 
 type FilterStatus = 'pending_review' | 'pending_payment' | 'approved' | 'rejected' | 'all';
