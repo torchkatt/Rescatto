@@ -115,6 +115,13 @@ const {
     getMyLeaderboardRank
 } = require("./src/services/leaderboardService");
 
+// ─── Fraud Detection Services ─────────────────────────────────────────────────
+const {
+    evaluateOrderFraud,
+    getFraudMetrics,
+    resolveFraudFlag,
+} = require("./src/services/fraudService");
+
 // ─── Exports ──────────────────────────────────────────────────────────────────
 
 module.exports = {
@@ -200,4 +207,9 @@ module.exports = {
     getBankPaymentInfo,
     requestBankInfoChange,
     updateBankPaymentInfo,
+
+    // Fraud Detection
+    evaluateOrderFraud,
+    getFraudMetrics,
+    resolveFraudFlag,
 };

@@ -369,6 +369,19 @@ const createOrder = onCall(
             metadata: { paymentMethod: normalizedPaymentMethod, deliveryMethod: normalizedDeliveryMethod, productsCount: products.length },
         });
 
+        // Evaluación de fraude asíncrona — no bloquea la respuesta al cliente
+        if (result.orderId) {
+            const { runFraudEvaluation } = require("./fraudService");
+            runFraudEvaluation(result.orderId, userId, {
+                totalAmount: request.data?.totalAmount,
+                venueId,
+                customerLat: request.data?.customerLat,
+                customerLng: request.data?.customerLng,
+            }).then(({ score, isFlagged }) => {
+                if (isFlagged) log("createOrder: orden marcada para revisión antifraude", { orderId: result.orderId, score });
+            }).catch(e => logError("createOrder: fraud eval error (non-blocking)", e));
+        }
+
         return result;
     })
 );

@@ -662,5 +662,13 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // ─── FRAUD METRICS ───────────────────────────────────────────────────────
+    // Solo admins leen. Solo Cloud Functions escriben.
+    match /fraud_metrics/{metricId} {
+      allow read: if request.auth != null
+        && request.auth.token.role in ['SUPER_ADMIN', 'ADMIN'];
+      allow write: if false;
+    }
+
   }
 }
