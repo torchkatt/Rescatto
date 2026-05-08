@@ -19,6 +19,7 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  ScanSearch,
 } from 'lucide-react';
 
 const BackofficeLayout: React.FC = () => {
@@ -56,6 +57,7 @@ const BackofficeLayout: React.FC = () => {
     { to: '/backoffice/payment-settings', icon: Building2, label: 'Datos Bancarios' },
     { to: '/backoffice/drivers', icon: Car, label: 'Conductores' },
     { to: '/backoffice/support', icon: HeadphonesIcon, label: 'Soporte' },
+    { to: '/backoffice/fraud', icon: ScanSearch, label: 'Antifraude' },
     { to: '/backoffice/audit', icon: ShieldAlert, label: 'Auditoría' },
     { to: '/backoffice/settings', icon: Settings, label: 'Configuración' },
   ];

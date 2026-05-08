@@ -43,6 +43,7 @@ const DashboardOverview = lazyLoad(() => import('./pages/backoffice/DashboardOve
 const BackofficeVenuesManager = lazyLoad(() => import('./pages/admin/VenuesManager'), 'VenuesManager');
 const DriversManager = lazyLoad(() => import('./pages/admin/DriversManager'), 'DriversManager');
 const SupportManager = lazyLoad(() => import('./pages/admin/SupportManager'), 'SupportManager');
+const FraudDashboard = lazyLoad(() => import('./pages/admin/FraudDashboard'), 'FraudDashboard');
 
 // Components
 import ProtectedRoute from './components/ProtectedRoute';
@@ -323,6 +324,7 @@ const AppRoutes: React.FC = () => {
                     <Route path="settings" element={<AdminSettingsPage />} />
                     <Route path="drivers" element={<DriversManager />} />
                     <Route path="support" element={<SupportManager />} />
+                    <Route path="fraud" element={<FraudDashboard />} />
                     <Route path="help" element={<HelpCenter />} />
                 </Route>
 
