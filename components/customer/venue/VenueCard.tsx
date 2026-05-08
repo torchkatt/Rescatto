@@ -165,7 +165,7 @@ export const VenueCard: React.FC<VenueCardProps> = ({
                 {/* Logo Overlay (Bottom Right) */}
                 {venue.logoUrl && (
                     <div className="absolute -bottom-4 right-4 z-20 w-12 h-12 rounded-full border-2 border-white shadow-lg overflow-hidden bg-white mb-6">
-                        <img src={venue.logoUrl} alt="Logo" className="w-full h-full object-cover" />
+                        <img src={venue.logoUrl} alt="Logo" loading="lazy" className="w-full h-full object-cover" />
                     </div>
                 )}
             </div>

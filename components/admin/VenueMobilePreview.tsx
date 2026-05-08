@@ -66,7 +66,7 @@ export const VenueMobilePreview: React.FC<VenueMobilePreviewProps> = ({ venue })
                         {/* Logo in Header */}
                         {venue.logoUrl && (
                             <div className="w-12 h-12 rounded-full border-2 border-white shadow-lg overflow-hidden bg-white shrink-0">
-                                <img src={venue.logoUrl} alt="Logo" className="w-full h-full object-cover" />
+                                <img src={venue.logoUrl} alt="Logo" loading="lazy" className="w-full h-full object-cover" />
                             </div>
                         )}
                     </div>
@@ -103,7 +103,7 @@ export const VenueMobilePreview: React.FC<VenueMobilePreviewProps> = ({ venue })
 
                     <div className="border border-gray-100 rounded-xl p-3 flex gap-3 items-center bg-gray-50/50 hover:bg-white transition-colors shadow-sm">
                         <div className="w-14 h-14 bg-gray-200 rounded-lg shrink-0 overflow-hidden">
-                            <img src={`https://picsum.photos/seed/${venue.id}food/200`} className="w-full h-full object-cover" alt="food" />
+                            <img src={`https://picsum.photos/seed/${venue.id}food/200`} className="w-full h-full object-cover" loading="lazy" alt="food" />
                         </div>
                         <div className="flex-1 min-w-0">
                             <h5 className="font-bold text-gray-800 text-xs truncate">Pack Sorpresa Mediano</h5>

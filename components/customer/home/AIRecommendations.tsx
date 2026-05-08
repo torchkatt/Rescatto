@@ -44,9 +44,10 @@ export const AIRecommendations: React.FC<AIRecommendationsProps> = ({ onProductC
                         className="flex-shrink-0 w-[280px] group text-left"
                     >
                         <div className="relative aspect-[4/3] rounded-3xl overflow-hidden shadow-lg border border-gray-100 transition-transform duration-500 group-hover:scale-[1.02]">
-                            <img 
-                                src={product.imageUrl} 
+                            <img
+                                src={product.imageUrl}
                                 alt={product.name}
+                                loading="lazy"
                                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                             />
                             {/* Overlay Gradient */}

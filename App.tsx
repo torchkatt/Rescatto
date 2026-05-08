@@ -12,6 +12,7 @@ import { NotificationProvider } from './context/NotificationContext';
 import { NotificationDisplay } from './components/common/NotificationDisplay';
 import { OfflineBanner } from './components/common/OfflineBanner';
 import { featureFlagService } from './services/featureFlagService';
+import { cacheService } from './services/cacheService';
 import { analytics } from './services/firebase';
 import { logEvent } from 'firebase/analytics';
 import { logger } from './utils/logger';
@@ -557,6 +558,7 @@ const queryClient = new QueryClient({
 const App: React.FC = () => {
     useEffect(() => {
         featureFlagService.init();
+        cacheService.purgeStale();
         if (analytics) {
             logEvent(analytics, 'app_initialize', {
                 version: '1.0.0',

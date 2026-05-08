@@ -66,7 +66,7 @@ export const FlashDealBanner: React.FC<Props> = ({ deal, onDismiss }) => {
                 {/* Image or icon */}
                 <div className={`flex-shrink-0 w-14 h-14 rounded-xl overflow-hidden flex items-center justify-center ${isUrgent ? 'bg-white/20' : 'bg-white/10'}`}>
                     {deal.imageUrl ? (
-                        <img src={deal.imageUrl} alt={deal.title} className="w-full h-full object-cover" />
+                        <img src={deal.imageUrl} alt={deal.title} loading="lazy" className="w-full h-full object-cover" />
                     ) : (
                         <Zap size={28} className="text-yellow-300" />
                     )}

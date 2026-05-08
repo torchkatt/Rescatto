@@ -33,9 +33,10 @@ export const ActiveVenueCard: React.FC<ActiveVenueCardProps> = ({
             >
                 {/* Image Section */}
                 <div className="w-40 h-full rounded-2xl overflow-hidden bg-gray-50 flex-shrink-0 relative">
-                    <img 
-                        src={venue.imageUrl || venue.logoUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400'} 
+                    <img
+                        src={venue.imageUrl || venue.logoUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400'}
                         alt={venue.name}
+                        loading="lazy"
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000"
                     />
                     <div className="absolute top-3 left-3 bg-emerald-950/80 backdrop-blur-md px-2.5 py-1.5 rounded-xl text-[10px] font-black text-white flex items-center gap-1.5 shadow-lg">
@@ -96,9 +97,10 @@ export const ActiveVenueCard: React.FC<ActiveVenueCardProps> = ({
             <div className="flex gap-4">
                 {/* Image Container */}
                 <div className="w-24 h-24 rounded-2xl overflow-hidden bg-gray-50 flex-shrink-0 relative">
-                    <img 
-                        src={venue.imageUrl || venue.logoUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=200'} 
+                    <img
+                        src={venue.imageUrl || venue.logoUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=200'}
                         alt={venue.name}
+                        loading="lazy"
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                     />
                     <div className="absolute top-1.5 left-1.5 bg-black/50 backdrop-blur-sm px-1.5 py-0.5 rounded-lg text-[8px] font-black text-white flex items-center gap-1">

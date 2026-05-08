@@ -327,7 +327,7 @@ export const FlashDealsManager: React.FC = () => {
                                 {/* Image / icon */}
                                 <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-yellow-400 to-orange-500 flex-shrink-0 overflow-hidden flex items-center justify-center">
                                     {deal.imageUrl ? (
-                                        <img src={deal.imageUrl} alt={deal.title} className="w-full h-full object-cover" />
+                                        <img src={deal.imageUrl} alt={deal.title} loading="lazy" className="w-full h-full object-cover" />
                                     ) : (
                                         <Zap size={24} className="text-white" />
                                     )}

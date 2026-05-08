@@ -129,9 +129,10 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({ isOpen, onClose })
                 className="flex gap-4 group cursor-pointer active:scale-[0.98] transition-transform"
               >
                 <div className="relative w-24 h-24 rounded-2xl overflow-hidden shrink-0 border border-gray-100">
-                  <img 
-                    src={product.imageUrl || `https://picsum.photos/seed/${product.id}/200/200`} 
+                  <img
+                    src={product.imageUrl || `https://picsum.photos/seed/${product.id}/200/200`}
                     alt={product.name}
+                    loading="lazy"
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                   />
                   <div className="absolute top-1 left-1 bg-emerald-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow-lg">
