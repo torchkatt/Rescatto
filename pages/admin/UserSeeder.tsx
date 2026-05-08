@@ -9,25 +9,25 @@ import { logger } from '../../utils/logger';
 import { Navigate } from 'react-router-dom';
 
 const UserSeeder: React.FC = () => {
+    // Hooks siempre primero (antes de cualquier return condicional)
+    const [loading, setLoading] = useState(false);
+    const [logs, setLogs] = useState<string[]>([]);
+    const [actionType, setActionType] = useState<'SEED' | 'CLEANUP' | null>(null);
+
     // SECURITY GUARD: Prevent rendering in production unless explicitly demo
     if (import.meta.env.PROD && !window.location.hostname.includes('demo')) {
         return <Navigate to="/login" replace />;
     }
 
-    const [loading, setLoading] = useState(false);
-    const [logs, setLogs] = useState<string[]>([]);
-
     const addLog = (msg: string) => setLogs(prev => [...prev, msg]);
 
     const ROLES_CONFIG = [
         { role: UserRole.SUPER_ADMIN, prefix: 'superadmin', count: 1 },
-        { role: UserRole.VENUE_OWNER, prefix: 'admin', count: 1 }, // 'admin' usualmente implica dueño del local en este contexto
+        { role: UserRole.VENUE_OWNER, prefix: 'admin', count: 1 },
         { role: UserRole.CUSTOMER, prefix: 'cliente', count: 1 },
         { role: UserRole.DRIVER, prefix: 'domicilio', count: 1 },
         { role: UserRole.KITCHEN_STAFF, prefix: 'cocina', count: 1 },
     ];
-
-    const [actionType, setActionType] = useState<'SEED' | 'CLEANUP' | null>(null);
 
     const handleSeed = async () => {
         // La validación se movió al estado de la UI

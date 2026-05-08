@@ -67,7 +67,7 @@ const TechDocs: React.FC = () => {
             Cada entidad comercial en Rescatto se denomina <strong>Sede (Venue)</strong>. Los productos y órdenes están atados directamente a una Sede.
           </p>
           <ul className="list-disc pl-5 space-y-2 mt-2">
-            <li><strong>Configuración de Domicilios:</strong> La sede debe habilitar `deliveryConfig`. Si no se habilita, la plataforma asume que solo opera modalidad "Pick-up".</li>
+            <li><strong>Configuración de Domicilios:</strong> La sede debe habilitar `deliveryConfig`. Si no se habilita, la plataforma asume que solo opera modalidad &ldquo;Pick-up&rdquo;.</li>
             <li><strong>Theming (Marcas Blancas):</strong> El `brandColor` y `logoUrl` almacenados en cada sede alimentan dinámicamente el `ThemeContext`, cambiando el esquema de colores cuando un usuario asociado inicia sesión.</li>
             <li><strong>Horarios:</strong> El `closingTime` se evalúa estrictamente para el cierre de caja y los reportes diarios de corte.</li>
           </ul>

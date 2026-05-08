@@ -220,20 +220,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Solo loginAsGuest lo hace porque es la primera carga de la app (no hay sesión previa).
 
   const login = useCallback(async (email: string, pass: string) => {
-    try {
-      await authService.login(email, pass);
-      // onAuthStateChanged se encargará de setIsLoading(false) y setUser
-    } catch (error) {
-      throw error;
-    }
+    await authService.login(email, pass);
+    // onAuthStateChanged se encargará de setIsLoading(false) y setUser
   }, []);
 
   const loginWithGoogle = useCallback(async () => {
-    try {
-      await authService.loginWithGoogle();
-    } catch (error) {
-      throw error;
-    }
+    await authService.loginWithGoogle();
   }, []);
 
   const loginAsGuest = useCallback(async () => {
@@ -274,19 +266,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   const loginWithApple = useCallback(async () => {
-    try {
-      await authService.loginWithApple();
-    } catch (error) {
-      throw error;
-    }
+    await authService.loginWithApple();
   }, []);
 
   const loginWithFacebook = useCallback(async () => {
-    try {
-      await authService.loginWithFacebook();
-    } catch (error) {
-      throw error;
-    }
+    await authService.loginWithFacebook();
   }, []);
 
   const logout = useCallback(async () => {

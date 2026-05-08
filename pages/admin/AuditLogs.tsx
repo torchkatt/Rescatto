@@ -225,9 +225,10 @@ export const AuditLogs: React.FC = () => {
         switch (log.action) {
             case 'USER_VERIFIED': return <span>Verificó la identidad de {B(targetName, log.targetId)}</span>;
             case 'USER_CREATED': return <span>Registró al nuevo usuario {B(targetName, log.targetId)}</span>;
-            case 'USER_UPDATED':
+            case 'USER_UPDATED': {
                 const changes = Object.keys(details).filter(k => !['updatedAt'].includes(k)).join(', ');
                 return <span>Actualizó el perfil de {B(targetName, log.targetId)} ({changes})</span>;
+            }
             case 'USER_CONVERTED': return <span>Convirtió la cuenta de invitado de {B(details.fullName || targetName, log.targetId)} en permanente</span>;
             case 'VENUE_CREATED': return <span>Creó la sede {B(targetName || details.name, log.targetId)}</span>;
             case 'VENUE_UPDATED': return <span>Modificó la configuración de {B(targetName, log.targetId)}</span>;
@@ -236,12 +237,13 @@ export const AuditLogs: React.FC = () => {
             case 'CATEGORY_UPDATED': return <span>Actualizó la categoría {B(targetName, log.targetId)}</span>;
             case 'CATEGORY_DELETED': return <span>Eliminó la categoría {B(targetName, log.targetId)}</span>;
             case 'ORDER_STATUS_CHANGE': return <span>Cambió el estado del pedido {B(targetName, log.targetId)} a {B(details.status)}</span>;
-            case 'LOGIN':
+            case 'LOGIN': {
                 const method = details.method === 'google' ? 'Google' :
                     details.method === 'apple' ? 'Apple' :
                         details.method === 'facebook' ? 'Facebook' :
                             details.method === 'guest' ? 'Invitado' : 'Email';
                 return <span>Inició sesión exitosamente vía {B(method)}</span>;
+            }
             case 'LOGOUT': return <span>Cerró su sesión</span>;
             case 'SYSTEM_SEED_CATEGORIES': return <span>Cargó las etiquetas predeterminadas del sistema ({details.count} categorías)</span>;
             case 'SETTINGS_UPDATE': return <span>Modificó configuraciones globales</span>;

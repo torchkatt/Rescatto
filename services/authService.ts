@@ -44,7 +44,7 @@ const createSecondaryUser = async (email: string, password: string) => {
   } finally {
     // 4. Eliminar la app secundaria para liberar recursos
     // Nota: delete() es una promesa pero no necesitamos bloquear la UI estrictamente
-    // @ts-ignore - delete existe en FirebaseApp pero puede faltar en algunas definiciones de tipo
+    // @ts-expect-error - delete existe en FirebaseApp pero puede faltar en algunas definiciones de tipo
     if (secondaryApp.delete) await secondaryApp.delete();
   }
 };
