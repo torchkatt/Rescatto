@@ -27,6 +27,10 @@ jobs:
       - name: TypeScript type check
         run: npm run lint
 
+      - name: ESLint security check
+        run: npm run lint:eslint -- --max-warnings=0
+        continue-on-error: true
+
       - name: Run tests
         run: npm run test:run
         env:
@@ -51,8 +55,11 @@ jobs:
           VITE_WOMPI_PUBLIC_KEY: ${{ secrets.VITE_WOMPI_PUBLIC_KEY }}
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
 
-      - name: Security audit
-        run: npm audit --audit-level=moderate
+      - name: Security audit (critical — bloquea build)
+        run: npm audit --audit-level=critical
+
+      - name: Security audit (high — informativo)
+        run: npm audit --audit-level=high
         continue-on-error: true
 
       - name: Upload test coverage
