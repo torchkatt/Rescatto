@@ -17,89 +17,51 @@
 | Paginación | ✅ Completo | Paginación por cursor en Admin y Vistas críticas |
 | Índices Firestore | ✅ Completo | 15 índices compuestos |
 | CI/CD | ⚠️ Básico | GitHub Actions test+build, sin security scanning |
-| Tests | ⚠️ Parcial | 58 tests, sin integration/E2E/CF |
-| Logging | ✅ Completo | Auditoría inmutable y logs estructurados en el Búnker |
-| Validación | ✅ Completo | Zod schemas en Cloud Functions críticas |
-| Security Headers | ❌ Falta | Solo COOP, falta CSP/HSTS/X-Frame |
-| Error Tracking | ❌ Falta | ErrorBoundary existe pero sin Sentry |
+| Tests | ✅ Completo | 676 tests frontend + CF (schemas.test.js, logic.test.js); rules test requiere emulador (`npm run test:rules`) |
+| Logging | ✅ Completo | Auditoría inmutable, logs estructurados CF, Sentry prod |
+| Validación | ✅ Completo | Zod schemas en CF + schemas/index.ts frontend (203 líneas) |
+| Security Headers | ✅ Completo | CSP completa, HSTS, X-Frame-Options, Permissions-Policy en firebase.json |
+| Error Tracking | ✅ Completo | Sentry inicializado en index.tsx (prod only, 10% traces) |
+| Sanitización HTML | ✅ Completo | DOMPurify en utils/sanitize.ts, usado en AIChat y ProductDetail |
+| Race Conditions | ✅ Resuelto | createOrder usa db.runTransaction() + idempotency_key + webhook_dedup |
 | Feature Flags | ❌ Falta | Sin implementación |
 | Search Engine | ❌ Falta | Filtrado client-side |
 | Cache Backend | ❌ Falta | Solo Workbox frontend |
 | Analytics/Events | ❌ Falta | Sin BigQuery/tracking |
 | Fraud Detection | ⚠️ Parcial | Búnker de seguridad con Rate Limiting y App Check |
+| Paginación Universal | ⚠️ Parcial | Manual en MyOrders; falta hook usePaginatedQuery reutilizable |
 
 ---
 
-## CAPA 0 — QUICK WINS DE SEGURIDAD (1-2 sesiones)
+## CAPA 0 — QUICK WINS DE SEGURIDAD ✅ COMPLETADA
 
-> Cosas que se pueden hacer rápido y tienen alto impacto en seguridad.
+### 0.1 Security Headers en Firebase Hosting ✅
+- CSP completa, HSTS, X-Frame-Options: DENY, nosniff, Referrer-Policy, Permissions-Policy implementados en `firebase.json`.
 
-### 0.1 Security Headers en Firebase Hosting
-- Configurar `firebase.json` → `hosting.headers`:
-  - `Content-Security-Policy`
-  - `X-Frame-Options: DENY`
-  - `X-Content-Type-Options: nosniff`
-  - `Strict-Transport-Security: max-age=31536000; includeSubDomains`
-  - `Referrer-Policy: strict-origin-when-cross-origin`
-  - `Permissions-Policy: camera=(), microphone=(), geolocation=(self)`
-- **Archivos**: `firebase.json`
+### 0.2 Sanitización HTML ✅
+- `dompurify` + `@types/dompurify` instalados. `utils/sanitize.ts` con `sanitizeHtml()`. En uso en `AIChat.tsx` y `ProductDetail.tsx`.
 
-### 0.2 Sanitización HTML
-- Instalar `dompurify` + `@types/dompurify`
-- Sanitizar contenido en `react-markdown` (product descriptions)
-- Crear util `sanitize.ts` reutilizable
-- **Archivos**: `package.json`, nuevo `utils/sanitize.ts`, componentes con react-markdown
-
-### 0.3 Validación con Zod en Cloud Functions
-- Instalar `zod` en `/functions`
-- Crear schemas para los 3 endpoints más críticos:
-  - `createOrder` (items, totales, dirección)
-  - `generateWompiSignature` (reference, amount, currency)
-  - `createNotification` (userId, title, message)
-- Reemplazar validaciones manuales por `.parse()` / `.safeParse()`
-- **Archivos**: `functions/package.json`, `functions/index.js` (o extraer a `functions/schemas/`)
+### 0.3 Validación con Zod en Cloud Functions ✅
+- `functions/schemas.js` con schemas Zod para todos los endpoints críticos. `withSecurityBunker` integra validación automática.
 
 ---
 
-## CAPA 1 — OBSERVABILIDAD (2-3 sesiones)
+## CAPA 1 — OBSERVABILIDAD ✅ COMPLETADA
 
-> Sin observabilidad volamos a ciegas. Prioridad alta.
+### 1.1 Sentry ✅
+- `@sentry/react` instalado. `Sentry.init()` en `index.tsx` con DSN desde env, prod-only, 10% traces + 50% replays en error. `ErrorBoundary` y `ErrorState` integrados.
 
-### 1.1 Sentry para Error Tracking
-- Instalar `@sentry/react` en frontend
-- Configurar `Sentry.init()` en `main.tsx` con:
-  - `dsn` desde env var
-  - `environment: import.meta.env.MODE`
-  - `tracesSampleRate: 0.1` (10% en prod)
-- Conectar `ErrorBoundary` existente con `Sentry.captureException()`
-- **Archivos**: `package.json`, `main.tsx`, `components/ErrorBoundary.tsx`
+### 1.2 Logging Estructurado CF ✅
+- `functions/src/utils/logger.js` con wrapper sobre `firebase-functions/logger`. Contexto `{ userId, orderId, action }` en todos los servicios.
 
-### 1.2 Logging Estructurado en Cloud Functions
-- Reemplazar `console.log/error` con Cloud Logging estructurado:
-  ```js
-  const { log, error, warn } = require("firebase-functions/logger");
-  ```
-- Agregar contexto a cada log: `{ userId, orderId, action, timestamp }`
-- **Archivos**: `functions/index.js`
+### 1.3 Auditoría ✅
+- `functions/src/utils/audit.js` → `writeAuditLog()`. Registra disputas, cambios de rol, eventos financieros en colección `audit_logs`.
 
-### 1.3 Auditoría de Acciones Críticas
-- ✅ Verificado que `audit_logs` collection registra acciones de resolución de disputas, cambios de rol y eventos financieros.
-- ✅ Implementado helper `writeAuditLog` centralizado.
-- **Archivos**: `functions/src/utils/audit.js`, `functions/src/services/orderService.js`
+### 1.4 Health Check ✅
+- CF `healthCheck` exportada en `functions/index.js`.
 
-### 1.4 Health Check Endpoint
-- Crear Cloud Function `healthCheck` (onRequest, público)
-- Retorna: `{ status: "ok", timestamp, region, version }`
-- Útil para monitoreo externo (UptimeRobot, etc.)
-- **Archivos**: `functions/index.js`
-
-### 1.5 Alertas Básicas
-- Configurar Cloud Monitoring alerts para:
-  - Error rate > 5% en Cloud Functions
-  - Latencia P95 > 5s
-  - Cloud Function failures
-- Notificación por email al admin
-- **Archivos**: Configuración en Google Cloud Console (no código)
+### 1.5 Alertas Básicas ❌
+- Pendiente configurar en Google Cloud Console (Cloud Monitoring → alertas por error rate y latencia P95).
 
 ---
 
