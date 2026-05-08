@@ -1,6 +1,7 @@
 {
   "projects": {
     "default": "rescatto-c8d2b",
-    "production": "rescatto-c8d2b"
+    "production": "rescatto-c8d2b",
+    "staging": "rescatto-staging"
   }
 }

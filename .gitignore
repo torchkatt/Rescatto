@@ -128,6 +128,7 @@ test-results/
 # --- Robust Gitignore Standards ---
 .env.*
 !.env.example
+!.env.staging.example
 credentials.json
 token.json
 venv/
