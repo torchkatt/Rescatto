@@ -317,14 +317,15 @@ export const dataService = {
      * @param callback - Función llamada con el arreglo de pedidos actualizado
      * @returns Función Unsubscribe para detener la escucha
      */
-    subscribeToOrders: (venueId: string | string[], callback: (orders: Order[]) => void): Unsubscribe => {
+    subscribeToOrders: (venueId: string | string[], callback: (orders: Order[]) => void, maxOrders = 100): Unsubscribe => {
         const ordersRef = collection(db, 'orders');
 
         let q;
         if (venueId === 'all') {
             q = query(
                 ordersRef,
-                orderBy('createdAt', 'desc')
+                orderBy('createdAt', 'desc'),
+                limit(maxOrders)
             );
         } else if (Array.isArray(venueId)) {
             if (venueId.length === 0) {
@@ -336,13 +337,15 @@ export const dataService = {
             q = query(
                 ordersRef,
                 where('venueId', 'in', limitedVenueIds),
-                orderBy('createdAt', 'desc')
+                orderBy('createdAt', 'desc'),
+                limit(maxOrders)
             );
         } else {
             q = query(
                 ordersRef,
                 where('venueId', '==', venueId),
-                orderBy('createdAt', 'desc')
+                orderBy('createdAt', 'desc'),
+                limit(maxOrders)
             );
         }
 
@@ -377,25 +380,22 @@ export const dataService = {
      */
     subscribeToAvailableOrders: (callback: (orders: Order[]) => void): Unsubscribe => {
         const ordersRef = collection(db, 'orders');
-        // Solo pedidos de domicilio sin conductor asignado.
-        // El filtrado por estado permitido se hace en memoria para simplificar índices y reglas.
+        // Solo pedidos de domicilio en estado READY sin conductor asignado.
         const q = query(
             ordersRef,
             where('deliveryMethod', '==', 'delivery'),
-            where('driverId', '==', null)
+            where('status', '==', OrderStatus.READY),
+            where('driverId', '==', null),
+            orderBy('createdAt', 'desc'),
+            limit(50)
         );
 
         return onSnapshot(q, (snapshot) => {
-            const allowedStatuses = new Set<OrderStatus>([
-                OrderStatus.READY,
-            ]);
-
             const orders = snapshot.docs.map(doc => {
                 const data = doc.data();
                 return {
                     id: doc.id,
                     ...data,
-                    // Asegurar que campos obligatorios existan para TS
                     customerName: data.customerName || 'Cliente',
                     products: data.products || [],
                     totalAmount: data.totalAmount,
@@ -408,8 +408,7 @@ export const dataService = {
                     phone: data.phone || '',
                     paymentMethod: data.paymentMethod || 'cash',
                 } as Order;
-            }).filter(order => allowedStatuses.has(order.status as OrderStatus))
-                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            });
             callback(orders);
         }, (error) => logger.error("Error suscribiéndose a pedidos disponibles:", error));
     },
@@ -422,7 +421,8 @@ export const dataService = {
         const q = query(
             ordersRef,
             where('driverId', '==', driverId),
-            orderBy('createdAt', 'desc')
+            orderBy('createdAt', 'desc'),
+            limit(30)
         );
 
         return onSnapshot(q, (snapshot) => {
