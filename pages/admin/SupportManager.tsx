@@ -14,7 +14,7 @@ import {
     MessageSquare, Search, Send, Trash2, RefreshCw,
     Users, Truck, Store, ShieldCheck, Circle, X,
     ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
-    Inbox, Scale, CheckCircle, XCircle, AlertCircle
+    Inbox, Scale, CheckCircle, XCircle, AlertCircle, Ban
 } from 'lucide-react';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../services/firebase';
@@ -286,7 +286,7 @@ export const SupportManager: React.FC = () => {
             title: 'Resolver Disputa',
             message: `¿Confirmas la resolución "${resolution}" para el pedido #${selectedOrder.id.slice(-6)}?`,
             confirmLabel: 'Confirmar Resolución',
-            variant: resolution === 'REFUND_CUSTOMER' ? 'warning' : 'primary',
+            variant: resolution === 'REFUND_CUSTOMER' ? 'warning' : 'danger',
         });
 
         if (!confirmed) return;

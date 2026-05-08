@@ -8,6 +8,7 @@ import { useToast } from '../context/ToastContext';
 import { useLocation } from '../context/LocationContext';
 import { logger } from '../utils/logger';
 import { isProductExpired } from '../utils/productAvailability';
+import { Analytics } from '../utils/analytics';
 import { hasAskedForNotifications } from '../components/customer/common/NotificationPermissionModal';
 
 interface OrderPayload {
@@ -186,6 +187,13 @@ export const useOrderFlow = () => {
       const orderIds = succeeded.map(r => r.value.orderId);
       clearCart();
       success(paymentMethod === 'card' ? '¡Pago exitoso! Tu pedido ha sido confirmado. ✅' : '¡Pedido realizado con éxito! 🎉');
+
+      succeeded.forEach(r => {
+        const venueItems = venueGroups.get(r.value.venueId) ?? [];
+        const total = venueItems.reduce((acc, item) => acc + (item.discountedPrice ?? item.originalPrice ?? 0) * (item.quantity ?? 1), 0);
+        Analytics.orderCreated(r.value.orderId, r.value.venueId, total, deliveryMethod);
+      });
+
       navigateAfterOrder(getRedirectPath(orderIds));
 
     } catch (err: any) {
