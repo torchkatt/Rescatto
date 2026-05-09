@@ -3,7 +3,15 @@ SETLOCAL EnableDelayedExpansion
 
 :: --- CONFIGURACIÓN ---
 SET PROJECT_ID=rescatto-c8d2b
-SET TOKEN=YOUR_FIREBASE_TOKEN_HERE
+
+:: Si no existe la variable de entorno FIREBASE_TOKEN, puedes definirla aqui temporalmente
+:: pero NO la subas al repositorio.
+if "%FIREBASE_TOKEN%"=="" (
+    SET TOKEN=YOUR_FIREBASE_TOKEN_HERE
+) else (
+    SET TOKEN=%FIREBASE_TOKEN%
+)
+
 
 
 echo [RESCATTO] Iniciando despliegue del Bunker de Seguridad...
