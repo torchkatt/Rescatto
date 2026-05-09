@@ -140,9 +140,24 @@ export const ProductDetail: React.FC = () => {
                                         -{discount}% OFF
                                     </div>
                                 )}
-                                <div className="bg-white/95 backdrop-blur-sm text-brand-dark text-[10px] font-black px-3 py-1.5 rounded-xl shadow-lg border border-white/10 uppercase tracking-widest">
+                                <div className="bg-white/95 backdrop-blur-sm text-brand-dark text-[10px] font-black px-3 py-1.5 rounded-xl shadow-lg border border-white/10 uppercase tracking-widest flex items-center gap-1">
                                     {product.category}
+                                    {product.subcategory && (
+                                        <>
+                                            <ChevronRight size={10} className="text-gray-400" />
+                                            <span className="text-emerald-600">{product.subcategory}</span>
+                                        </>
+                                    )}
                                 </div>
+                                {product.isRescue !== false ? (
+                                    <div className="bg-emerald-600/95 backdrop-blur-sm text-white text-[10px] font-black px-3 py-1.5 rounded-xl shadow-lg border border-emerald-400/30 uppercase tracking-widest flex items-center gap-1.5">
+                                        <span role="img" aria-label="rescue">🍃</span> Rescate
+                                    </div>
+                                ) : (
+                                    <div className="bg-blue-600/95 backdrop-blur-sm text-white text-[10px] font-black px-3 py-1.5 rounded-xl shadow-lg border border-blue-400/30 uppercase tracking-widest flex items-center gap-1.5">
+                                        <span role="img" aria-label="regular">💎</span> Regular
+                                    </div>
+                                )}
                                 {product.quantity < 5 && product.quantity > 0 && !isProductExpired(product.availableUntil) && (
                                     <div className="bg-red-500/95 backdrop-blur-sm text-white text-[10px] font-black px-3 py-1.5 rounded-xl shadow-lg flex items-center gap-2 animate-in fade-in zoom-in duration-500 ml-auto sm:ml-0">
                                         <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span>
@@ -207,11 +222,28 @@ export const ProductDetail: React.FC = () => {
                                 <div className="w-12 h-12 rounded-xl bg-white shadow-sm flex items-center justify-center text-emerald-600">
                                     <Clock size={24} />
                                 </div>
-                                <div>
+                                <div className="flex-1">
                                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider mb-0.5">{t('pickup_time') || 'RECOGIDA'}</p>
                                     <p className="text-sm font-black text-brand-dark">
                                         {t('prod_pickup_today', { time: venue?.closingTime || '22:00' })}
                                     </p>
+                                </div>
+                                {product.isRescue !== false && (
+                                    <div className="text-right">
+                                        <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Eco Impacto</p>
+                                        <p className="text-xs font-black text-emerald-700">-0.5kg CO2</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Personalization Hint */}
+                            <div className="bg-blue-50/50 rounded-2xl p-4 border border-blue-100/50 flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center text-blue-600">
+                                    <Zap size={20} />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black text-blue-700 uppercase tracking-wider">Personalizable</p>
+                                    <p className="text-[10px] text-blue-600 font-medium">Podrás añadir notas especiales en el checkout.</p>
                                 </div>
                             </div>
                         </div>

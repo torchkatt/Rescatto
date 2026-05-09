@@ -27,7 +27,9 @@ interface AuthContextType {
   sendVerificationEmail: () => Promise<void>;
   isEmailVerified: boolean;
   isAccountVerified: boolean;
+  isReadyForBackend: boolean;
   switchVenue: (venueId: string) => Promise<void>;
+  refreshClaims: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -38,6 +40,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [activeMembership, setActiveMembership] = useState<Membership | null>(null);
   const [roles, setRoles] = useState<RoleDefinition[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Referencia para evitar múltiples cargas de roles
+  const rolesLoadedRef = React.useRef(false);
 
   useEffect(() => {
     let userUnsubscribe: (() => void) | null = null;
@@ -56,11 +61,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Procesar resultado de redirect de Google (si el usuario viene de signInWithRedirect)
     authService.handleGoogleRedirectResult().catch(() => {});
 
-    // Cargar Roles
+    // Cargar Roles (Optimizado con Caché)
     const loadRoles = async () => {
+      if (rolesLoadedRef.current) return;
       try {
         const loadedRoles = await roleService.getAllRoles();
         setRoles(loadedRoles);
+        rolesLoadedRef.current = true;
       } catch (error) {
         logger.error("Falló la carga de roles en AuthContext", error);
       }
@@ -110,10 +117,33 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               // ─── Silent Token Refresh (Bunker Security) ───
               const claimsVersion = userData.claimsVersion || 0;
               const lastRefreshedVersion = (window as any)._lastClaimsVersion || 0;
+              
+              // [Bunker] Protección contra bucles infinitos: Solo intentar sincronizar una vez por sesión
+              if ((role === UserRole.SUPER_ADMIN || role === UserRole.ADMIN || role === UserRole.VENUE_OWNER) && 
+                  !userData.claimsVersion && 
+                  !(window as any)._triedBunkerSync && 
+                  firebaseUser) {
+                  
+                  (window as any)._triedBunkerSync = true;
+                  logger.log('AuthContext: Forzando sincronización inicial del Búnker...');
+                  
+                  updateDoc(userDocRef, { _bunkerSync: Date.now() })
+                      .catch(err => {
+                          (window as any)._triedBunkerSync = false;
+                          logger.error('AuthContext: Error forzando sync de bunker', err);
+                      });
+              }
+
               if (claimsVersion > lastRefreshedVersion && firebaseUser) {
                 firebaseUser.getIdToken(true).then(() => {
                   (window as any)._lastClaimsVersion = claimsVersion;
                   logger.log(`AuthContext: Token refrescado (v${claimsVersion})`);
+                  setUser(prev => {
+                      if (!prev) return null;
+                      // Evitar actualización de estado si no hay cambios reales
+                      if (prev.role === role && (window as any)._lastClaimsVersion === claimsVersion) return prev;
+                      return { ...prev };
+                  });
                 }).catch(err => logger.error('AuthContext: Error refrescando token', err));
               }
 
@@ -130,6 +160,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 city: userData.city,
                 phone: userData.phone,
                 isVerified: finalIsVerified,
+                claimsVersion,
                 impact: userData.impact,
                 streak: userData.streak,
                 redemptions: userData.redemptions,
@@ -307,26 +338,56 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [user, activeMembership]);
 
   const sendVerificationEmail = useCallback(async () => {
-    await authService.sendVerificationEmail();
-  }, []);
+    const email = user?.email || auth.currentUser?.email;
+    if (!email) {
+      logger.error('AuthContext: No se puede enviar verificación, email no disponible');
+      return;
+    }
+    await authService.sendVerificationEmail(email);
+  }, [user?.email]);
 
-  const isTestUser = user?.email?.endsWith('@test.com');
+  const isTestUser = useMemo(() => 
+    user?.email?.endsWith('@test.com') || user?.email?.endsWith('@rescatto.com'),
+  [user?.email]);
 
-  // Lógica de verificación unificada
-  // Un usuario está 'verificado' si:
-  // 1. Es un Super Admin
-  // 2. Es un Usuario de Prueba (@test.com)
-  // 3. Tiene email verificado Y la bandera isVerified en Firestore
-  const isAccountVerified =
-    user?.role === UserRole.SUPER_ADMIN ||
-    isTestUser ||
-    auth.currentUser?.isAnonymous ||
-    (auth.currentUser?.emailVerified && (
-      user?.role === UserRole.CUSTOMER || user?.isVerified === true
+  // [Bunker] Un administrador solo se considera 'verificado' para operar si su token 
+  // está sincronizado con la versión de Firestore.
+  const isBunkerSynced = useMemo(() => {
+    if (!user || (user.role !== UserRole.SUPER_ADMIN && user.role !== UserRole.ADMIN && user.role !== UserRole.VENUE_OWNER)) return true;
+    const currentVersion = user.claimsVersion || 0;
+    const lastRefreshed = (window as any)._lastClaimsVersion || 0;
+    return currentVersion > 0 && lastRefreshed >= currentVersion;
+  }, [user]);
+
+  // Lógica de verificación unificada (Email + Status)
+  const isAccountVerified = useMemo(() => {
+    if (!user) return false;
+    if (user.role === UserRole.SUPER_ADMIN || isTestUser) return true;
+    if (auth.currentUser?.isAnonymous) return true;
+    
+    return !!(auth.currentUser?.emailVerified && (
+      user.role === UserRole.CUSTOMER || user.isVerified === true
     ));
+  }, [user, isTestUser]);
+
+  // Estado final de preparación (Verificado + Claims Sincronizados)
+  const isReadyForBackend = useMemo(() => isAccountVerified && isBunkerSynced, [isAccountVerified, isBunkerSynced]);
 
   // Mantener isEmailVerified para compatibilidad hacia atrás o verificaciones específicas
-  const isEmailVerified = auth.currentUser?.emailVerified || user?.role === UserRole.SUPER_ADMIN || isTestUser || false;
+  const isEmailVerified = useMemo(() => 
+    auth.currentUser?.emailVerified || user?.role === UserRole.SUPER_ADMIN || isTestUser || false,
+  [user?.role, isTestUser]);
+
+  const refreshClaims = useCallback(async () => {
+    if (auth.currentUser) {
+      logger.log('AuthContext: Solicitando refresco manual de claims (Búnker)...');
+      await auth.currentUser.getIdToken(true);
+      if (user?.claimsVersion) {
+        (window as any)._lastClaimsVersion = user.claimsVersion;
+      }
+      setUser(prev => prev ? { ...prev } : null);
+    }
+  }, [user?.claimsVersion]);
 
   const switchVenue = useCallback(async (venueId: string) => {
     if (!user) return;
@@ -371,10 +432,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     sendVerificationEmail,
     isEmailVerified,
     isAccountVerified,
+    isReadyForBackend,
     switchVenue,
-  }), [user, memberships, activeMembership, isLoading, roles, isEmailVerified, isAccountVerified,
+    refreshClaims
+  }), [user, memberships, activeMembership, isLoading, roles, sendVerificationEmail, isEmailVerified, isAccountVerified, isReadyForBackend, switchVenue, refreshClaims,
     login, loginWithGoogle, loginWithApple, loginWithFacebook, loginAsGuest,
-    convertGuestToUser, logout, hasRole, sendVerificationEmail, switchVenue, switchMembership]);
+    convertGuestToUser, logout, hasRole, switchMembership]);
 
   return (
     <AuthContext.Provider value={contextValue}>

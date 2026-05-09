@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
+import { DataTable } from '../../components/common/DataTable';
 import { useSearchParams } from 'react-router-dom';
 import { doc, updateDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -464,67 +465,93 @@ export const OrderManagement: React.FC = () => {
                         </p>
                     </div>
                 ) : isSuperAdmin ? (
-                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                        <div className="overflow-x-auto -mx-4 sm:mx-0">
-                            <table className="w-full min-w-[900px] text-left border-collapse">
-                                <thead className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500">
-                                    <tr>
-                                        <th className="px-4 py-3">Pedido</th>
-                                        <th className="px-4 py-3">Fecha</th>
-                                        <th className="px-4 py-3">Negocio</th>
-                                        <th className="px-4 py-3">Ciudad</th>
-                                        <th className="px-4 py-3">Estado</th>
-                                        <th className="px-4 py-3">Total</th>
-                                        <th className="px-4 py-3">Pago</th>
-                                        <th className="px-4 py-3">Entrega</th>
-                                        <th className="px-4 py-3">Comisión</th>
-                                        <th className="px-4 py-3">Ganancia Sede</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="text-sm">
-                                    {tableOrders.map(order => (
-                                        <tr key={order.id} className="border-t border-gray-100 hover:bg-gray-50/60">
-                                            <td className="px-4 py-3 text-gray-700">
-                                                <div className="font-semibold">#{order.id.slice(0, 8)}</div>
-                                                <div className="text-xs text-gray-500">{order.customerName}</div>
-                                            </td>
-                                            <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                                                {new Date(order.createdAt).toLocaleString('es-ES', {
-                                                    month: 'short',
-                                                    day: 'numeric',
-                                                    hour: '2-digit',
-                                                    minute: '2-digit'
-                                                })}
-                                            </td>
-                                            <td className="px-4 py-3 text-gray-600">
-                                                {order.metadata?.venueName || order.venueId}
-                                            </td>
-                                            <td className="px-4 py-3 text-gray-600">
-                                                {order.city || 'N/D'}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {getStatusBadge(order.status)}
-                                            </td>
-                                            <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">
-                                                {formatCOP(order.totalAmount)}
-                                            </td>
-                                            <td className="px-4 py-3 text-gray-600">
-                                                {order.paymentMethod || 'N/D'}
-                                            </td>
-                                            <td className="px-4 py-3 text-gray-600">
-                                                {order.deliveryMethod || 'N/D'}
-                                            </td>
-                                            <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                                                {order.platformFee != null ? formatCOP(order.platformFee) : 'N/D'}
-                                            </td>
-                                            <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                                                {order.venueEarnings != null ? formatCOP(order.venueEarnings) : 'N/D'}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                    <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-2xl overflow-hidden p-6">
+                        <DataTable
+                            data={flatOrders}
+                            columns={[
+                                {
+                                    header: 'Pedido',
+                                    accessor: 'id' as keyof any,
+                                    sortable: true,
+                                    render: (value: string, order: any) => (
+                                        <div className="flex flex-col">
+                                            <span className="font-bold text-gray-900">#{value.slice(0, 8)}</span>
+                                            <span className="text-xs text-gray-500 font-medium">{order.customerName}</span>
+                                        </div>
+                                    )
+                                },
+                                {
+                                    header: 'Fecha',
+                                    accessor: 'createdAt' as keyof any,
+                                    sortable: true,
+                                    render: (value: number) => (
+                                        <div className="text-xs text-gray-600 whitespace-nowrap">
+                                            {new Date(value).toLocaleString('es-ES', {
+                                                month: 'short',
+                                                day: 'numeric',
+                                                hour: '2-digit',
+                                                minute: '2-digit'
+                                            })}
+                                        </div>
+                                    )
+                                },
+                                {
+                                    header: 'Negocio',
+                                    accessor: 'venueName' as keyof any,
+                                    sortable: true,
+                                    render: (value: string, order: any) => (
+                                        <div className="text-gray-700 font-medium">
+                                            {order.metadata?.venueName || order.venueId}
+                                        </div>
+                                    )
+                                },
+                                {
+                                    header: 'Ciudad',
+                                    accessor: 'city' as keyof any,
+                                    sortable: true,
+                                    className: 'hidden md:table-cell'
+                                },
+                                {
+                                    header: 'Estado',
+                                    accessor: 'status' as keyof any,
+                                    sortable: true,
+                                    render: (value: OrderStatus) => getStatusBadge(value)
+                                },
+                                {
+                                    header: 'Total',
+                                    accessor: 'totalAmount' as keyof any,
+                                    sortable: true,
+                                    render: (value: number) => (
+                                        <span className="font-bold text-emerald-700 whitespace-nowrap">
+                                            {formatCOP(value)}
+                                        </span>
+                                    )
+                                },
+                                {
+                                    header: 'Pago / Entrega',
+                                    accessor: 'paymentMethod' as keyof any,
+                                    render: (value: string, order: any) => (
+                                        <div className="text-[10px] uppercase font-black tracking-tight text-gray-400">
+                                            <div>{value}</div>
+                                            <div className="text-emerald-600">{order.deliveryMethod}</div>
+                                        </div>
+                                    )
+                                },
+                                {
+                                    header: 'Finanzas',
+                                    accessor: 'platformFee' as keyof any,
+                                    sortable: true,
+                                    render: (value: number, order: any) => (
+                                        <div className="text-[10px] font-bold">
+                                            <div className="text-amber-600" title="Comisión">C: {formatCOP(value || 0)}</div>
+                                            <div className="text-blue-600" title="Ganancia Sede">S: {formatCOP(order.venueEarnings || 0)}</div>
+                                        </div>
+                                    )
+                                }
+                            ]}
+                            placeholder="Buscar por pedido, negocio, ciudad, cliente..."
+                            initialPageSize={25}
+                        />
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -536,7 +563,14 @@ export const OrderManagement: React.FC = () => {
                                         <p className="text-xs text-gray-500">Pedido #{order.id.slice(0, 8)}</p>
                                         <h3 className="font-bold text-lg text-gray-800">{order.customerName}</h3>
                                     </div>
-                                    {getStatusBadge(order.status)}
+                                    <div className="flex flex-col items-end gap-1">
+                                        {getStatusBadge(order.status)}
+                                        {order.products.some(p => p.isRescue !== false) && (
+                                            <span className="bg-emerald-50 text-emerald-700 text-[10px] font-black px-2 py-0.5 rounded-full border border-emerald-200 shadow-sm flex items-center gap-1">
+                                                Rescate 🍃
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
 
                                 {order.isDonation && (
@@ -588,6 +622,18 @@ export const OrderManagement: React.FC = () => {
                                             <MapPin size={12} className="text-emerald-500" />
                                             Entregar en: {order.donationCenterName}
                                         </p>
+                                    )}
+
+                                    {/* Customer Personalization Note */}
+                                    {order.customerNote && (
+                                        <div className="mt-3 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+                                            <p className="text-[10px] font-black text-blue-800 uppercase tracking-wider mb-1 flex items-center gap-1">
+                                                <Gift size={12} /> Nota del Cliente:
+                                            </p>
+                                            <p className="text-xs text-blue-900 font-medium leading-relaxed italic">
+                                                "{order.customerNote}"
+                                            </p>
+                                        </div>
                                     )}
                                 </div>
 

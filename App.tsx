@@ -45,6 +45,7 @@ const BackofficeVenuesManager = lazyLoad(() => import('./pages/admin/VenuesManag
 const DriversManager = lazyLoad(() => import('./pages/admin/DriversManager'), 'DriversManager');
 const SupportManager = lazyLoad(() => import('./pages/admin/SupportManager'), 'SupportManager');
 const FraudDashboard = lazyLoad(() => import('./pages/admin/FraudDashboard'), 'FraudDashboard');
+const AdminLab = lazyLoad(() => import('./pages/admin/AdminLab'), 'default');
 
 // Components
 import ProtectedRoute from './components/ProtectedRoute';
@@ -317,6 +318,8 @@ const AppRoutes: React.FC = () => {
                     <Route path="dashboard" element={<DashboardOverview />} />
                     <Route path="users" element={<UsersManager />} />
                     <Route path="venues" element={<BackofficeVenuesManager />} />
+                    <Route path="products" element={<ProductManager />} />
+                    <Route path="orders" element={<Orders />} />
                     <Route path="audit" element={<AuditLogs />} />
                     <Route path="finance" element={<FinanceManager />} />
                     <Route path="commissions" element={<CommissionsManager />} />
@@ -327,6 +330,7 @@ const AppRoutes: React.FC = () => {
                     <Route path="support" element={<SupportManager />} />
                     <Route path="fraud" element={<FraudDashboard />} />
                     <Route path="help" element={<HelpCenter />} />
+                    <Route path="lab" element={<AdminLab />} />
                 </Route>
 
                 {/* --- LEGACY ADMIN ROUTES (Will be deprecated) --- */}

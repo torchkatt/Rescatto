@@ -37,6 +37,11 @@ service cloud.firestore {
       );
     }
 
+    // Valida si el interruptor de seguridad para mantenimiento está activo
+    function isLabEmergencyMode() {
+      return get(/databases/$(database)/documents/settings/lab).data.emergencyDeleteMode == true;
+    }
+
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
@@ -155,7 +160,8 @@ service cloud.firestore {
     // ─── ROOT STATS ──────────────────────────────────────────────────────
     match /stats/{statId} {
       allow read: if isAdmin();
-      allow write: if false; // Only Cloud Functions can write here (e.g. aggregateAdminStats)
+      allow write: if false; 
+      allow delete: if isSuperAdmin() && isLabEmergencyMode();
     }
 
     // ─── USERS ───────────────────────────────────────────────────────────
@@ -165,7 +171,7 @@ service cloud.firestore {
 
       // Allow any authenticated user to create their own profile.
       // Guest users (anonymous) need this to initialize their documents.
-      allow create: if isOwner(userId) && isValidUser();
+      allow create: if (isOwner(userId) || isAdmin()) && isValidUser();
 
       // Allow profile updates and sync verification.
       // Also allow updating activeMembershipId during initial setup.
@@ -173,7 +179,7 @@ service cloud.firestore {
         || isOwner(userId)
         || canUserSyncVerification(userId)) && isValidUser();
 
-      allow delete: if isSuperAdmin();
+      allow delete: if isSuperAdmin() && isLabEmergencyMode();
 
       // Stats subcollection (e.g. users/{userId}/stats/ratings)
       match /stats/{statId} {
@@ -201,7 +207,7 @@ service cloud.firestore {
         resource.data.userId == request.auth.uid &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
       );
-      allow delete: if isSuperAdmin();
+      allow delete: if isSuperAdmin() && isLabEmergencyMode();
     }
 
 
@@ -428,8 +434,7 @@ service cloud.firestore {
         canCustomerConfirmDelivery() ||
         canCustomerDisputeDelivery() ||
         canCustomerCancelOrder();
-
-      allow delete: if isSuperAdmin();
+      allow delete: if isSuperAdmin() && isLabEmergencyMode();
     }
 
 
@@ -448,6 +453,11 @@ service cloud.firestore {
     // ─── CATEGORIES ──────────────────────────────────────────────────────
 
     match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /product_categories/{catId} {
       allow read: if true;
       allow write: if isAdmin();
     }
@@ -473,7 +483,8 @@ service cloud.firestore {
 
     match /wallets/{walletId} {
       allow read: if belongsToVenue(walletId) || isAdmin();
-      allow write: if false; // Only via Cloud Functions
+      allow write: if false; 
+      allow delete: if isSuperAdmin() && isLabEmergencyMode();
     }
 
 
@@ -485,7 +496,8 @@ service cloud.firestore {
           resource.data.venueId == getUserData().venueId ||
           (getUserData().venueIds != null && resource.data.venueId in getUserData().venueIds)
         ));
-      allow write: if false; // Only via Cloud Functions
+      allow write: if false; 
+      allow delete: if isSuperAdmin() && isLabEmergencyMode();
     }
 
 
@@ -568,7 +580,8 @@ service cloud.firestore {
       allow create: if isAuthenticated()
           && request.resource.data.performedBy == request.auth.uid
           && isValidAuditLog();
-      allow update, delete: if false;     // Immutable
+      allow update: if false;
+      allow delete: if isSuperAdmin() && isLabEmergencyMode();
     }
 
 

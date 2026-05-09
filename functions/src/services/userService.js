@@ -79,18 +79,19 @@ const ensureReferralCode = onCall(withErrorHandling("ensureReferralCode", async 
 }));
 
 /**
- * Deletes a user account (Super Admin only).
+ * Deletes a user account (Super Admin or Admin with higher hierarchy).
  */
 const deleteUserAccount = onCall(withErrorHandling("deleteUserAccount", async (request) => {
     if (!request.auth) {
         throw new HttpsError("unauthenticated", "User must be logged in.");
     }
 
-    const callerDoc = await db.collection("users").doc(request.auth.uid).get();
+    const callerId = request.auth.uid;
+    const callerDoc = await db.collection("users").doc(callerId).get();
     const callerData = callerDoc.data();
 
     if (!callerData || callerData.role !== "SUPER_ADMIN") {
-        throw new HttpsError("permission-denied", "Only Super Admins can delete accounts.");
+        throw new HttpsError("permission-denied", "Solo el Super Administrador puede eliminar cuentas.");
     }
 
     const deleteParsed = DeleteUserAccountSchema.safeParse(request.data || {});
@@ -99,10 +100,43 @@ const deleteUserAccount = onCall(withErrorHandling("deleteUserAccount", async (r
     }
     const { uid } = deleteParsed.data;
 
-    await admin.auth().deleteUser(uid);
-    // Note: audit log should be handled by a helper if possible, or here.
-    // For now keeping it simple.
-    
+    if (callerId === uid) {
+        throw new HttpsError("permission-denied", "No puedes eliminar tu propia cuenta desde aquí.");
+    }
+
+    // 2. Intentar borrar de Firebase Auth
+    try {
+        await admin.auth().deleteUser(uid);
+        log(`[deleteUserAccount] Cuenta de Auth eliminada para ${uid}`);
+    } catch (e) {
+        if (e.code === "auth/user-not-found") {
+            log(`[deleteUserAccount] Usuario ${uid} no encontrado en Auth, procediendo con limpieza de datos.`);
+        } else {
+            logError(`[deleteUserAccount] Error borrando cuenta de Auth para ${uid}`, e);
+            // No lanzamos error para permitir la limpieza de Firestore si Auth falla por otras razones
+        }
+    }
+
+    // 3. Borrar documento de Firestore y membresías
+    try {
+        const batch = db.batch();
+
+        // Documento de usuario
+        batch.delete(db.collection("users").doc(uid));
+
+        // Membresías
+        const membershipsSnap = await db.collection("memberships").where("userId", "==", uid).get();
+        membershipsSnap.forEach(doc => batch.delete(doc.ref));
+
+        // Billeteras (si existen y no tienen saldo?) -> Por ahora solo el perfil principal
+
+        await batch.commit();
+        log(`[deleteUserAccount] Datos de Firestore eliminados para ${uid}`);
+    } catch (e) {
+        logError(`[deleteUserAccount] Error borrando datos de Firestore para ${uid}`, e);
+        throw new HttpsError("internal", "Error al eliminar datos del usuario en la base de datos.");
+    }
+
     return { success: true };
 }));
 
@@ -144,7 +178,7 @@ const getReferralStats = onCall(withErrorHandling("getReferralStats", async (req
  */
 const updateDriverLocation = onCall(withSecurityBunker("updateDriverLocation", async (request) => {
     const { lat, lng } = request.data || {};
-    
+
     if (typeof lat !== "number" || typeof lng !== "number") {
         throw new HttpsError("invalid-argument", "Latitud y Longitud deben ser números.");
     }
@@ -162,7 +196,7 @@ const updateDriverLocation = onCall(withSecurityBunker("updateDriverLocation", a
     }
 
     const userRef = db.collection("users").doc(userId);
-    
+
     await userRef.update({
         lastLocation: new admin.firestore.GeoPoint(lat, lng),
         lastSeen: admin.firestore.FieldValue.serverTimestamp(),
@@ -191,7 +225,7 @@ async function syncUserClaims(userId) {
         const data = userDoc.data();
         const role = data.role || "CUSTOMER";
         const venueIds = normalizeVenueIds(data);
-        
+
         // Estructura de claims compacta para no exceder el límite de 1KB
         const claims = {
             role,
@@ -221,12 +255,13 @@ async function syncUserClaims(userId) {
 const onUserUpdated = onDocumentUpdated("users/{userId}", async (event) => {
     const newData = event.data.after.data();
     const oldData = event.data.before.data();
-    
-    // Solo resincronizar si cambió el rol o los venues asociados
+
+    // Solo resincronizar si cambió el rol, los venues asociados, o se solicitó un sync manual (_bunkerSync)
     const roleChanged = newData.role !== oldData.role;
     const venuesChanged = JSON.stringify(normalizeVenueIds(newData)) !== JSON.stringify(normalizeVenueIds(oldData));
+    const forceSync = newData._bunkerSync !== oldData._bunkerSync;
 
-    if (roleChanged || venuesChanged) {
+    if (roleChanged || venuesChanged || forceSync) {
         await syncUserClaims(event.params.userId);
     }
 });

@@ -64,6 +64,7 @@ Según la clasificación y descripción, aplica el skill adecuado:
 - **CORRIGE** fallos inmediatamente sin preguntar
 - **MÍNIMO** contexto en cada respuesta — solo código y comandos
 - **MEMORIA** persiste en `.ai-context/memory.json`
+- **ADMIN** todas las tablas nuevas deben usar `useAdminTable` y `inMemorySearch`. Prohibido usar estado local manual para paginación o búsqueda.
 
 ### Recordatorios Post-Implementación
 

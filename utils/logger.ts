@@ -5,13 +5,15 @@
  */
 
 const isDev = import.meta.env.DEV;
+// Manual override to silence logs if they are too noisy
+const silentMode = true; 
 
 export const logger = {
     /**
      * Log general information (development only)
      */
     log: (...args: any[]): void => {
-        if (isDev) console.log(...args);
+        if (isDev && !silentMode) console.log(...args);
     },
 
     /**
@@ -25,20 +27,21 @@ export const logger = {
      * Log warnings (development only)
      */
     warn: (...args: any[]): void => {
-        if (isDev) console.warn(...args);
+        if (isDev && !silentMode) console.warn(...args);
     },
 
     /**
      * Log informational messages (development only)
      */
     info: (...args: any[]): void => {
-        if (isDev) console.info(...args);
+        if (isDev && !silentMode) console.info(...args);
     },
 
     /**
      * Log debug information (development only)
      */
     debug: (...args: any[]): void => {
-        if (isDev) console.debug(...args);
+        if (isDev && !silentMode) console.debug(...args);
     },
 };
+

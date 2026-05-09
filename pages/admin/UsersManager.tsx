@@ -15,6 +15,8 @@ import { useConfirm } from '../../context/ConfirmContext';
 import { Tooltip } from '../../components/common/Tooltip';
 import { logger } from '../../utils/logger';
 import MobileDrawer from '../../components/common/MobileDrawer';
+import { DataTable, Column } from '../../components/common/DataTable';
+import { useAdminTable } from '../../hooks/useAdminTable';
 
 const roleNames: Record<UserRole, string> = {
     [UserRole.SUPER_ADMIN]: 'Super Administrador',
@@ -68,10 +70,7 @@ export const UsersManager: React.FC = () => {
     const toast = useToast();
     const confirm = useConfirm();
     const { user: currentUser } = useAuth();
-    const [users, setUsers] = useState<User[]>([]);
-    const [loading, setLoading] = useState(true);
     const [editingUser, setEditingUser] = useState<User | null>(null);
-    const [searchTerm, setSearchTerm] = useState('');
     const showPreview = false;
     const [previewUser, setPreviewUser] = useState<User | null>(null);
 
@@ -155,19 +154,42 @@ export const UsersManager: React.FC = () => {
         }
     };
 
+    const [selectedRole, setSelectedRole] = useState<string>('');
+    const [roleCounts, setRoleCounts] = useState<Record<string, number>>({});
+    const [loading, setLoading] = useState(false); // Local loading for actions
+    const [searchTerm, setSearchTerm] = useState(''); // Keep local for initial state or header if needed, but better to use table.searchTerm
+
+    const table = useAdminTable<User>({
+        fetchFn: (size, cursor, term) => adminService.getUsersPaginated(size, cursor, term, selectedRole),
+        countFn: (term) => selectedRole ? adminService.getUsersCountByRole(selectedRole as UserRole) : adminService.getUsersCount(),
+        initialPageSize: 20,
+        dependencies: [selectedRole]
+    });
+
     useEffect(() => {
-        loadUsers();
         loadVenues();
-        // loadUsers y loadVenues son estables al montaje; también se invocan desde handlers de formulario
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        loadRoleCounts();
     }, []);
+
+    const loadRoleCounts = async () => {
+        try {
+            const roles = Object.values(UserRole);
+            const counts: Record<string, number> = {};
+            await Promise.all(roles.map(async (role) => {
+                counts[role] = await adminService.getUsersCountByRole(role);
+            }));
+            setRoleCounts(counts);
+        } catch (error) {
+            logger.error('Error loading role counts', error);
+        }
+    };
 
     const handleToggleVerification = async (user: User) => {
         if (!currentUser) return;
         const newStatus = !user.isVerified;
         try {
             // Optimistic update
-            setUsers(users.map(u => u.id === user.id ? {
+            table.setData(prev => prev.map(u => u.id === user.id ? {
                 ...u,
                 isVerified: newStatus,
                 verificationDate: newStatus ? new Date().toISOString() : undefined
@@ -178,7 +200,7 @@ export const UsersManager: React.FC = () => {
         } catch (error) {
             logger.error('Error toggling verification', error);
             // addToast('Error al cambiar verificación', 'error');
-            loadUsers(); // Revert
+            table.reload(); // Revert
         }
     };
 
@@ -197,27 +219,6 @@ export const UsersManager: React.FC = () => {
         }
     };
 
-    const [lastDoc, setLastDoc] = useState<any>(null);
-    const [hasMore, setHasMore] = useState(true);
-    const [isLoadMoreLoading, setIsLoadMoreLoading] = useState(false);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [pageSize, setPageSize] = useState(20);
-
-    const loadUsers = async () => {
-        setLoading(true);
-        try {
-            const data = await adminService.getUsersPaginated(20);
-            setUsers(data.data);
-            setLastDoc(data.lastDoc);
-            setHasMore(data.hasMore);
-        } catch (error) {
-            logger.error('Failed to load users', error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-
     const mapAuthError = (code: string) => {
         switch (code) {
             case 'auth/email-already-in-use':
@@ -235,7 +236,7 @@ export const UsersManager: React.FC = () => {
 
     const handleCreateUser = async (e: React.FormEvent) => {
         e.preventDefault();
-        setLoading(true);
+        // table.isLoading is handled by the hook if we use table.reload()
         try {
             const { fullName, email, password, role, venueIds } = formData;
             const primaryVenueId = venueIds.length > 0 ? venueIds[0] : 'default-venue';
@@ -252,13 +253,12 @@ export const UsersManager: React.FC = () => {
             setCreatingUser(false);
             setFormData({ fullName: '', email: '', password: '', role: UserRole.KITCHEN_STAFF, venueIds: [] });
             toast.success('Usuario creado exitosamente');
-            loadUsers();
+            table.reload();
+            loadRoleCounts();
         } catch (error: any) {
             logger.error('Error creating user', error);
             const message = error.code ? mapAuthError(error.code) : (error.message || 'Error desconocido');
             toast.error(`Error al crear usuario: ${message}`);
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -282,14 +282,14 @@ export const UsersManager: React.FC = () => {
     const handleRoleChange = async (userId: string, newRole: UserRole) => {
         try {
             await adminService.updateUser(userId, { role: newRole }, currentUser?.id || 'system');
-            setUsers(users.map(u => u.id === userId ? { ...u, role: newRole } : u));
+            table.setData(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u));
         } catch (error) {
             logger.error('Error updating role', error);
         }
     };
 
     const handleToggleStatus = async (userId: string, currentStatus: boolean) => {
-        const targetUser = users.find(u => u.id === userId);
+        const targetUser = table.data.find(u => u.id === userId);
         if (!targetUser || !canManageUser(currentUser, targetUser)) {
             toast.warning('No tienes permisos para modificar este usuario.');
             return;
@@ -298,12 +298,12 @@ export const UsersManager: React.FC = () => {
         const newStatus = !currentStatus;
         try {
             // Optimistic update
-            setUsers(users.map(u => u.id === userId ? { ...u, isActive: newStatus } : u));
+            table.setData(prev => prev.map(u => u.id === userId ? { ...u, isActive: newStatus } : u));
             await adminService.updateUser(userId, { isActive: newStatus }, currentUser?.id || 'system');
         } catch (error) {
             logger.error('Error updating status', error);
             // Revert on error
-            setUsers(users.map(u => u.id === userId ? { ...u, isActive: currentStatus } : u));
+            table.setData(prev => prev.map(u => u.id === userId ? { ...u, isActive: currentStatus } : u));
             toast.error('Error al actualizar el estado del usuario');
         }
     };
@@ -315,12 +315,13 @@ export const UsersManager: React.FC = () => {
 
         try {
             await adminService.deleteUserDoc(userToDelete, currentUser?.id || 'system');
-            setUsers(users.filter(u => u.id !== userToDelete));
-            toast.success('Usuario eliminado permanentemente');
+            table.setData(prev => prev.filter(u => u.id !== userToDelete));
+            toast.success(`Usuario eliminado permanentemente`);
             setUserToDelete(null); // Close modal
-        } catch (error) {
+        } catch (error: any) {
             logger.error('Error deleting user', error);
-            toast.error('Error al eliminar usuario');
+            const errorMsg = error.message || 'No se pudo completar la eliminación';
+            toast.error(`Error al eliminar: ${errorMsg}`);
         }
     };
 
@@ -330,71 +331,197 @@ export const UsersManager: React.FC = () => {
 
     // ... (existing useEffects)
 
-    const filteredUsers = useMemo(() => users.filter(user => {
-        if (currentUser?.role !== UserRole.SUPER_ADMIN) {
-            const userVenues = currentUser?.venueIds || (currentUser?.venueId ? [currentUser.venueId] : []);
-            const targetVenue = user.venueId;
-            if (!targetVenue || !userVenues.includes(targetVenue)) return false;
+    const columns = useMemo<Column<User>[]>(() => [
+        {
+            header: 'Usuario',
+            accessor: (u) => (
+                <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${getRoleColor(u.role)}`}>
+                        {u.fullName?.charAt(0) || 'U'}
+                    </div>
+                    <div>
+                        <div className="font-bold text-sm text-gray-900">{u.fullName || 'Sin Nombre'}</div>
+                        <div className="text-[10px] text-gray-400 font-mono hidden sm:block">ID: {u.id.slice(-6)}</div>
+                    </div>
+                </div>
+            ),
+            sortable: true,
+            sortKey: 'fullName'
+        },
+        {
+            header: 'Rol',
+            accessor: (u) => (
+                <div onClick={e => e.stopPropagation()}>
+                    <PermissionGate requires={Permission.MANAGE_USER_ROLES} fallback={
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wider ${getRoleColor(u.role)}`}>
+                            {getRoleLabel(u.role)}
+                        </span>
+                    }>
+                        <select
+                            value={u.role}
+                            onChange={(e) => handleRoleChange(u.id, e.target.value as UserRole)}
+                            disabled={!canManageUser(currentUser, u)}
+                            className={`text-xs font-bold border-gray-200 rounded-lg py-1 px-2 cursor-pointer outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed
+                            ${u.role === UserRole.SUPER_ADMIN ? 'bg-purple-50 text-purple-800 border-purple-100' :
+                                    u.role === UserRole.VENUE_OWNER ? 'bg-blue-50 text-blue-800 border-blue-100' :
+                                        u.role === UserRole.CUSTOMER ? 'bg-green-50 text-green-800 border-green-100' :
+                                            'bg-gray-50 text-gray-800 border-gray-100'}`}
+                        >
+                            {Object.values(UserRole)
+                                .filter(role => {
+                                    if (role === u.role) return true;
+                                    if (currentUser?.role === UserRole.SUPER_ADMIN) return true;
+                                    if (currentUser?.role === UserRole.ADMIN) {
+                                        return role === UserRole.KITCHEN_STAFF || role === UserRole.DRIVER;
+                                    }
+                                    return (roleLevels[currentUser?.role as UserRole] || 0) > (roleLevels[role] || 0);
+                                })
+                                .map(role => (
+                                    <option key={role} value={role}>{roleNames[role]}</option>
+                                ))}
+                        </select>
+                    </PermissionGate>
+                </div>
+            ),
+            sortable: true,
+            sortKey: 'role'
+        },
+        { header: 'Email', accessor: 'email', sortable: true },
+        { 
+            header: 'Ciudad', 
+            accessor: (u) => (
+                <span className="text-xs font-semibold text-gray-500 flex items-center gap-1">
+                    <MapPin size={10} className="text-emerald-500" />
+                    {u.city || '-'}
+                </span>
+            ),
+            sortable: true,
+            sortKey: 'city'
+        },
+        {
+            header: 'Verificado',
+            accessor: (u) => (
+                <div className="flex justify-center" onClick={e => e.stopPropagation()}>
+                    <Tooltip text={u.isVerified ? `Verificado el ${new Date(u.verificationDate || '').toLocaleDateString()}` : 'No verificado'}>
+                        <button
+                            onClick={() => handleToggleVerification(u)}
+                            disabled={!canManageUser(currentUser, u)}
+                            className={`p-1.5 rounded-full transition-all ${u.isVerified
+                                ? 'text-blue-500 bg-blue-50 hover:bg-blue-100'
+                                : 'text-gray-300 bg-gray-50 hover:text-gray-400 hover:bg-gray-100'
+                                } ${!canManageUser(currentUser, u) ? 'opacity-30 cursor-not-allowed' : ''}`}
+                        >
+                            <CheckCircle2 size={18} fill={u.isVerified ? "currentColor" : "none"} />
+                        </button>
+                    </Tooltip>
+                </div>
+            ),
+            sortable: true,
+            sortKey: 'isVerified',
+            className: 'text-center'
+        },
+        {
+            header: 'Estado',
+            accessor: (u) => (
+                <div onClick={e => e.stopPropagation()} className="flex justify-center">
+                    <PermissionGate requires={Permission.EDIT_USERS} fallback={
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase ${u.isActive !== false
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-gray-100 text-gray-600'
+                            }`}>
+                            {u.isActive !== false ? 'Activo' : 'Inactivo'}
+                        </span>
+                    }>
+                        <button
+                            onClick={() => handleToggleStatus(u.id, u.isActive !== false)}
+                            disabled={!canManageUser(currentUser, u)}
+                            className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:opacity-30 disabled:cursor-not-allowed ${u.isActive !== false ? 'bg-emerald-600' : 'bg-gray-200'
+                                }`}
+                            role="switch"
+                        >
+                            <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${u.isActive !== false ? 'translate-x-6' : 'translate-x-0.5'}`} />
+                        </button>
+                    </PermissionGate>
+                </div>
+            ),
+            sortable: true,
+            sortKey: 'isActive',
+            className: 'text-center'
+        },
+        {
+            header: 'Sedes',
+            accessor: (u) => (
+                <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                    <span className="truncate max-w-[100px] text-xs font-medium">
+                        {u.role === UserRole.SUPER_ADMIN ? (
+                            <span className="text-gray-400 italic">Todas</span>
+                        ) : (
+                            u.venueIds && u.venueIds.length > 0
+                                ? `${u.venueIds.length} sedes`
+                                : (u.venueId && venues.find(v => v.id === u.venueId)?.name || 'Sin sede')
+                        )}
+                    </span>
+                    {canManageUser(currentUser, u) &&
+                        u.role !== UserRole.SUPER_ADMIN &&
+                        u.role !== UserRole.CUSTOMER &&
+                        u.role !== UserRole.DRIVER && (
+                            <button
+                                onClick={() => openVenueEditor(u)}
+                                className="p-1 text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors"
+                                title="Gestionar Sedes"
+                            >
+                                <Pencil size={12} />
+                            </button>
+                        )}
+                </div>
+            )
+        },
+        {
+            header: 'Registro',
+            accessor: (u) => (
+                <span className="text-xs text-gray-500 font-medium">
+                    {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '-'}
+                </span>
+            ),
+            sortable: true,
+            sortKey: 'createdAt'
+        },
+        {
+            header: '',
+            accessor: (u) => (
+                <div className="flex justify-end gap-2 items-center" onClick={e => e.stopPropagation()}>
+                    <PermissionGate requires={Permission.MANAGE_USER_ROLES}>
+                        {canManageUser(currentUser, u) && (
+                            <Tooltip text="Permisos Especiales">
+                                <button
+                                    onClick={() => openPermissionEditor(u)}
+                                    className="text-gray-400 hover:text-emerald-600 p-1.5 hover:bg-emerald-50 rounded-lg transition-all"
+                                >
+                                    <Shield size={16} />
+                                </button>
+                            </Tooltip>
+                        )}
+                    </PermissionGate>
+                    <PermissionGate requires={Permission.DELETE_USERS}>
+                        {canManageUser(currentUser, u) && (
+                            <Tooltip text="Eliminar permanentemente">
+                                <button
+                                    onClick={() => setUserToDelete(u.id)}
+                                    className="text-red-300 hover:text-red-600 p-1.5 hover:bg-red-50 rounded-lg transition-all"
+                                >
+                                    <Trash2 size={16} />
+                                </button>
+                            </Tooltip>
+                        )}
+                    </PermissionGate>
+                </div>
+            ),
+            className: 'text-right'
         }
-        const matchesSearch = (user.fullName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-            (user.email?.toLowerCase() || '').includes(searchTerm.toLowerCase());
-        return matchesSearch;
-    }), [users, searchTerm, currentUser]);
+    ], [currentUser, venues]);
 
-    const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
-    const safePage = Math.min(currentPage, totalPages);
-    const paginatedUsers = filteredUsers.slice((safePage - 1) * pageSize, safePage * pageSize);
-    const needsMoreData = hasMore && safePage === totalPages && filteredUsers.length > 0 && filteredUsers.length % pageSize === 0;
+    // filteredUsers logic removed as it's handled by fetchFn and canManageUser
 
-    const goToPage = async (page: number) => {
-        const target = Math.max(1, Math.min(page, totalPages));
-        if (needsMoreData && target === totalPages) {
-            setIsLoadMoreLoading(true);
-            try {
-                const result = await adminService.getUsersPaginated(pageSize, lastDoc);
-                setUsers(prev => {
-                    const existingIds = new Set(prev.map(u => u.id));
-                    return [...prev, ...result.data.filter(u => !existingIds.has(u.id))];
-                });
-                setLastDoc(result.lastDoc);
-                setHasMore(result.hasMore);
-            } catch (error) {
-                logger.error('Error loading more users:', error);
-            } finally {
-                setIsLoadMoreLoading(false);
-            }
-        }
-        setCurrentPage(target);
-    };
-
-    const handlePageSizeChange = (size: number) => {
-        setPageSize(size);
-        setCurrentPage(1);
-    };
-
-    const getPageNumbers = () => {
-        const delta = 2;
-        const pages: (number | '...')[] = [];
-        for (let i = 1; i <= totalPages; i++) {
-            if (i === 1 || i === totalPages || (i >= safePage - delta && i <= safePage + delta)) {
-                pages.push(i);
-            } else if (pages[pages.length - 1] !== '...') {
-                pages.push('...');
-            }
-        }
-        return pages;
-    };
-
-    const toggleSelectAll = () => {
-        // Only select users that can be managed
-        const manageableUsers = paginatedUsers.filter(u => canManageUser(currentUser, u));
-
-        if (selectedUsers.size === manageableUsers.length && manageableUsers.length > 0) {
-            setSelectedUsers(new Set());
-        } else {
-            setSelectedUsers(new Set(manageableUsers.map(u => u.id)));
-        }
-    };
 
 
     const toggleSelectUser = (userId: string) => {
@@ -426,17 +553,19 @@ export const UsersManager: React.FC = () => {
             const userIds = Array.from(selectedUsers);
             if (action === 'delete') {
                 await Promise.all(userIds.map(id => adminService.deleteUserDoc(id, currentUser?.id || 'system')));
-                setUsers(users.filter(u => !selectedUsers.has(u.id)));
+                table.setData(prev => prev.filter(u => !selectedUsers.has(u.id)));
+                toast.success(`${userIds.length} usuarios eliminados permanentemente`);
             } else {
                 const isActive = action === 'activate';
                 await Promise.all(userIds.map(id => adminService.updateUser(id, { isActive }, currentUser?.id || 'system')));
-                setUsers(users.map(u => selectedUsers.has(u.id) ? { ...u, isActive } : u));
+                table.setData(prev => prev.map(u => selectedUsers.has(u.id) ? { ...u, isActive } : u));
+                toast.success(`${userIds.length} usuarios ${isActive ? 'activados' : 'desactivados'} con éxito`);
             }
-            toast.success('Acción completada con éxito');
             setSelectedUsers(new Set());
-        } catch (error) {
+        } catch (error: any) {
             logger.error('Error performing bulk action', error);
-            toast.error('Error al realizar la acción masiva');
+            const errorMsg = error.message || 'Error en la operación masiva';
+            toast.error(`Error: ${errorMsg}`);
         } finally {
             setLoading(false);
         }
@@ -501,7 +630,7 @@ export const UsersManager: React.FC = () => {
                 permissions: tempPermissions
             };
 
-            setUsers(users.map(u => u.id === permissionUser.id ? updatedUser : u));
+            table.setData(prev => prev.map(u => u.id === permissionUser.id ? updatedUser : u));
 
             // Sync preview if it's the same user
             if (previewUser?.id === permissionUser.id) {
@@ -538,7 +667,7 @@ export const UsersManager: React.FC = () => {
                 venueId
             };
 
-            setUsers(users.map(u => u.id === venueAssignmentUser.id ? updatedUser : u));
+            table.setData(prev => prev.map(u => u.id === venueAssignmentUser.id ? updatedUser : u));
 
             // Sync preview if it's the same user
             if (previewUser?.id === venueAssignmentUser.id) {
@@ -566,10 +695,10 @@ export const UsersManager: React.FC = () => {
             // Ideally we delete the field, but let's send null for now as a reset signal.
             await adminService.updateUser(permissionUser.id, { permissions: null as any }, currentUser?.id || 'system');
 
-            setUsers(users.map(u => {
+            table.setData(prev => prev.map(u => {
                 if (u.id === permissionUser.id) {
                     const { permissions, ...rest } = u;
-                    return rest;
+                    return rest as User;
                 }
                 return u;
             }));
@@ -593,7 +722,7 @@ export const UsersManager: React.FC = () => {
                 </h2>
                 <div className="flex flex-wrap gap-2 w-full lg:w-auto">
                     <button
-                        onClick={() => loadUsers()}
+                        onClick={() => table.reload()}
                         className="bg-white border border-gray-200 text-gray-600 p-2 rounded-lg hover:bg-gray-50 transition shadow-sm flex items-center justify-center flex-1 lg:flex-none"
                         title="Refrescar usuarios"
                     >
@@ -606,7 +735,7 @@ export const UsersManager: React.FC = () => {
                             </div>
 
                             {/* Logic: Show 'Activate' only if there are inactive users selected */}
-                            {users.filter(u => selectedUsers.has(u.id)).some(u => u.isActive === false) && (
+                            {table.data.filter(u => selectedUsers.has(u.id)).some(u => u.isActive === false) && (
                                 <Tooltip text="Activar todos los seleccionados">
                                     <button
                                         onClick={() => handleBulkAction('activate')}
@@ -618,7 +747,7 @@ export const UsersManager: React.FC = () => {
                             )}
 
                             {/* Logic: Show 'Deactivate' only if there are active users selected */}
-                            {users.filter(u => selectedUsers.has(u.id)).some(u => u.isActive !== false) && (
+                            {table.data.filter(u => selectedUsers.has(u.id)).some(u => u.isActive !== false) && (
                                 <Tooltip text="Desactivar todos los seleccionados">
                                     <button
                                         onClick={() => handleBulkAction('deactivate')}
@@ -685,404 +814,84 @@ export const UsersManager: React.FC = () => {
             <div className="flex gap-6 items-start">
                 <div className="flex-1 min-w-0">
                     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                        <DataTable
+                            data={table.data}
+                            columns={columns}
+                            placeholder="Busca por nombre, email, rol, ciudad o cualquier campo..."
 
-                        {/* Table Header */}
-                        <div className="p-4 border-b bg-gray-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                            <h3 className="font-bold text-gray-800">Usuarios</h3>
-                            <div className="flex items-center gap-3">
-                                <div className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2 bg-white flex-1 sm:flex-none sm:w-64">
-                                    <Search className="text-gray-400 shrink-0" size={16} />
-                                    <input
-                                        type="text"
-                                        placeholder="Buscar usuario por nombre o email..."
-                                        className="flex-1 outline-none text-gray-700 bg-transparent text-sm"
-                                        value={searchTerm}
-                                        onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                                    />
-                                </div>
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                    <span className="text-xs text-gray-500">Filas:</span>
-                                    <select value={pageSize} onChange={(e) => handlePageSizeChange(Number(e.target.value))} className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 cursor-pointer focus:outline-none focus:border-emerald-400">
-                                        {PAGE_SIZE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Mobile Card View (Visible on small screens) */}
-                        <div className="block lg:hidden">
-                            {/* Mobile Select All Header */}
-                            {paginatedUsers.length > 0 && (
-                                <div className="p-3 bg-gray-50 border-b border-gray-100 flex items-center gap-3">
-                                    <input
-                                        type="checkbox"
-                                        checked={selectedUsers.size === paginatedUsers.length}
-                                        onChange={toggleSelectAll}
-                                        className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 h-5 w-5"
-                                    />
-                                    <span className="text-sm font-medium text-gray-600">
-                                        Seleccionar todo ({paginatedUsers.length})
-                                    </span>
-                                </div>
-                            )}
-
-                            {paginatedUsers.map(user => (
-                                <div
-                                    key={user.id}
-                                    className={`p-4 border-b border-gray-100 last:border-0 ${selectedUsers.has(user.id) ? 'bg-emerald-50/30' : ''}`}
-                                    onClick={() => setPreviewUser(user)}
-                                >
-                                    <div className="flex items-start justify-between mb-3">
-                                        <div className="flex items-center gap-3">
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedUsers.has(user.id)}
-                                                onChange={() => toggleSelectUser(user.id)}
-                                                disabled={!canManageUser(currentUser, user)}
-                                                className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 h-5 w-5"
-                                                onClick={e => e.stopPropagation()}
-                                            />
-                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${getRoleColor(user.role)}`}>
-                                                {user.fullName?.charAt(0) || 'U'}
-                                            </div>
-                                            <div>
-                                                <div className="font-bold text-gray-900">{user.fullName || 'Sin Nombre'}</div>
-                                                <div className="text-sm text-gray-500">{user.email}</div>
-                                            </div>
-                                        </div>
-
-                                        <PermissionGate requires={Permission.EDIT_USERS} fallback={
-                                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${user.isActive !== false ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
-                                                {user.isActive !== false ? 'Activo' : 'Inactivo'}
+                            headerSlot={
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <button
+                                        onClick={() => setSelectedRole('')}
+                                        className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all border ${
+                                            !selectedRole 
+                                                ? 'bg-gray-900 text-white border-gray-900 shadow-md' 
+                                                : 'bg-white border-gray-200 text-gray-500 hover:border-emerald-300 hover:bg-emerald-50'
+                                        }`}
+                                    >
+                                        Todos {roleCounts && Object.values(roleCounts).reduce((a, b) => a + b, 0) > 0 && (
+                                            <span className={`ml-1 px-1.5 py-0.5 rounded text-[9px] ${!selectedRole ? 'bg-white/20' : 'bg-gray-100'}`}>
+                                                {Object.values(roleCounts).reduce((a, b) => a + b, 0)}
                                             </span>
-                                        }>
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); handleToggleStatus(user.id, user.isActive !== false); }}
-                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${user.isActive !== false ? 'bg-emerald-600' : 'bg-gray-200'}`}
-                                            >
-                                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${user.isActive !== false ? 'translate-x-6' : 'translate-x-1'}`} />
-                                            </button>
-                                        </PermissionGate>
-                                    </div>
-
-                                    <div className="flex flex-wrap gap-3 mt-3 pl-8">
-                                        {/* Role Selector (Mobile/Card View - Highly Polished) */}
-                                        <div className="w-full mt-2">
-                                            <PermissionGate requires={Permission.MANAGE_USER_ROLES} fallback={
-                                                <div className={`w-full flex items-center justify-center px-4 py-2.5 rounded-xl text-sm font-semibold border shadow-sm ${getRoleColor(user.role)}`}>
-                                                    {getRoleLabel(user.role)}
-                                                </div>
-                                            }>
-                                                <div className="relative w-full group">
-                                                    <select
-                                                        value={user.role}
-                                                        onChange={(e) => { e.stopPropagation(); handleRoleChange(user.id, e.target.value as UserRole); }}
-                                                        disabled={!canManageUser(currentUser, user)}
-                                                        className={`appearance-none block w-full outline-none cursor-pointer pl-4 pr-10 py-2.5 rounded-xl text-sm font-semibold shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed
-                                                            ${user.role === UserRole.SUPER_ADMIN ? 'bg-purple-50 text-purple-900 border-purple-200/60' :
-                                                                user.role === UserRole.VENUE_OWNER ? 'bg-blue-50 text-blue-900 border-blue-200/60' :
-                                                                    user.role === UserRole.CUSTOMER ? 'bg-green-50 text-green-900 border-green-200/60' :
-                                                                        'bg-gray-50 text-gray-900 border-gray-200/60'}`}
-                                                        style={{ WebkitAppearance: 'none', MozAppearance: 'none', WebkitTapHighlightColor: 'transparent' }}
-                                                        onClick={(e) => e.stopPropagation()}
-                                                        onTouchStart={(e) => e.stopPropagation()}
-                                                    >
-                                                        {Object.values(UserRole)
-                                                            .filter(role => {
-                                                                if (role === user.role) return true;
-                                                                if (currentUser?.role === UserRole.SUPER_ADMIN) return true;
-                                                                if (currentUser?.role === UserRole.ADMIN) {
-                                                                    return role === UserRole.KITCHEN_STAFF || role === UserRole.DRIVER;
-                                                                }
-                                                                return (roleLevels[currentUser?.role as UserRole] || 0) > (roleLevels[role] || 0);
-                                                            })
-                                                            .map(role => (
-                                                                <option key={role} value={role}>{roleNames[role]}</option>
-                                                            ))}
-                                                    </select>
-
-                                                    {/* Custom Floating Icon Container */}
-                                                    <div className="absolute inset-y-0 right-0 flex items-center pr-3.5 pointer-events-none">
-                                                        <div className={`flex items-center justify-center w-6 h-6 rounded-full transition-colors
-                                                            ${user.role === UserRole.SUPER_ADMIN ? 'bg-purple-100 text-purple-600' :
-                                                                user.role === UserRole.VENUE_OWNER ? 'bg-blue-100 text-blue-600' :
-                                                                    user.role === UserRole.CUSTOMER ? 'bg-green-100 text-green-600' :
-                                                                        'bg-gray-200 text-gray-500'}`}>
-                                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7"></path>
-                                                            </svg>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </PermissionGate>
-                                        </div>
-
-                                        {/* Verification Toggle (Mobile) */}
-                                        <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                                            <Tooltip text={user.isVerified ? `Verificado el ${new Date(user.verificationDate || '').toLocaleDateString()}` : 'No verificado'}>
-                                                <button
-                                                    onClick={() => handleToggleVerification(user)}
-                                                    disabled={!canManageUser(currentUser, user)}
-                                                    className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium border transition-colors ${user.isVerified
-                                                        ? 'bg-blue-50 text-blue-700 border-blue-100'
-                                                        : 'bg-white text-gray-400 border-gray-200 hover:bg-gray-50'
-                                                        } ${!canManageUser(currentUser, user) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                                >
-                                                    <CheckCircle2 size={12} />
-                                                    {user.isVerified ? 'Verificado' : 'Verificar'}
-                                                </button>
-                                            </Tooltip>
-                                        </div>
-
-                                        {/* Additional Info (Venues & Date) */}
-                                        <div className="w-full text-xs text-gray-500 space-y-1 mt-1 border-t border-gray-50 pt-2">
-                                            {/* Venues */}
-                                            {(user.venueId || (user.venueIds && user.venueIds.length > 0)) && (
-                                                <div className="flex items-start gap-1">
-                                                    <span className="font-medium text-gray-600">Sedes:</span>
-                                                    <span className="truncate max-w-[200px]">
-                                                        {user.role === UserRole.SUPER_ADMIN ? (
-                                                            <span className="text-purple-600 font-medium">Todas</span>
-                                                        ) : (
-                                                            <>
-                                                                {user.venueId && (
-                                                                    <span>{venues.find(v => v.id === user.venueId)?.name || 'Sede Principal'}</span>
-                                                                )}
-                                                                {user.venueIds && user.venueIds.length > 0 && (
-                                                                    <span className="ml-1 text-gray-400">
-                                                                        (+{user.venueIds.length} más)
-                                                                    </span>
-                                                                )}
-                                                            </>
-                                                        )}
-                                                    </span>
-                                                </div>
-                                            )}
-
-                                            {/* Registration Date */}
-                                            <div className="flex items-center gap-1">
-                                                <span className="font-medium text-gray-600">Registrado:</span>
-                                                <span>
-                                                    {user.createdAt
-                                                        ? new Date(user.createdAt).toLocaleDateString()
-                                                        : <span className="text-gray-300 italic">Fecha desconocida</span>}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Desktop Table View (Hidden on small screens) */}
-                        <div className="hidden lg:block overflow-x-auto">
-                            <table className={`w-full text-left border-collapse ${showPreview ? 'min-w-[1000px]' : ''}`}>
-                                <thead>
-                                    <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold tracking-wider">
-                                        <th className="p-4 w-10">
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedUsers.size === paginatedUsers.length && paginatedUsers.length > 0}
-                                                onChange={toggleSelectAll}
-                                                className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
-                                            />
-                                        </th>
-                                        <th className="p-4">Usuario</th>
-                                        <th className="p-4 text-sm font-medium text-gray-500">Rol</th>
-                                        <th className="p-4">Email</th>
-                                        <th className="p-4 text-center">Verificado</th>
-                                        <th className="p-4">Estado</th>
-                                        <th className="p-4 text-sm font-medium text-gray-500 xl:table-cell">Sedes</th>
-                                        <th className="p-4 text-sm font-medium text-gray-500 xl:table-cell">Fecha Registro</th>
-                                        <th className="p-4 text-sm font-medium text-gray-500 text-right">Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-100">
-                                    {paginatedUsers.map(user => (
-                                        <tr
-                                            key={user.id}
-                                            className={`hover:bg-gray-50 transition-colors cursor-pointer ${selectedUsers.has(user.id) ? 'bg-emerald-50/30' : ''} ${previewUser?.id === user.id ? 'bg-blue-50/50' : ''}`}
-                                            onClick={() => setPreviewUser(user)}
+                                        )}
+                                    </button>
+                                    {Object.values(UserRole).map(role => (
+                                        <button
+                                            key={role}
+                                            onClick={() => setSelectedRole(selectedRole === role ? '' : role)}
+                                            className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all border flex items-center gap-1.5 ${
+                                                selectedRole === role 
+                                                    ? 'bg-gray-900 text-white border-gray-900 shadow-md' 
+                                                    : 'bg-white border-gray-200 text-gray-500 hover:border-emerald-300 hover:bg-emerald-50'
+                                            }`}
                                         >
-                                            <td className="p-4" onClick={e => e.stopPropagation()}>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedUsers.has(user.id)}
-                                                    onChange={() => toggleSelectUser(user.id)}
-                                                    disabled={!canManageUser(currentUser, user)}
-                                                    className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                                                />
-                                            </td>
-                                            <td className="p-4 font-medium text-gray-800">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${getRoleColor(user.role)}`}>
-                                                        {user.fullName?.charAt(0) || 'U'}
-                                                    </div>
-                                                    <div>
-                                                        <div className="font-bold text-sm">{user.fullName || 'Sin Nombre'}</div>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="p-4" onClick={e => e.stopPropagation()}>
-                                                <PermissionGate requires={Permission.MANAGE_USER_ROLES} fallback={
-                                                    <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getRoleColor(user.role)}`}>
-                                                        {getRoleLabel(user.role)}
-                                                    </span>
-                                                }>
-                                                    <select
-                                                        value={user.role}
-                                                        onChange={(e) => handleRoleChange(user.id, e.target.value as UserRole)}
-                                                        disabled={!canManageUser(currentUser, user)}
-                                                        className={`text-xs border-gray-200 rounded-md py-1 px-2 cursor-pointer outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed
-                                                        ${user.role === UserRole.SUPER_ADMIN ? 'bg-purple-50 text-purple-800 border-purple-100' :
-                                                                user.role === UserRole.VENUE_OWNER ? 'bg-blue-50 text-blue-800 border-blue-100' :
-                                                                    user.role === UserRole.CUSTOMER ? 'bg-green-50 text-green-800 border-green-100' :
-                                                                        'bg-gray-50 text-gray-800 border-gray-100'}`}
-                                                    >
-                                                        {Object.values(UserRole)
-                                                            .filter(role => {
-                                                                if (role === user.role) return true;
-                                                                if (currentUser?.role === UserRole.SUPER_ADMIN) return true;
-                                                                if (currentUser?.role === UserRole.ADMIN) {
-                                                                    return role === UserRole.KITCHEN_STAFF || role === UserRole.DRIVER;
-                                                                }
-                                                                return (roleLevels[currentUser?.role as UserRole] || 0) > (roleLevels[role] || 0);
-                                                            })
-                                                            .map(role => (
-                                                                <option key={role} value={role}>{roleNames[role]}</option>
-                                                            ))}
-                                                    </select>
-                                                </PermissionGate>
-                                                {user.permissions && (
-                                                    <div className="mt-1 text-[10px] text-amber-600 font-medium flex items-center gap-1">
-                                                        <Shield size={10} /> Personalizado
-                                                    </div>
-                                                )}
-                                            </td>
-                                            <td className="p-4 text-gray-500 text-sm">{user.email}</td>
-                                            <td className="p-4 text-center" onClick={e => e.stopPropagation()}>
-                                                <Tooltip text={user.isVerified ? `Verificado el ${new Date(user.verificationDate || '').toLocaleDateString()}` : 'No verificado'}>
-                                                    <button
-                                                        onClick={() => handleToggleVerification(user)}
-                                                        disabled={!canManageUser(currentUser, user)}
-                                                        className={`p-1 rounded-full transition-colors ${user.isVerified
-                                                            ? 'text-blue-500 hover:bg-blue-50'
-                                                            : 'text-gray-300 hover:text-gray-400 hover:bg-gray-50'
-                                                            } ${!canManageUser(currentUser, user) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                                    >
-                                                        <CheckCircle2 size={20} fill={user.isVerified ? "currentColor" : "none"} />
-                                                    </button>
-                                                </Tooltip>
-                                            </td>
-
-                                            <td className="p-4" onClick={e => e.stopPropagation()}>
-                                                <PermissionGate requires={Permission.EDIT_USERS} fallback={
-                                                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${user.isActive !== false
-                                                        ? 'bg-green-100 text-green-800'
-                                                        : 'bg-gray-100 text-gray-600'
-                                                        }`}>
-                                                        {user.isActive !== false ? 'Activo' : 'Inactivo'}
-                                                    </span>
-                                                }>
-                                                    <button
-                                                        onClick={() => handleToggleStatus(user.id, user.isActive !== false)}
-                                                        disabled={!canManageUser(currentUser, user)}
-                                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${user.isActive !== false ? 'bg-emerald-600' : 'bg-gray-200'
-                                                            }`}
-                                                        role="switch"
-                                                        aria-checked={user.isActive !== false}
-                                                    >
-                                                        <span
-                                                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${user.isActive !== false ? 'translate-x-6' : 'translate-x-1'
-                                                                }`}
-                                                        />
-                                                    </button>
-                                                </PermissionGate>
-                                            </td>
-
-                                            <td className="p-4 text-gray-500 text-sm xl:table-cell" onClick={e => e.stopPropagation()}>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="truncate max-w-[100px]">
-                                                        {user.role === UserRole.SUPER_ADMIN ? (
-                                                            <span className="text-gray-400 italic">Todas</span>
-                                                        ) : (
-                                                            user.venueIds && user.venueIds.length > 0
-                                                                ? `${user.venueIds.length} sedes`
-                                                                : (user.venueId && venues.find(v => v.id === user.venueId)?.name || '1 sede')
-                                                        )}
-                                                    </span>
-                                                    {canManageUser(currentUser, user) &&
-                                                        user.role !== UserRole.SUPER_ADMIN &&
-                                                        user.role !== UserRole.CUSTOMER &&
-                                                        user.role !== UserRole.DRIVER && (
-                                                            <button
-                                                                onClick={() => openVenueEditor(user)}
-                                                                className="p-1 text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors"
-                                                                title="Gestionar Sedes"
-                                                            >
-                                                                <Pencil size={12} />
-                                                            </button>
-                                                        )}
-                                                </div>
-                                            </td>
-                                            <td className="p-4 text-gray-400 text-sm hidden xl:table-cell">
-                                                {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '-'}
-                                            </td>
-                                            <td className="p-4 text-right flex justify-end gap-2 items-center" onClick={e => e.stopPropagation()}>
-                                                {/* Permission Button */}
-                                                <PermissionGate requires={Permission.MANAGE_USER_ROLES}>
-                                                    {canManageUser(currentUser, user) && (
-                                                        <Tooltip text="Gestionar Permisos Personalizados">
-                                                            <button
-                                                                onClick={() => openPermissionEditor(user)}
-                                                                className="text-gray-400 hover:text-emerald-600 p-1 transition-colors"
-                                                            >
-                                                                <Shield size={16} />
-                                                            </button>
-                                                        </Tooltip>
-                                                    )}
-                                                </PermissionGate>
-
-                                                <PermissionGate requires={Permission.DELETE_USERS}>
-                                                    {canManageUser(currentUser, user) && (
-                                                        <Tooltip text="Eliminar este usuario definitivamente">
-                                                            <button
-                                                                onClick={() => setUserToDelete(user.id)}
-                                                                className="text-red-400 hover:text-red-600 p-1"
-                                                            >
-                                                                <Trash2 size={16} />
-                                                            </button>
-                                                        </Tooltip>
-                                                    )}
-                                                </PermissionGate>
-                                            </td>
-                                        </tr>
+                                            {roleNames[role as UserRole]}
+                                            {(roleCounts[role] ?? 0) > 0 && (
+                                                <span className={`px-1.5 py-0.5 rounded text-[9px] ${
+                                                    selectedRole === role ? 'bg-white/20' : 'bg-gray-100'
+                                                }`}>
+                                                    {roleCounts[role]}
+                                                </span>
+                                            )}
+                                        </button>
                                     ))}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        {/* Pagination Controls */}
-                        {filteredUsers.length > 0 && (
-                            <div className="p-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
-                                <p className="text-xs text-gray-500 shrink-0">
-                                    {isLoadMoreLoading ? 'Cargando...' : (
-                                        <>Mostrando <span className="font-semibold text-gray-700">{(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, filteredUsers.length)}</span> de <span className="font-semibold text-gray-700">{filteredUsers.length}{hasMore ? '+' : ''}</span> usuarios</>
-                                    )}
-                                </p>
-                                <div className="flex items-center gap-1">
-                                    <button onClick={() => goToPage(1)} disabled={safePage === 1 || isLoadMoreLoading} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronsLeft size={16} /></button>
-                                    <button onClick={() => goToPage(safePage - 1)} disabled={safePage === 1 || isLoadMoreLoading} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronLeft size={16} /></button>
-                                    {getPageNumbers().map((page, idx) =>
-                                        page === '...' ? <span key={`e-${idx}`} className="px-2 text-gray-400 text-sm select-none">…</span> : (
-                                            <button key={page} onClick={() => goToPage(page as number)} disabled={isLoadMoreLoading} className={`min-w-[32px] h-8 px-2 rounded-lg text-sm font-medium transition-colors ${page === safePage ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'}`}>{page}</button>
-                                        )
-                                    )}
-                                    <button onClick={() => goToPage(safePage + 1)} disabled={(safePage >= totalPages && !hasMore) || isLoadMoreLoading} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronRight size={16} /></button>
-                                    <button onClick={() => goToPage(totalPages)} disabled={(safePage >= totalPages && !hasMore) || isLoadMoreLoading} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronsRight size={16} /></button>
                                 </div>
-                            </div>
-                        )}
+                            }
+                        selectable
+                        selectedIds={selectedUsers}
+                        onSelectToggle={toggleSelectUser}
+                        onSelectAll={() => {
+                            const manageableInView = table.data.filter(u => canManageUser(currentUser, u));
+                            if (selectedUsers.size === manageableInView.length) {
+                                setSelectedUsers(new Set());
+                            } else {
+                                setSelectedUsers(new Set(manageableInView.map(u => u.id)));
+                            }
+                        }}
+                        isItemSelectable={(u) => canManageUser(currentUser, u)}
+                        onRowClick={(u) => setPreviewUser(u)}
+                        isLoading={table.isLoading}
+                        initialPageSize={table.pageSize}
+                        manualPagination
+                        totalItems={table.totalItems}
+                        currentPage={table.currentPage}
+                        onPageChange={table.onPageChange}
+                        onPageSizeChange={table.onPageSizeChange}
+                        searchTerm={table.searchTerm}
+                        onSearchChange={table.setSearchTerm}
+                        isSearching={table.isSearching}
+                        exportable
+                        exportFilename="rescatto_usuarios"
+                        exportTransformer={(u) => ({
+                            fullName: u.fullName || '',
+                            email: u.email || '',
+                            role: roleNames[u.role as UserRole] || u.role,
+                            city: u.city || '',
+                            isActive: u.isActive ? 'Activo' : 'Inactivo',
+                            isVerified: u.isVerified ? 'Verificado' : 'Sin verificar',
+                            createdAt: u.createdAt ? new Date(u.createdAt).toLocaleDateString('es-CO') : '',
+                        })}
+                    />
                     </div>
                 </div>
 

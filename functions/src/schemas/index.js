@@ -48,6 +48,7 @@ const CreateOrderSchema = z.object({
   estimatedCo2: z.number().min(0).max(10).optional().default(0),
   deliveryFee: z.number().int().min(0).max(50_000).optional().nullable(),
   redemptionId: z.string().trim().min(1).max(128).optional().nullable(),
+  customerNote: z.string().trim().max(500).optional().nullable(),
 }).strict();
 
 // ─── wompiWebhook ───────────────────────────────────────────────────────────

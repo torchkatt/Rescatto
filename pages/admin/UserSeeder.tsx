@@ -24,81 +24,45 @@ const UserSeeder: React.FC = () => {
     const ROLES_CONFIG = [
         { role: UserRole.SUPER_ADMIN, prefix: 'superadmin', count: 1 },
         { role: UserRole.VENUE_OWNER, prefix: 'admin', count: 1 },
-        { role: UserRole.CUSTOMER, prefix: 'cliente', count: 1 },
-        { role: UserRole.DRIVER, prefix: 'domicilio', count: 1 },
-        { role: UserRole.KITCHEN_STAFF, prefix: 'cocina', count: 1 },
+        { role: UserRole.KITCHEN_STAFF, prefix: 'cocina', count: 2 },
+        { role: UserRole.DRIVER, prefix: 'domicilio', count: 3 },
+        { role: UserRole.CUSTOMER, prefix: 'cliente', count: 6 },
     ];
 
     const handleSeed = async () => {
-        // La validación se movió al estado de la UI
-
         setLoading(true);
         setLogs([]);
-        addLog('🚀 Iniciando proceso de siembra...');
+        addLog('🚀 Iniciando Siembra de Ecosistema Completo (Backend-Powered)...');
 
         try {
-            // Necesitamos cerrar sesión primero para evitar conflictos si ya hay un usuario autenticado
-            await authService.logout();
+            // Importar dinámicamente para usar la instancia de functions
+            const { functions } = await import('../../services/firebase');
+            const { httpsCallable } = await import('firebase/functions');
+            
+            const seedFunc = httpsCallable(functions, 'seedFullEcosystem');
+            addLog('📡 Llamando al Búnker de Siembra...');
+            
+            const result = await seedFunc();
+            const data: any = result.data;
 
-            // Fetch venues first to assign a real venueId
-            let realVenueId = 'default-venue';
-            try {
-                const venuesSnapshot = await getDocs(collection(db, 'venues'));
-                if (!venuesSnapshot.empty) {
-                    realVenueId = venuesSnapshot.docs[0].id;
-                    addLog(`📍 Sede asignada para personal: ${venuesSnapshot.docs[0].data().name} (${realVenueId})`);
-                } else {
-                    addLog('⚠️ No se encontraron sedes. Se usará "default-venue".');
-                }
-            } catch (err) {
-                logger.error("Error fetching venues:", err);
+            addLog(`✅ ¡Ecosistema Creado!`);
+            addLog(`🏠 Sedes creadas: ${data.venuesCreated}`);
+            addLog(`👥 Usuarios creados: ${data.usersCreated}`);
+            
+            if (data.users && Array.isArray(data.users)) {
+                data.users.forEach((u: string) => addLog(`  - ${u}`));
             }
 
-            for (const config of ROLES_CONFIG) {
-                addLog(`\n--- Creando ${config.count} usuarios para rol: ${config.role} ---`);
-
-                for (let i = 1; i <= config.count; i++) {
-                    const email = `${config.prefix}${i}@test.com`;
-                    const password = 'clave123';
-                    const name = `${config.prefix.toUpperCase()} ${i}`;
-
-                    // Assign venueId only to relevant roles
-                    const additionalData: any = { isVerified: true };
-
-                    if (config.role === UserRole.VENUE_OWNER || config.role === UserRole.KITCHEN_STAFF) {
-                        additionalData.venueId = realVenueId;
-                        additionalData.venueIds = [realVenueId]; // Also set array for compatibility
-                    }
-
-                    try {
-                        addLog(`Creating ${email}...`);
-                        await authService.register(email, password, name, config.role, additionalData);
-                        addLog(`✅ Created: ${email}`);
-
-                        // Cerrar sesión inmediatamente para preparar el siguiente usuario
-                        await authService.logout();
-
-                    } catch (error: any) {
-                        logger.error(error);
-                        if (error.code === 'auth/email-already-in-use') {
-                            addLog(`⚠️ Ya existe: ${email}`);
-                        } else {
-                            addLog(`❌ Error creating ${email}: ${error.code}`);
-                        }
-                    }
-
-                    // Añadir retraso para prevenir límites de tasa (auth/too-many-requests)
-                    await new Promise(resolve => setTimeout(resolve, 3500));
-                }
-            }
-
-            addLog('\n✨ Proceso finalizado.');
-
+            addLog('\n✨ Proceso finalizado exitosamente. Todos los roles y relaciones están listos.');
         } catch (error: any) {
-            addLog(`❌ Error general: ${error.message}`);
+            logger.error('Error in seedFullEcosystem', error);
+            addLog(`❌ Error: ${error.message}`);
+            if (error.details) {
+                addLog(`ℹ️ Detalle: ${JSON.stringify(error.details)}`);
+            }
         } finally {
             setLoading(false);
-            setActionType(null); // Reset action
+            setActionType(null);
         }
     };
 
@@ -122,8 +86,8 @@ const UserSeeder: React.FC = () => {
                     const userData = docSnap.data();
                     const email = userData.email || '';
 
-                    // CHEQUEO DE SEGURIDAD: SOLO ELIMINAR SI EL EMAIL TERMINA EN @test.com
-                    if (email.endsWith('@test.com')) {
+                    // CHEQUEO DE SEGURIDAD: SOLO ELIMINAR SI EL EMAIL TERMINA EN @test.com Y NO ES SUPER_ADMIN
+                    if (email.endsWith('@test.com') && userData.role !== UserRole.SUPER_ADMIN) {
                         await deleteDoc(doc(db, 'users', docSnap.id));
                         deletedCount++;
                         return docSnap.id;

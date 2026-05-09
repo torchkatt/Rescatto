@@ -70,6 +70,7 @@ export interface User {
   permissions?: Permission[]; // Sobreescritura opcional para permisos basados en roles
   // Verificación
   isVerified?: boolean;
+  claimsVersion?: number; // Versión de Custom Claims sincronizada (Búnker)
   verificationDate?: string;
   verifiedBy?: string;
   hasSeenOnboarding?: boolean; // Para Onboarding UI
@@ -235,6 +236,7 @@ export interface Product {
   venueId: string;
   name: string;
   category?: string; // ej., "Entradas", "Platos Fuertes"
+  subcategory?: string; // [NUEVO] ej., "Bebidas Calientes", "Snacks"
   description?: string; // Descripción del producto
   type: ProductType;
   originalPrice: number;
@@ -243,6 +245,8 @@ export interface Product {
   imageUrl: string;
   availableUntil: string; // Cadena ISO
   isDynamicPricing: boolean;
+  /** Whether the product is a surplus/rescue item (default true) */
+  isRescue?: boolean;
   /** Set by applyDynamicPricing Cloud Function when isDynamicPricing=true. Prefer over discountedPrice. */
   dynamicDiscountedPrice?: number;
   /** Human-readable tier label, e.g. "⬇️ -30% último 1h" */
@@ -266,6 +270,7 @@ export interface OrderProduct {
   image?: string;
   imageUrl?: string;
   discountedPrice?: number; // soporte legado
+  isRescue?: boolean; // para identificación visual en el pedido
 }
 
 export interface Order {
@@ -334,6 +339,9 @@ export interface Order {
   disputeResolution?: 'REFUND_CUSTOMER' | 'PAY_DRIVER_AND_VENUE' | 'CANCEL_ALL';
   disputeResolvedBy?: string;
   disputeAdminComment?: string;
+
+  // Personalización de pedido
+  customerNote?: string;
 }
 
 

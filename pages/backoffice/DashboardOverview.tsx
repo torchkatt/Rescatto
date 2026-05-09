@@ -83,10 +83,10 @@ const DashboardOverview: React.FC = () => {
     const kpis = [
         { label: 'Usuarios', value: stats.totalUsers.toLocaleString(), icon: Users, color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20', path: '/backoffice/users' },
         { label: 'Negocios', value: stats.totalVenues.toLocaleString(), icon: Store, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20', path: '/backoffice/venues' },
-        { label: 'Productos', value: stats.totalProducts.toLocaleString(), icon: ShoppingBag, color: 'text-purple-400', bg: 'bg-purple-500/10 border-purple-500/20', path: '/backoffice/venues' },
+        { label: 'Productos', value: stats.totalProducts.toLocaleString(), icon: ShoppingBag, color: 'text-purple-400', bg: 'bg-purple-500/10 border-purple-500/20', path: '/products' },
         { label: 'Ventas Hoy', value: formatCOP(stats.todaySales), icon: DollarSign, color: 'text-green-400', bg: 'bg-green-500/10 border-green-500/20', path: '/backoffice/finance' },
-        { label: 'En Tránsito', value: stats.activeDeliveries.toLocaleString(), icon: Truck, color: 'text-orange-400', bg: 'bg-orange-500/10 border-orange-500/20', path: '/backoffice/dashboard' },
-        { label: 'Pedidos Pendientes', value: stats.pendingOrders.toLocaleString(), icon: TrendingUp, color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20', path: '/backoffice/dashboard' },
+        { label: 'En Tránsito', value: stats.activeDeliveries.toLocaleString(), icon: Truck, color: 'text-orange-400', bg: 'bg-orange-500/10 border-orange-500/20', path: '/orders' },
+        { label: 'Pedidos Pendientes', value: stats.pendingOrders.toLocaleString(), icon: TrendingUp, color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20', path: '/orders' },
     ];
 
     const quickLinks = [

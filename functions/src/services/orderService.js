@@ -150,7 +150,7 @@ const createOrder = onCall(
             venueId, products, paymentMethod: normalizedPaymentMethod,
             deliveryMethod: normalizedDeliveryMethod, address, phone,
             transactionId, isDonation, donationCenterId, donationCenterName,
-            estimatedCo2, deliveryFee: clientDeliveryFee, redemptionId, city,
+            estimatedCo2, deliveryFee: clientDeliveryFee, redemptionId, city, customerNote,
         } = orderParsed.data;
 
         const userEmail = request.auth.token.email || "";
@@ -269,6 +269,7 @@ const createOrder = onCall(
                 orderProducts.push({
                     productId: item.productId, name: productData.name, quantity: item.quantity,
                     price, originalPrice, imageUrl: productData.imageUrl || "",
+                    isRescue: productData.isRescue ?? true, // Default to true for legacy
                 });
                 productUpdates.push({ ref: productDoc.ref, newQuantity: stockQuantity - item.quantity });
             }
@@ -345,6 +346,7 @@ const createOrder = onCall(
                 venueName: venueNameForMeta || venueDoc.data().name || "",
                 venueNeighborhood: venueNeighborhoodForMeta || "",
                 deliveryModel: venueDeliveryModel,
+                customerNote: customerNote || null,
                 metadata: { venueOwnerId: venueOwnerIdForMeta, venueName: venueNameForMeta || venueDoc.data().name },
             });
 

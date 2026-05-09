@@ -20,6 +20,10 @@ import {
   ChevronLeft,
   ChevronRight,
   ScanSearch,
+  ShoppingBag,
+  HelpCircle,
+  Package,
+  Beaker
 } from 'lucide-react';
 
 const BackofficeLayout: React.FC = () => {
@@ -51,6 +55,8 @@ const BackofficeLayout: React.FC = () => {
     { to: '/backoffice/dashboard', icon: BarChart3, label: 'Dashboard' },
     { to: '/backoffice/users', icon: Users, label: 'Usuarios' },
     { to: '/backoffice/venues', icon: Store, label: 'Restaurantes' },
+    { to: '/backoffice/products', icon: ShoppingBag, label: 'Productos' },
+    { to: '/backoffice/orders', icon: Package, label: 'Pedidos' },
     { to: '/backoffice/finance', icon: DollarSign, label: 'Finanzas' },
     { to: '/backoffice/commissions', icon: Landmark, label: 'Comisiones' },
     { to: '/backoffice/subscriptions', icon: BadgeCheck, label: 'Suscripciones' },
@@ -59,6 +65,8 @@ const BackofficeLayout: React.FC = () => {
     { to: '/backoffice/support', icon: HeadphonesIcon, label: 'Soporte' },
     { to: '/backoffice/fraud', icon: ScanSearch, label: 'Antifraude' },
     { to: '/backoffice/audit', icon: ShieldAlert, label: 'Auditoría' },
+    { to: '/backoffice/help', icon: HelpCircle, label: 'Ayuda' },
+    { to: '/backoffice/lab', icon: Beaker, label: 'Admin Lab' },
     { to: '/backoffice/settings', icon: Settings, label: 'Configuración' },
   ];
 
@@ -170,7 +178,7 @@ const BackofficeLayout: React.FC = () => {
   return (
     <div className="flex h-screen bg-neutral-900 text-white font-sans overflow-hidden">
       {/* Sidebar - Desktop */}
-      <aside className={`hidden lg:flex bg-black border-r border-neutral-800 flex-col transition-all duration-300 ease-in-out shadow-2xl z-20 ${isCollapsed ? 'w-20' : 'w-64'
+      <aside className={`hidden lg:flex bg-black border-r border-neutral-800 flex-col transition-all duration-300 ease-in-out shadow-2xl z-20 h-screen sticky top-0 ${isCollapsed ? 'w-20' : 'w-64'
         }`}>
         <SidebarContent />
       </aside>

@@ -4,8 +4,9 @@ import { Logo } from '../../common/Logo';
 export const LoadingSpinner: React.FC<{
     size?: 'xs' | 'sm' | 'md' | 'lg',
     color?: string,
-    fullPage?: boolean
-}> = ({ size = 'md', color, fullPage = false }) => {
+    fullPage?: boolean,
+    className?: string
+}> = ({ size = 'md', color, fullPage = false, className = '' }) => {
     const sizes = {
         xs: 'w-4 h-4',
         sm: 'w-6 h-6',
@@ -21,7 +22,7 @@ export const LoadingSpinner: React.FC<{
     };
 
     const spinner = (
-        <div className="flex flex-col items-center justify-center gap-4">
+        <div className={`flex flex-col items-center justify-center gap-4 ${className}`}>
             <div className="relative flex items-center justify-center">
                 {/* External spinning ring */}
                 <div className={`${sizes[size]} border-y-2 border-emerald-500 rounded-full animate-spin`}></div>

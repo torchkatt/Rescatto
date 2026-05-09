@@ -1,23 +1,18 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import {
-    collection,
-    query,
-    orderBy,
-    limit,
-    getDocs,
-    doc,
-    getDoc,
-    getCountFromServer
-} from 'firebase/firestore';
-import { db } from '../../services/firebase';
+import { adminService } from '../../services/adminService';
 import { AuditLog } from '../../types';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
-import { Shield, Search, Calendar, User, Activity, Trash2, Download, X, AlertCircle, Info, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, RotateCw } from 'lucide-react';
-
-const PAGE_SIZE_OPTIONS = [25, 50, 100];
-import { cacheService } from '../../services/cacheService';
-import { adminService } from '../../services/adminService';
+import { Shield, Search, Download, Trash2, Calendar, User, Activity, FileText, ChevronRight, X, RotateCw, Filter, AlertCircle, Info } from 'lucide-react';
+import { useToast } from '../../context/ToastContext';
+import { useConfirm } from '../../context/ConfirmContext';
 import { logger } from '../../utils/logger';
+import MobileDrawer from '../../components/common/MobileDrawer';
+import { Tooltip } from '../../components/common/Tooltip';
+import { DataTable, Column } from '../../components/common/DataTable';
+import { useAdminTable } from '../../hooks/useAdminTable';
+import { db } from '../../services/firebase';
+import { collection, doc, getDoc, getCountFromServer } from 'firebase/firestore';
+import { cacheService } from '../../services/cacheService';
 
 // --- CONSTANTS ---
 
@@ -83,73 +78,56 @@ const exportToCSV = (logs: AuditLog[], entityNames: Record<string, string>, anon
 };
 
 export const AuditLogs: React.FC = () => {
-    const [logs, setLogs] = useState<AuditLog[]>([]);
-    const [statsLogs, setStatsLogs] = useState<AuditLog[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [lastDoc, setLastDoc] = useState<any>(null);
-    const [hasMore, setHasMore] = useState(true);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [pageSize, setPageSize] = useState(50);
-
-    // Filters
-    const [searchTerm, setSearchTerm] = useState('');
-    const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
-    const [dateRange, setDateRange] = useState<{ start: string, end: string }>({ start: '', end: '' });
-
-    // UI State
-    const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
-
-    // Entity Cache
     const [entityNames, setEntityNames] = useState<Record<string, string>>({});
-
     const [totalLogCount, setTotalLogCount] = useState(0);
+    const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
+    const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+    const [dateRange, setDateRange] = useState({ start: '', end: '' });
 
-    // Fetch Stats
-    useEffect(() => {
-        const fetchStats = async () => {
-            try {
-                const logsRef = collection(db, 'audit_logs');
-                const [snapshot, countSnap] = await Promise.all([
-                    getDocs(query(logsRef, orderBy('timestamp', 'desc'), limit(20))),
-                    getCountFromServer(logsRef),
-                ]);
-                const fetchedStatsLogs = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as AuditLog[];
-                setStatsLogs(fetchedStatsLogs);
-                setTotalLogCount(countSnap.data().count);
-            } catch (e) {
-                logger.error("Error fetching stats logs", e);
-            }
-        };
-        fetchStats();
-    }, []);
-
-    // Fetch Logs
-    const fetchLogs = async (isNext = false) => {
-        try {
-            setLoading(true);
-            const result = await adminService.getAuditLogsPaginated(50, isNext ? lastDoc : null);
+    const table = useAdminTable<AuditLog>({
+        fetchFn: async (size, cursor, term) => {
+            const result = await adminService.getAuditLogsPaginated(size, cursor);
             const newLogs = result.data as AuditLog[];
-
             await resolveEntityNames(newLogs);
 
-            if (isNext) {
-                setLogs(prev => [...prev, ...newLogs]);
-            } else {
-                setLogs(newLogs);
+            let filtered = newLogs;
+            if (selectedCategory !== 'ALL') {
+                const targetLabel = ACTION_CATEGORIES[selectedCategory].label;
+                filtered = filtered.filter(log => getCategory(log.action).label === targetLabel);
+            }
+            if (dateRange.start || dateRange.end) {
+                filtered = filtered.filter(log => {
+                    let matchesDate = true;
+                    const logDate = new Date(log.timestamp);
+                    if (dateRange.start) matchesDate = matchesDate && logDate >= new Date(dateRange.start);
+                    if (dateRange.end) {
+                        const endDate = new Date(dateRange.end);
+                        endDate.setHours(23, 59, 59, 999);
+                        matchesDate = matchesDate && logDate <= endDate;
+                    }
+                    return matchesDate;
+                });
+            }
+            if (term) {
+                const low = term.toLowerCase();
+                filtered = filtered.filter(log =>
+                    log.action.toLowerCase().includes(low) ||
+                    (entityNames[log.performedBy] || '').toLowerCase().includes(low) ||
+                    (log.targetId && (entityNames[log.targetId] || '').toLowerCase().includes(low))
+                );
             }
 
-            setLastDoc(result.lastDoc);
-            setHasMore(result.hasMore);
-        } catch (error) {
-            logger.error('Error fetching logs:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Carga inicial: se omite fetchLogs de deps deliberadamente (lee estado vía closure al montar)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    useEffect(() => { fetchLogs(); }, []);
+            return { ...result, data: filtered };
+        },
+        countFn: async () => {
+            const logsRef = collection(db, 'audit_logs');
+            const countSnap = await getCountFromServer(logsRef);
+            setTotalLogCount(countSnap.data().count);
+            return countSnap.data().count;
+        },
+        initialPageSize: 50,
+        dependencies: [selectedCategory, dateRange]
+    });
 
     const resolveEntityNames = async (logsToResolve: AuditLog[]) => {
         const uniqueIds = new Set<string>();
@@ -251,151 +229,154 @@ export const AuditLogs: React.FC = () => {
         }
     };
 
-    const filteredLogs = useMemo(() => logs.filter(log => {
-        if (IGNORED_ACTIONS.includes(log.action)) return false;
-        const searchLower = searchTerm.toLowerCase();
-        const actor = entityNames[log.performedBy] || log.performedBy;
-        const target = entityNames[log.targetId || ''] || '';
-        const matchesSearch =
-            actor.toLowerCase().includes(searchLower) ||
-            target.toLowerCase().includes(searchLower) ||
-            log.action.toLowerCase().includes(searchLower);
-        const matchesCategory = selectedCategory === 'ALL' || getCategory(log.action).label === selectedCategory;
-        let matchesDate = true;
-        if (dateRange.start) matchesDate = matchesDate && new Date(log.timestamp) >= new Date(dateRange.start);
-        if (dateRange.end) {
-            const endDate = new Date(dateRange.end);
-            endDate.setHours(23, 59, 59, 999);
-            matchesDate = matchesDate && new Date(log.timestamp) <= endDate;
-        }
-        return matchesSearch && matchesCategory && matchesDate;
-    }), [logs, searchTerm, entityNames, selectedCategory, dateRange]);
-
-    const categoryStats = useMemo(() => {
-        const counts: Record<string, number> = { 'all': filteredLogs.length };
-        Object.keys(ACTION_CATEGORIES).forEach(key => {
-            counts[ACTION_CATEGORIES[key].label] = 0;
-        });
-
-        filteredLogs.forEach(log => {
-            const cat = getCategory(log.action).label;
-            counts[cat] = (counts[cat] || 0) + 1;
-        });
-
-        return counts;
-    }, [filteredLogs]);
-
-    const totalPages = Math.max(1, Math.ceil(filteredLogs.length / pageSize));
-    const safePage = Math.min(currentPage, totalPages);
-    const paginatedLogs = filteredLogs.slice((safePage - 1) * pageSize, safePage * pageSize);
-    const needsMoreData = hasMore && safePage === totalPages && filteredLogs.length > 0 && filteredLogs.length % pageSize === 0;
-
-    const goToPage = async (page: number) => {
-        const target = Math.max(1, Math.min(page, totalPages));
-        if (needsMoreData && target === totalPages) {
-            await fetchLogs(true);
-        }
-        setCurrentPage(target);
-    };
-
-    const handlePageSizeChange = (size: number) => { setPageSize(size); setCurrentPage(1); };
-
-    const getPageNumbers = () => {
-        const delta = 2;
-        const pages: (number | '...')[] = [];
-        for (let i = 1; i <= totalPages; i++) {
-            if (i === 1 || i === totalPages || (i >= safePage - delta && i <= safePage + delta)) {
-                pages.push(i);
-            } else if (pages[pages.length - 1] !== '...') {
-                pages.push('...');
+    const columns = [
+        {
+            header: 'Fecha',
+            accessor: 'timestamp' as keyof any,
+            sortable: true,
+            render: (value: any, item: any) => (
+                <div className="flex flex-col gap-0.5">
+                    <span className="font-black text-gray-900 text-[11px] tracking-tight">{new Date(item.timestamp).toLocaleDateString()}</span>
+                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">{new Date(item.timestamp).toLocaleTimeString()}</span>
+                </div>
+            )
+        },
+        {
+            header: 'Categoría',
+            accessor: 'category' as keyof any,
+            render: (value: any, item: any) => {
+                const cat = getCategory(item.action);
+                return (
+                    <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border shadow-sm ${cat.color}`}>
+                        <span className="opacity-70">{cat.icon}</span>
+                        {cat.label}
+                    </span>
+                );
             }
+        },
+        {
+            header: 'Actor',
+            accessor: 'actorName' as keyof any,
+            render: (value: any, item: any) => {
+                const name = entityNames[item.performedBy] || (item.performedBy.includes('@') ? item.performedBy : 'Usuario');
+                return (
+                    <div className="flex items-center gap-4 py-1">
+                        <div className="w-10 h-10 rounded-2xl bg-emerald-600 flex items-center justify-center text-white font-black text-sm shrink-0 shadow-lg shadow-emerald-500/20 border-2 border-white">
+                            {name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="font-black text-gray-900 text-sm tracking-tight leading-none mb-1">
+                                {name}
+                            </span>
+                            <span className="text-[10px] font-bold text-emerald-600/60 uppercase tracking-widest">
+                                {item.metadata?.ip || item.ipAddress || 'IP: N/A'}
+                            </span>
+                        </div>
+                    </div>
+                );
+            }
+        },
+        {
+            header: 'Evento / Descripción',
+            accessor: 'action' as keyof any,
+            render: (value: any, item: any) => (
+                <div className="text-gray-700 text-sm font-medium leading-relaxed max-w-md">
+                    {generateHumanDescription(item)}
+                </div>
+            )
         }
-        return pages;
-    };
+    ];
 
     const renderDrawer = () => {
         if (!selectedLog) return null;
 
         return (
-            <div className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm transition-opacity" onClick={() => setSelectedLog(null)}>
+            <div className="fixed inset-0 z-[100] flex justify-end bg-black/50 backdrop-blur-sm transition-opacity" onClick={() => setSelectedLog(null)}>
                 <div className="w-full sm:max-w-xl bg-white h-full shadow-2xl p-6 overflow-y-auto transform transition-transform animate-in slide-in-from-right duration-200" onClick={e => e.stopPropagation()}>
                     <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                            <Activity className="text-emerald-600" />
-                            Detalle del Evento
-                        </h3>
-                        <button onClick={() => setSelectedLog(null)} className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-emerald-100 rounded-lg">
+                                <Activity className="text-emerald-600" size={20} />
+                            </div>
+                            <h3 className="text-xl font-bold text-gray-900">Detalle del Evento</h3>
+                        </div>
+                        <button onClick={() => setSelectedLog(null)} className="p-2 hover:bg-gray-100 rounded-full text-gray-400 transition-colors">
                             <X size={20} />
                         </button>
                     </div>
 
                     <div className="space-y-6">
-                        {/* Meta Header */}
-                        <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 space-y-2">
-                            <div className="flex justify-between text-sm">
-                                <span className="text-gray-500">ID del Evento</span>
-                                <span className="font-mono text-gray-700 select-all">{selectedLog.id}</span>
+                        <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100 space-y-3">
+                            <div className="flex justify-between items-center text-sm">
+                                <span className="text-gray-500 font-medium">ID del Evento</span>
+                                <span className="font-mono text-gray-700 bg-white px-2 py-1 rounded border border-gray-200 select-all text-xs">{selectedLog.id}</span>
                             </div>
-                            <div className="flex justify-between text-sm">
-                                <span className="text-gray-500">Fecha</span>
-                                <span className="font-medium">{new Date(selectedLog.timestamp).toLocaleString()}</span>
+                            <div className="flex justify-between items-center text-sm">
+                                <span className="text-gray-500 font-medium">Fecha y Hora</span>
+                                <span className="font-bold text-gray-800">{new Date(selectedLog.timestamp).toLocaleString()}</span>
                             </div>
-                            <div className="flex justify-between text-sm">
-                                <span className="text-gray-500">Categoría</span>
-                                <span className={`px-2 py-0.5 rounded text-xs border ${getCategory(selectedLog.action).color}`}>
+                            <div className="flex justify-between items-center text-sm">
+                                <span className="text-gray-500 font-medium">Categoría</span>
+                                <span className={`px-3 py-1 rounded-full text-xs font-bold border ${getCategory(selectedLog.action).color}`}>
                                     {getCategory(selectedLog.action).label}
                                 </span>
                             </div>
                         </div>
 
-                        {/* Actor & Metadata */}
                         <div>
-                            <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                                <User size={16} /> Actor y Origen
+                            <h4 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2 uppercase tracking-wider">
+                                <User size={16} className="text-emerald-600" /> Actor y Origen
                             </h4>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                                <div className="p-3 bg-white border border-gray-200 rounded-lg shadow-sm">
-                                    <p className="text-xs text-gray-500 mb-1">Usuario</p>
-                                    <p className="font-medium truncate" title={entityNames[selectedLog.performedBy]}>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="p-4 bg-white border border-gray-100 rounded-2xl shadow-sm">
+                                    <p className="text-[10px] text-gray-400 font-black uppercase mb-1">Identidad</p>
+                                    <p className="font-bold text-gray-900 truncate" title={entityNames[selectedLog.performedBy]}>
                                         {entityNames[selectedLog.performedBy] || selectedLog.performedBy}
                                     </p>
                                 </div>
-                                <div className="p-3 bg-white border border-gray-200 rounded-lg shadow-sm">
-                                    <p className="text-xs text-gray-500 mb-1">Dirección IP</p>
-                                    <p className="font-mono">{selectedLog.metadata?.ip || 'N/A'}</p>
+                                <div className="p-4 bg-white border border-gray-100 rounded-2xl shadow-sm">
+                                    <p className="text-[10px] text-gray-400 font-black uppercase mb-1">Dirección IP</p>
+                                    <p className="font-mono font-bold text-gray-900">{selectedLog.metadata?.ip || 'N/A'}</p>
                                 </div>
-                                <div className="sm:col-span-2 p-3 bg-white border border-gray-200 rounded-lg shadow-sm">
-                                    <p className="text-xs text-gray-500 mb-1">User Agent / Dispositivo</p>
-                                    <p className="font-mono text-xs text-gray-600 break-all">{selectedLog.metadata?.userAgent || 'N/A'}</p>
+                                <div className="sm:col-span-2 p-4 bg-white border border-gray-100 rounded-2xl shadow-sm">
+                                    <p className="text-[10px] text-gray-400 font-black uppercase mb-1">User Agent / Dispositivo</p>
+                                    <p className="font-mono text-xs text-gray-600 break-all leading-relaxed">{selectedLog.metadata?.userAgent || 'N/A'}</p>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Target Information */}
                         {selectedLog.targetId && (
                             <div>
-                                <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                                    <AlertCircle size={16} /> Recurso Afectado
+                                <h4 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2 uppercase tracking-wider">
+                                    <AlertCircle size={16} className="text-orange-500" /> Recurso Afectado
                                 </h4>
-                                <div className="bg-white border border-gray-200 rounded-lg p-3 text-sm shadow-sm">
-                                    <div className="flex justify-between mb-1">
-                                        <span className="text-gray-500 text-xs">Colección</span>
-                                        <span className="font-mono text-xs text-emerald-600">{selectedLog.targetCollection}</span>
+                                <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <span className="text-[10px] text-gray-400 font-black uppercase">Colección</span>
+                                        <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded text-[10px] font-bold border border-emerald-100 uppercase tracking-widest">{selectedLog.targetCollection}</span>
                                     </div>
-                                    <p className="font-medium">
+                                    <p className="font-bold text-gray-900 text-lg">
                                         {entityNames[selectedLog.targetId] || selectedLog.targetId}
                                     </p>
                                 </div>
                             </div>
                         )}
 
-                        {/* Technical Details JSON */}
                         <div>
-                            <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                                <Info size={16} /> Payload Técnico
+                            <h4 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2 uppercase tracking-wider">
+                                <Info size={16} className="text-blue-500" /> Payload Técnico
                             </h4>
-                            <div className="bg-slate-900 rounded-xl p-4 overflow-x-auto border border-slate-800 shadow-inner">
-                                <pre className="text-xs font-mono text-emerald-400 whitespace-pre-wrap">
+                            <div className="bg-slate-900 rounded-2xl p-5 overflow-x-auto border border-slate-800 shadow-2xl group relative">
+                                <button
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(JSON.stringify(selectedLog.details, null, 2));
+                                    }}
+                                    className="absolute top-3 right-3 p-1.5 bg-white/10 hover:bg-white/20 text-white/50 hover:text-white rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                    title="Copiar JSON"
+                                >
+                                    <Download size={14} />
+                                </button>
+                                <pre className="text-xs font-mono text-emerald-400 whitespace-pre-wrap leading-relaxed">
                                     {JSON.stringify(selectedLog.details || {}, null, 2)}
                                 </pre>
                             </div>
@@ -406,215 +387,105 @@ export const AuditLogs: React.FC = () => {
         );
     };
 
-    if (loading && logs.length === 0) return <LoadingSpinner fullPage />;
+    if (table.isLoading && table.data.length === 0) return <LoadingSpinner fullPage />;
 
     return (
-        <div className="relative overflow-x-hidden flex flex-col gap-4">
-            {/* Header Section Compact */}
-            <div className="flex items-center justify-between shrink-0 mt-2 bg-emerald-900/40 border border-emerald-500/20 rounded-2xl p-4 backdrop-blur-md">
-                <div className="flex items-center gap-4">
-                    <div className="p-2.5 bg-emerald-600 rounded-xl shadow-lg shadow-emerald-500/20">
-                        <Shield className="text-white" size={20} />
+        <div className="relative overflow-x-hidden flex flex-col gap-4 animate-in fade-in duration-500">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mt-2 bg-gradient-to-br from-emerald-900/80 to-slate-900/90 border border-white/10 rounded-[2.5rem] p-8 backdrop-blur-xl shadow-2xl">
+                <div className="flex items-center gap-6">
+                    <div className="p-5 bg-emerald-600 rounded-[2rem] shadow-2xl shadow-emerald-500/40 active:scale-95 transition-all cursor-pointer border border-emerald-400/20">
+                        <Shield className="text-white" size={32} />
                     </div>
                     <div>
-                        <h1 className="text-xl font-black text-white tracking-tight leading-none mb-1">Centro de Auditoría</h1>
-                        <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-[0.2em] flex items-center gap-1.5">
-                            <Activity size={6} className="fill-emerald-400 animate-pulse" />
-                            Security Hub · {totalLogCount} eventos totales
+                        <h1 className="text-3xl font-black text-white tracking-tighter leading-none mb-2">Auditoría & Seguridad</h1>
+                        <p className="text-[10px] text-emerald-400/80 font-black uppercase tracking-[0.4em] flex items-center gap-2">
+                            <Activity size={10} className="fill-emerald-400 animate-pulse" />
+                            Búnker de Seguridad · {totalLogCount} eventos
                         </p>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                    <div className="hidden lg:flex items-center gap-1 mr-4 border-r border-white/10 pr-4">
-                        <div className="px-3 py-1 bg-white/5 rounded-lg border border-white/10">
-                            <p className="text-[8px] text-gray-400 font-black uppercase tracking-widest leading-none mb-1">Total</p>
-                            <p className="text-sm font-black text-white leading-none">{totalLogCount.toLocaleString()}</p>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => exportToCSV(filteredLogs, entityNames, false)}
-                            className="flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-emerald-400 bg-white/5 border border-emerald-500/20 rounded-xl hover:bg-emerald-500/10 transition-all"
-                        >
-                            <Download size={14} /> <span>CSV</span>
-                        </button>
-                        <button
-                            onClick={() => fetchLogs()}
-                            disabled={loading}
-                            className="flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-900/40"
-                        >
-                            <RotateCw size={14} className={loading ? 'animate-spin' : ''} />
-                            Refrescar
-                        </button>
-                    </div>
+                <div className="flex items-center gap-3 self-end md:self-center">
+                    <button
+                        onClick={() => table.reload()}
+                        disabled={table.isLoading}
+                        className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 text-white font-bold text-xs shadow-xl transition-all active:scale-95 disabled:opacity-50 group"
+                    >
+                        <RotateCw size={14} className={table.isLoading ? 'animate-spin' : 'transition-transform group-hover:rotate-180 duration-500'} />
+                        Refrescar
+                    </button>
                 </div>
             </div>
 
-            {/* TABLE */}
-            <div className="bg-white rounded-[2rem] shadow-xl border border-gray-100 overflow-hidden flex flex-col h-[calc(100vh-240px)] min-h-[500px]">
-                {/* Table Header - Organized in 2 rows to avoid overlapping */}
-                <div className="p-4 border-b bg-gray-50/80 flex flex-col gap-4">
-                    {/* Row 1: Title, Search and Dates */}
-                    <div className="flex flex-col xl:flex-row gap-3 xl:items-center justify-between">
+            <div className="bg-white/90 backdrop-blur-md rounded-[2.5rem] p-8 shadow-xl border border-gray-50 flex flex-col gap-8">
+                <div className="flex flex-col lg:flex-row gap-8 lg:items-center justify-between">
+                    <div className="flex flex-col gap-3">
                         <div className="flex items-center gap-3">
-                            <h3 className="font-bold text-gray-800 shrink-0 hidden md:block">Registros</h3>
-                            <div className="flex items-center gap-2 border border-gray-200 rounded-xl px-3 py-2 bg-white w-full sm:w-64 xl:w-80 shadow-sm focus-within:border-emerald-400 transition-colors">
-                                <Search className="text-gray-400 shrink-0" size={16} />
-                                <input
-                                    type="text"
-                                    placeholder="Buscar por actor, acción..."
-                                    value={searchTerm}
-                                    onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                                    className="flex-1 outline-none text-gray-700 bg-transparent text-xs"
-                                />
-                            </div>
+                            <Calendar size={16} className="text-emerald-500" />
+                            <h3 className="font-black text-gray-900 uppercase tracking-widest text-[10px] shrink-0">Filtrar por Fecha</h3>
                         </div>
-
-                        <div className="flex items-center gap-2">
-                            <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-xl px-3 py-1.5 shadow-sm">
-                                <Calendar size={12} className="text-gray-400" />
-                                <input type="date" className="text-[10px] bg-transparent border-none focus:ring-0 text-gray-600 outline-none" value={dateRange.start} onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })} />
-                                <span className="text-gray-400 text-[10px]">→</span>
-                                <input type="date" className="text-[10px] bg-transparent border-none focus:ring-0 text-gray-600 outline-none" value={dateRange.end} onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })} />
-                            </div>
-                            <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-1.5 shadow-sm">
-                                <span className="text-[9px] text-gray-400 font-black uppercase tracking-tighter">Filas</span>
-                                <select value={pageSize} onChange={(e) => handlePageSizeChange(Number(e.target.value))} className="text-xs font-black bg-transparent text-emerald-600 outline-none cursor-pointer">
-                                    {PAGE_SIZE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                                </select>
-                            </div>
+                        <div className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-2xl px-5 py-2.5 shadow-inner hover:bg-white transition-colors w-fit">
+                            <input type="date" className="text-xs bg-transparent border-none focus:ring-0 text-gray-700 outline-none font-bold" value={dateRange.start} onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })} />
+                            <span className="text-gray-300 text-xs font-black">→</span>
+                            <input type="date" className="text-xs bg-transparent border-none focus:ring-0 text-gray-700 outline-none font-bold" value={dateRange.end} onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })} />
                         </div>
                     </div>
 
-                    {/* Row 2: Category Filter Chips (Full width scrollable) */}
-                    <div className="flex items-center gap-2 w-full overflow-x-auto scrollbar-hide py-1">
+                    <div className="flex items-center gap-3 flex-wrap">
                         <button
                             onClick={() => setSelectedCategory('ALL')}
-                            className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all border flex items-center gap-2 ${selectedCategory === 'ALL' ? 'bg-gray-900 text-white border-gray-900 shadow-lg shadow-gray-200 scale-105 z-10' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50 shadow-sm'}`}
+                            className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border flex items-center gap-3 ${selectedCategory === 'ALL' ? 'bg-gray-900 text-white border-gray-900 shadow-xl scale-105 z-10' : 'bg-white border-gray-200 text-gray-500 hover:border-emerald-300 hover:bg-emerald-50 shadow-sm hover:shadow-md'}`}
                         >
-                            Todas
-                            <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${selectedCategory === 'ALL' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-400'}`}>
-                                {categoryStats['all'] || 0}
-                            </span>
+                            <span>Todas</span>
                         </button>
-                        <div className="w-[1px] h-6 bg-gray-200 mx-1 shrink-0" />
+                        <div className="w-[2px] h-6 bg-gray-100 mx-2 shrink-0 rounded-full" />
                         {Object.entries(ACTION_CATEGORIES).map(([id, cat]) => (
                             <button
                                 key={id}
                                 onClick={() => setSelectedCategory(cat.label)}
-                                className={`whitespace-nowrap px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all border flex items-center gap-2 ${selectedCategory === cat.label ? 'bg-gray-900 text-white border-gray-900 shadow-lg shadow-gray-200 scale-105 z-10' : `border-transparent ${cat.color} hover:brightness-95 shadow-sm`}`}
+                                className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border flex items-center gap-3 ${selectedCategory === cat.label ? 'bg-gray-900 text-white border-gray-900 shadow-xl scale-105 z-10' : `bg-white border-gray-200 text-gray-500 hover:border-emerald-300 hover:bg-emerald-50 shadow-sm hover:shadow-md`}`}
                             >
-                                {cat.icon}
-                                {cat.label}
-                                <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${selectedCategory === cat.label ? 'bg-white/20 text-white' : 'bg-current/10 opacity-70'}`}>
-                                    {categoryStats[cat.label] || 0}
-                                </span>
+                                <span className={selectedCategory === cat.label ? 'text-white' : 'opacity-70'}>{cat.icon}</span>
+                                <span>{cat.label}</span>
                             </button>
                         ))}
                     </div>
                 </div>
-                <div className="overflow-x-auto -mx-4 sm:mx-0">
-                    <table className="w-full min-w-[640px]">
-                        <thead>
-                            <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold tracking-wider">
-                                <th className="p-3 sm:p-4 w-32 sm:w-40 text-left">Fecha</th>
-                                <th className="p-3 sm:p-4 hidden sm:table-cell w-48 text-left">Categoría</th>
-                                <th className="p-3 sm:p-4 w-48 sm:w-56 text-left">Actor</th>
-                                <th className="p-3 sm:p-4 text-left">Evento</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100 text-sm scrollbar-hide">
-                            {paginatedLogs.length === 0 ? (
-                                <tr>
-                                    <td colSpan={4} className="p-12 text-center text-gray-400 flex flex-col items-center justify-center gap-2">
-                                        <div className="bg-gray-50 p-4 rounded-full">
-                                            <Search size={24} className="opacity-50" />
-                                        </div>
-                                        <span>No hay actividad relevante registrada</span>
-                                    </td>
-                                </tr>
-                            ) : (
-                                paginatedLogs.map((log) => {
-                                    const category = getCategory(log.action);
-                                    const actorName = entityNames[log.performedBy] || (log.performedBy.includes('@') ? log.performedBy : 'Usuario');
 
-                                    return (
-                                        <tr key={log.id}
-                                            onClick={() => setSelectedLog(log)}
-                                            className="hover:bg-emerald-50/30 transition-colors group cursor-pointer border-l-4 border-l-transparent hover:border-l-emerald-500"
-                                        >
-                                            <td className="p-3 sm:p-4 text-gray-500 text-xs whitespace-nowrap">
-                                                <div className="font-medium text-gray-700">
-                                                    {new Date(log.timestamp).toLocaleDateString()}
-                                                </div>
-                                                <div className="text-[10px] opacity-70">
-                                                    {new Date(log.timestamp).toLocaleTimeString()}
-                                                </div>
-                                            </td>
-                                            <td className="p-3 sm:p-4 hidden sm:table-cell">
-                                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${category.color}`}>
-                                                    {category.icon}
-                                                    {category.label}
-                                                </span>
-                                            </td>
-                                            <td className="p-3 sm:p-4">
-                                                <div className="flex items-center gap-2 sm:gap-3">
-                                                    <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-xs font-bold border border-slate-200">
-                                                        {actorName.charAt(0).toUpperCase()}
-                                                    </div>
-                                                    <div className="flex flex-col">
-                                                        <span className="font-medium text-gray-900 text-sm truncate max-w-[180px]" title={actorName}>
-                                                            {actorName}
-                                                        </span>
-                                                        <span className="text-[10px] text-gray-400">
-                                                            {log.metadata?.ip ? `IP: ${log.metadata.ip}` : (log.ipAddress || 'IP: N/A')}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="p-3 sm:p-4 text-gray-600 text-sm leading-relaxed">
-                                                {generateHumanDescription(log)}
-                                            </td>
-                                        </tr>
-                                    );
-                                })
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                <DataTable
+                    columns={columns}
+                    data={table.data}
+                    placeholder="Buscar en logs cargados..."
+                    isLoading={table.isLoading}
+                    manualPagination
+                    totalItems={table.totalItems}
+                    currentPage={table.currentPage}
+                    onPageChange={table.onPageChange}
+                    onPageSizeChange={table.onPageSizeChange}
+                    searchTerm={table.searchTerm}
+                    onSearchChange={table.setSearchTerm}
+                    isSearching={table.isSearching}
+                    onRowClick={(log) => setSelectedLog(log)}
+                    exportable
+                    exportFilename="rescatto_audit_logs"
+                    exportTransformer={(log) => {
+                        const actorName = entityNames[log.performedBy] || log.performedBy;
+                        const targetName = log.targetId ? (entityNames[log.targetId] || log.targetId) : '';
+                        const category = getCategory(log.action).label;
 
-                {/* Pagination Controls */}
-                {filteredLogs.length > 0 && (
-                    <div className="p-4 border-t border-gray-100 bg-gray-50 flex flex-col sm:flex-row items-center justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                            <p className="text-xs text-gray-500">
-                                {loading ? 'Cargando...' : <>Mostrando <span className="font-semibold text-gray-700">{(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, filteredLogs.length)}</span> de <span className="font-semibold text-gray-700">{filteredLogs.length}{hasMore ? '+' : ''}</span></>}
-                            </p>
-                            <div className="flex items-center gap-1.5">
-                                <span className="text-xs text-gray-400">Filas:</span>
-                                <select value={pageSize} onChange={(e) => handlePageSizeChange(Number(e.target.value))} className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white text-gray-700 cursor-pointer focus:outline-none focus:border-emerald-400">
-                                    {PAGE_SIZE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                                </select>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                            <button onClick={() => goToPage(1)} disabled={safePage === 1 || loading} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronsLeft size={15} /></button>
-                            <button onClick={() => goToPage(safePage - 1)} disabled={safePage === 1 || loading} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronLeft size={15} /></button>
-                            {getPageNumbers().map((page, idx) =>
-                                page === '...' ? <span key={`e-${idx}`} className="px-2 text-gray-400 text-sm">…</span> : (
-                                    <button key={page} onClick={() => goToPage(page as number)} disabled={loading} className={`min-w-[30px] h-7 px-2 rounded-lg text-xs font-medium transition-colors ${page === safePage ? 'bg-emerald-600 text-white' : 'text-gray-600 hover:bg-gray-200'}`}>{page}</button>
-                                )
-                            )}
-                            <button onClick={() => goToPage(safePage + 1)} disabled={(safePage >= totalPages && !hasMore) || loading} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronRight size={15} /></button>
-                            <button onClick={() => goToPage(totalPages)} disabled={(safePage >= totalPages && !hasMore) || loading} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronsRight size={15} /></button>
-                        </div>
-                    </div>
-                )}
+                        return {
+                            timestamp: new Date(log.timestamp).toLocaleString('es-CO'),
+                            category,
+                            action: log.action,
+                            actor: actorName,
+                            target: targetName,
+                            ip: maskIp(log.metadata?.ip || '0.0.0.0'),
+                            details: JSON.stringify(log.details || {})
+                        };
+                    }}
+                />
             </div>
 
-            {/* DRAWER COMPONENT */}
             {renderDrawer()}
         </div>
     );

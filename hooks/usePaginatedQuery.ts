@@ -49,25 +49,36 @@ export function usePaginatedQuery<T = DocumentData & { id: string }>(
 
     const lastDocRef = useRef<QueryDocumentSnapshot<DocumentData> | null>(null);
     const abortRef = useRef(false);
+    const optionsRef = useRef(options);
+    
+    // Sincronizar options sin disparar re-renders innecesarios
+    useEffect(() => {
+        optionsRef.current = options;
+    }, [options]);
 
     const defaultTransform = (doc: QueryDocumentSnapshot<DocumentData>): T =>
         ({ id: doc.id, ...doc.data() } as unknown as T);
 
-    const toItem = transform ?? defaultTransform;
-
     const fetchPage = useCallback(
         async (cursor: QueryDocumentSnapshot<DocumentData> | null) => {
-            const extra: QueryConstraint[] = [limit(pageSize)];
+            const currentOptions = optionsRef.current;
+            const toItem = currentOptions.transform ?? defaultTransform;
+            const pSize = currentOptions.pageSize ?? pageSize;
+
+            const extra: QueryConstraint[] = [limit(pSize)];
             if (cursor) extra.push(startAfter(cursor));
             const snap = await getDocs(buildQuery(extra));
             const items = snap.docs.map(toItem);
             lastDocRef.current = snap.docs[snap.docs.length - 1] ?? null;
-            return { items, exhausted: snap.docs.length < pageSize };
+            return { items, exhausted: snap.docs.length < pSize };
         },
-        [buildQuery, pageSize, toItem]
+        [buildQuery, pageSize]
     );
 
     const refresh = useCallback(async () => {
+        if (loading && !isFirstRun.current) return;
+        isFirstRun.current = false;
+        
         abortRef.current = false;
         lastDocRef.current = null;
         setLoading(true);
@@ -77,10 +88,16 @@ export function usePaginatedQuery<T = DocumentData & { id: string }>(
             if (abortRef.current) return;
             setData(result.items);
             setHasMore(!result.exhausted);
+        } catch (err) {
+            console.error('[usePaginatedQuery] Refresh error:', err);
+            // No re-lanzamos para evitar que el loop de React explote, 
+            // el usuario verá que dejó de cargar.
         } finally {
             if (!abortRef.current) setLoading(false);
         }
-    }, [fetchPage]);
+    }, [fetchPage, loading]);
+
+    const isFirstRun = useRef(true);
 
     const loadMore = useCallback(async () => {
         if (!hasMore || loadingMore) return;
@@ -90,6 +107,8 @@ export function usePaginatedQuery<T = DocumentData & { id: string }>(
             if (abortRef.current) return;
             setData(prev => [...prev, ...result.items]);
             setHasMore(!result.exhausted);
+        } catch (err) {
+            console.error('[usePaginatedQuery] LoadMore error:', err);
         } finally {
             if (!abortRef.current) setLoadingMore(false);
         }

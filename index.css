@@ -141,6 +141,15 @@
     }
 }
 
+@keyframes progress-linear {
+    from { width: 100%; }
+    to { width: 0%; }
+}
+
+.animate-progress {
+    animation: progress-linear var(--toast-duration, 5000ms) linear forwards;
+}
+
 .animate-fade-in-up {
     animation: fade-in-up 0.5s ease-out forwards;
 }

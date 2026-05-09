@@ -4,11 +4,12 @@ import { adminService } from '../../services/adminService';
 import { useToast } from '../../context/ToastContext';
 import { Order, OrderStatus } from '../../types';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
-import { DollarSign, Search, Calendar, CreditCard, TrendingUp, RotateCw, Store, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { DollarSign, Search, Calendar, CreditCard, TrendingUp, RotateCw, Store } from 'lucide-react';
 import { logger } from '../../utils/logger';
 import { formatCOP } from '../../utils/formatters';
-
-const PAGE_SIZE_OPTIONS = [10, 20, 50];
+import { useAuth } from '../../context/AuthContext';
+import { DataTable, Column } from '../../components/common/DataTable';
+import { useAdminTable } from '../../hooks/useAdminTable';
 
 type Period = 'today' | 'week' | 'month' | 'year';
 
@@ -23,7 +24,7 @@ const toYMD = (d: Date): string => d.toISOString().slice(0, 10);
 
 const getPeriodDates = (period: Period) => {
     const now = new Date();
-    let start: Date;
+    let start = new Date(now);
     switch (period) {
         case 'today': {
             start = new Date(now); start.setHours(0, 0, 0, 0); break;
@@ -37,6 +38,7 @@ const getPeriodDates = (period: Period) => {
         case 'year': {
             start = new Date(now.getFullYear(), 0, 1); break;
         }
+        default: break;
     }
     return { startDate: toYMD(start), endDate: toYMD(now) };
 };
@@ -52,19 +54,24 @@ interface FinanceStats {
 
 export const FinanceManager: React.FC = () => {
     const { showToast } = useToast();
-    const [orders, setOrders] = useState<Order[]>([]);
     const [globalStats, setGlobalStats] = useState<FinanceStats | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [statsLoading, setStatsLoading] = useState(true);
-    const [loadingMore, setLoadingMore] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [lastDoc, setLastDoc] = useState<any>(null);
-    const [hasMore, setHasMore] = useState(true);
+    const [statsLoading, setStatsLoading] = useState(false);
     const [selectedPeriod, setSelectedPeriod] = useState<Period>('month');
-    const [currentPage, setCurrentPage] = useState(1);
-    const [pageSize, setPageSize] = useState(20);
+
+    const table = useAdminTable<Order>({
+        fetchFn: (size, cursor, term) => adminService.getOrdersPaginated(size, cursor),
+        initialPageSize: 20
+    });
+
+    const { isReadyForBackend, refreshClaims } = useAuth();
 
     const loadGlobalStats = async () => {
+        if (!isReadyForBackend) {
+            setStatsLoading(false);
+            return;
+        }
+        
+        const startTime = Date.now();
         setStatsLoading(true);
         try {
             const fns = getFunctions();
@@ -72,95 +79,89 @@ export const FinanceManager: React.FC = () => {
             const { startDate, endDate } = getPeriodDates(selectedPeriod);
             const result = await getFinanceStatsFn({ startDate, endDate });
             setGlobalStats(result.data as FinanceStats);
-        } catch (error) {
+        } catch (error: any) {
             logger.error('Error loading global finance stats:', error);
+            if (error?.code === 'permission-denied') {
+                logger.warn('FinanceManager: Acceso denegado. Intentando refrescar permisos del Búnker...');
+                refreshClaims();
+            }
             showToast('error', 'Error al cargar estadísticas financieras');
             setGlobalStats(null);
         } finally {
-            setStatsLoading(false);
+            // Aseguramos que la animación dure al menos 800ms para que sea visible y satisfactoria
+            const elapsed = Date.now() - startTime;
+            const remaining = Math.max(0, 800 - elapsed);
+            setTimeout(() => setStatsLoading(false), remaining);
         }
     };
 
     useEffect(() => {
         loadGlobalStats();
-        // loadGlobalStats lee selectedPeriod via closure; incluirla causaría loop si se pasa como dep
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedPeriod]);
+    }, [selectedPeriod, isReadyForBackend]);
 
-    useEffect(() => {
-        let cancelled = false;
+    // orders load replaced by table hook
 
-        (async () => {
-            setLoading(true);
-            try {
-                const result = await adminService.getOrdersPaginated(20);
-                if (!cancelled) {
-                    setOrders(result.data);
-                    setLastDoc(result.lastDoc);
-                    setHasMore(result.hasMore);
-                }
-            } catch (error) {
-                logger.error('Error loading finance orders:', error);
-                if (!cancelled) showToast('error', 'Error al cargar órdenes');
-            } finally {
-                if (!cancelled) setLoading(false);
-            }
-        })();
-
-        return () => { cancelled = true; };
-    }, [showToast]);
+    // goToPage replaced by table.onPageChange
 
 
-    const filteredOrders = useMemo(() =>
-        orders.filter(order =>
-            order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            order.venueId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            order.customerName.toLowerCase().includes(searchTerm.toLowerCase())
-        ),
-        [orders, searchTerm]
-    );
-
-    const totalPages = Math.max(1, Math.ceil(filteredOrders.length / pageSize));
-    const safePage = Math.min(currentPage, totalPages);
-    const paginatedOrders = filteredOrders.slice((safePage - 1) * pageSize, safePage * pageSize);
-    const needsMoreData = hasMore && safePage === totalPages && filteredOrders.length % pageSize === 0;
-
-    const goToPage = async (page: number) => {
-        const target = Math.max(1, Math.min(page, totalPages));
-        if (needsMoreData && target === totalPages) {
-            setLoadingMore(true);
-            try {
-                const result = await adminService.getOrdersPaginated(pageSize, lastDoc);
-                setOrders(prev => [...prev, ...result.data]);
-                setLastDoc(result.lastDoc);
-                setHasMore(result.hasMore);
-            } catch (error) {
-                logger.error('Error loading more orders:', error);
-                showToast('error', 'Error al cargar más órdenes');
-            } finally {
-                setLoadingMore(false);
-            }
+    const columns = useMemo<Column<Order>[]>(() => [
+        { 
+            header: 'ID', 
+            accessor: (order) => <span className="font-mono text-xs text-gray-500">{(order.id || '').slice(0, 8)}...</span>,
+            sortable: true,
+            sortKey: 'id'
+        },
+        { 
+            header: 'Fecha', 
+            accessor: (order) => (
+                <div className="text-xs">
+                    {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : '-'}<br />
+                    <span className="text-gray-400">{order.createdAt ? new Date(order.createdAt).toLocaleTimeString() : ''}</span>
+                </div>
+            ),
+            sortable: true,
+            sortKey: 'createdAt'
+        },
+        { header: 'Cliente', accessor: 'customerName', sortable: true },
+        { 
+            header: 'Total', 
+            accessor: (order) => formatCOP(order.subtotal || 0), 
+            className: 'text-right',
+            sortable: true,
+            sortKey: 'subtotal'
+        },
+        { 
+            header: 'Comisión', 
+            accessor: (order) => <span className="text-emerald-600 font-bold">+{formatCOP(order.platformFee || 0)}</span>, 
+            className: 'text-right bg-emerald-50/20',
+            sortable: true,
+            sortKey: 'platformFee'
+        },
+        { 
+            header: 'Al Negocio', 
+            accessor: (order) => <span className="text-blue-600 font-bold">{formatCOP(order.venueEarnings || 0)}</span>, 
+            className: 'text-right bg-blue-50/20',
+            sortable: true,
+            sortKey: 'venueEarnings'
+        },
+        { 
+            header: 'Estado', 
+            accessor: (order) => (
+                <div className="flex justify-center">
+                    <span className={`px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                        order.status === OrderStatus.COMPLETED || order.status === OrderStatus.PAID
+                            ? 'bg-green-100 text-green-700'
+                            : order.status === OrderStatus.MISSED || order.status === OrderStatus.DISPUTED
+                                ? 'bg-red-100 text-red-700'
+                                : 'bg-yellow-100 text-yellow-700'
+                    }`}>{order.status}</span>
+                </div>
+            ),
+            sortable: true,
+            sortKey: 'status'
         }
-        setCurrentPage(target);
-    };
-
-    const handlePageSizeChange = (size: number) => {
-        setPageSize(size);
-        setCurrentPage(1);
-    };
-
-    const getPageNumbers = () => {
-        const delta = 2;
-        const pages: (number | '...')[] = [];
-        for (let i = 1; i <= totalPages; i++) {
-            if (i === 1 || i === totalPages || (i >= safePage - delta && i <= safePage + delta)) {
-                pages.push(i);
-            } else if (pages[pages.length - 1] !== '...') {
-                pages.push('...');
-            }
-        }
-        return pages;
-    };
+    ], []);
 
     return (
         <div className="space-y-8 overflow-x-hidden">
@@ -192,56 +193,56 @@ export const FinanceManager: React.FC = () => {
                     <button
                         onClick={loadGlobalStats}
                         disabled={statsLoading}
-                        className="bg-white border border-gray-200 text-gray-600 p-2 rounded-lg hover:bg-gray-50 transition shadow-sm"
+                        className="bg-white border border-gray-200 text-gray-600 p-2.5 rounded-xl hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-100 transition-all shadow-sm active:scale-95 disabled:opacity-50"
                         title="Refrescar estadísticas"
                     >
-                        <RotateCw size={18} className={statsLoading ? 'animate-spin text-emerald-600' : ''} />
+                        <RotateCw size={18} className={`${statsLoading ? 'animate-spin text-emerald-600' : 'transition-transform group-hover:rotate-180 duration-500'}`} />
                     </button>
                 </div>
             </div>
 
             {/* Global Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-emerald-100 relative overflow-hidden">
+                <div className="bg-gray-900 p-6 rounded-xl shadow-sm border border-emerald-900/20 relative overflow-hidden">
                     <div className="absolute right-0 top-0 h-full w-2 bg-emerald-500 rounded-r-xl" />
                     <div className="flex justify-between items-start">
                         <div>
-                            <p className="text-gray-500 text-sm font-medium uppercase tracking-wide">Ingresos Plataforma</p>
+                            <p className="text-gray-400 text-sm font-medium uppercase tracking-wide">Ingresos Plataforma</p>
                             {statsLoading
-                                ? <div className="h-9 w-32 bg-gray-100 animate-pulse rounded-lg mt-2" />
+                                ? <div className="h-9 w-32 bg-gray-800 animate-pulse rounded-lg mt-2" />
                                 : <h3 className="text-3xl font-bold text-white mt-2">{formatCOP(globalStats?.totalPlatformFee || 0)}</h3>
                             }
-                            <p className="text-xs text-gray-400 mt-1">Comisión 10% de ventas brutas</p>
+                            <p className="text-xs text-gray-500 mt-1">Comisión 10% de ventas brutas</p>
                         </div>
                         <div className="p-3 bg-emerald-50 rounded-lg text-emerald-600"><TrendingUp size={24} /></div>
                     </div>
                 </div>
 
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-blue-100 relative overflow-hidden">
+                <div className="bg-gray-900 p-6 rounded-xl shadow-sm border border-blue-900/20 relative overflow-hidden">
                     <div className="absolute right-0 top-0 h-full w-2 bg-blue-500 rounded-r-xl" />
                     <div className="flex justify-between items-start">
                         <div>
-                            <p className="text-gray-500 text-sm font-medium uppercase tracking-wide">Ganancias Negocios</p>
+                            <p className="text-gray-400 text-sm font-medium uppercase tracking-wide">Ganancias Negocios</p>
                             {statsLoading
-                                ? <div className="h-9 w-32 bg-gray-100 animate-pulse rounded-lg mt-2" />
+                                ? <div className="h-9 w-32 bg-gray-800 animate-pulse rounded-lg mt-2" />
                                 : <h3 className="text-3xl font-bold text-white mt-2">{formatCOP(globalStats?.totalVenueEarnings || 0)}</h3>
                             }
-                            <p className="text-xs text-gray-400 mt-1">90% de ventas brutas acumuladas</p>
+                            <p className="text-xs text-gray-500 mt-1">90% de ventas brutas acumuladas</p>
                         </div>
                         <div className="p-3 bg-blue-50 rounded-lg text-blue-600"><CreditCard size={24} /></div>
                     </div>
                 </div>
 
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-purple-100 relative overflow-hidden">
+                <div className="bg-gray-900 p-6 rounded-xl shadow-sm border border-purple-900/20 relative overflow-hidden">
                     <div className="absolute right-0 top-0 h-full w-2 bg-purple-500 rounded-r-xl" />
                     <div className="flex justify-between items-start">
                         <div>
-                            <p className="text-gray-500 text-sm font-medium uppercase tracking-wide">Pedidos Completados</p>
+                            <p className="text-gray-400 text-sm font-medium uppercase tracking-wide">Pedidos Completados</p>
                             {statsLoading
-                                ? <div className="h-9 w-20 bg-gray-100 animate-pulse rounded-lg mt-2" />
+                                ? <div className="h-9 w-20 bg-gray-800 animate-pulse rounded-lg mt-2" />
                                 : <h3 className="text-3xl font-bold text-white mt-2">{globalStats?.totalOrders || 0}</h3>
                             }
-                            <p className="text-xs text-gray-400 mt-1">
+                            <p className="text-xs text-gray-500 mt-1">
                                 Ticket promedio: {formatCOP(Math.round(globalStats?.averageOrderValue || 0))}
                             </p>
                         </div>
@@ -284,148 +285,40 @@ export const FinanceManager: React.FC = () => {
             )}
 
             {/* Orders Table */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                {/* Table Header */}
-                <div className="p-4 border-b bg-gray-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <h3 className="font-bold text-gray-800">Historial de Órdenes</h3>
-                    <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2 bg-white flex-1 sm:flex-none sm:w-64">
-                            <Search className="text-gray-400 shrink-0" size={16} />
-                            <input
-                                type="text"
-                                placeholder="Buscar por ID, negocio o cliente..."
-                                className="flex-1 outline-none text-gray-700 bg-transparent text-sm"
-                                value={searchTerm}
-                                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                            />
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                            <span className="text-xs text-gray-500">Filas:</span>
-                            <select
-                                value={pageSize}
-                                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-700 cursor-pointer focus:outline-none focus:border-emerald-400"
-                            >
-                                {PAGE_SIZE_OPTIONS.map(s => (
-                                    <option key={s} value={s}>{s}</option>
-                                ))}
-                            </select>
-                        </div>
-                    </div>
+            <div className="space-y-4">
+                <div className="flex items-center gap-2 px-1">
+                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                        <Search size={18} className="text-emerald-500" />
+                        Historial de Operaciones
+                    </h3>
                 </div>
 
-                {loading ? (
-                    <div className="p-8 flex justify-center"><LoadingSpinner /></div>
-                ) : (
-                    <div className="overflow-x-auto -mx-4 sm:mx-0">
-                        <table className="w-full min-w-[800px] text-left border-collapse">
-                            <thead>
-                                <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold tracking-wider">
-                                    <th className="p-4">ID</th>
-                                    <th className="p-4">Fecha</th>
-                                    <th className="p-4">Cliente</th>
-                                    <th className="p-4 text-right bg-emerald-50/50">Total</th>
-                                    <th className="p-4 text-right bg-emerald-50 text-emerald-700">Comisión</th>
-                                    <th className="p-4 text-right bg-blue-50 text-blue-700">Al Negocio</th>
-                                    <th className="p-4 text-center">Estado</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100 text-sm">
-                                {paginatedOrders.length === 0 ? (
-                                    <tr><td colSpan={7} className="p-8 text-center text-gray-400 italic">No se encontraron pedidos.</td></tr>
-                                ) : (
-                                    paginatedOrders.map(order => (
-                                        <tr key={order.id} className="hover:bg-gray-50 transition-colors">
-                                            <td className="p-4 font-mono text-xs text-gray-500">{order.id.slice(0, 8)}...</td>
-                                            <td className="p-4 text-gray-600 text-xs">
-                                                {new Date(order.createdAt).toLocaleDateString()}<br />
-                                                <span className="text-gray-400">{new Date(order.createdAt).toLocaleTimeString()}</span>
-                                            </td>
-                                            <td className="p-4 font-medium text-gray-800 text-sm">{order.customerName}</td>
-                                            <td className="p-4 text-right font-medium text-gray-800 bg-emerald-50/30">{formatCOP(order.subtotal || 0)}</td>
-                                            <td className="p-4 text-right font-bold text-emerald-600 bg-emerald-50/50">+{formatCOP(order.platformFee || 0)}</td>
-                                            <td className="p-4 text-right font-bold text-blue-600 bg-blue-50/50">{formatCOP(order.venueEarnings || 0)}</td>
-                                            <td className="p-4 text-center">
-                                                <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                                                    order.status === OrderStatus.COMPLETED || order.status === OrderStatus.PAID
-                                                        ? 'bg-green-100 text-green-700'
-                                                        : order.status === OrderStatus.MISSED || order.status === OrderStatus.DISPUTED
-                                                            ? 'bg-red-100 text-red-700'
-                                                            : 'bg-yellow-100 text-yellow-700'
-                                                }`}>{order.status}</span>
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-
-                {/* Pagination Controls */}
-                {!loading && filteredOrders.length > 0 && (
-                    <div className="p-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
-                        <p className="text-xs text-gray-500 shrink-0">
-                            {loadingMore ? 'Cargando...' : (
-                                <>Mostrando <span className="font-semibold text-gray-700">{(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, filteredOrders.length)}</span> de <span className="font-semibold text-gray-700">{filteredOrders.length}{hasMore ? '+' : ''}</span> pedidos</>
-                            )}
-                        </p>
-                        <div className="flex items-center gap-1">
-                            <button
-                                onClick={() => goToPage(1)}
-                                disabled={safePage === 1 || loadingMore}
-                                className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                                title="Primera página"
-                            >
-                                <ChevronsLeft size={16} />
-                            </button>
-                            <button
-                                onClick={() => goToPage(safePage - 1)}
-                                disabled={safePage === 1 || loadingMore}
-                                className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                                title="Página anterior"
-                            >
-                                <ChevronLeft size={16} />
-                            </button>
-
-                            {getPageNumbers().map((page, idx) =>
-                                page === '...' ? (
-                                    <span key={`ellipsis-${idx}`} className="px-2 text-gray-400 text-sm select-none">…</span>
-                                ) : (
-                                    <button
-                                        key={page}
-                                        onClick={() => goToPage(page as number)}
-                                        disabled={loadingMore}
-                                        className={`min-w-[32px] h-8 px-2 rounded-lg text-sm font-medium transition-colors ${
-                                            page === safePage
-                                                ? 'bg-emerald-600 text-white shadow-sm'
-                                                : 'text-gray-600 hover:bg-gray-100'
-                                        }`}
-                                    >
-                                        {page}
-                                    </button>
-                                )
-                            )}
-
-                            <button
-                                onClick={() => goToPage(safePage + 1)}
-                                disabled={(safePage >= totalPages && !hasMore) || loadingMore}
-                                className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                                title="Página siguiente"
-                            >
-                                <ChevronRight size={16} />
-                            </button>
-                            <button
-                                onClick={() => goToPage(totalPages)}
-                                disabled={(safePage >= totalPages && !hasMore) || loadingMore}
-                                className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                                title="Última página"
-                            >
-                                <ChevronsRight size={16} />
-                            </button>
-                        </div>
-                    </div>
-                )}
+                <DataTable
+                    columns={columns}
+                    data={table.data}
+                    placeholder="Buscar por ID..."
+                    initialPageSize={table.pageSize}
+                    isLoading={table.isLoading}
+                    manualPagination
+                    totalItems={table.totalItems}
+                    currentPage={table.currentPage}
+                    onPageChange={table.onPageChange}
+                    onPageSizeChange={table.onPageSizeChange}
+                    searchTerm={table.searchTerm}
+                    onSearchChange={table.setSearchTerm}
+                    isSearching={table.isSearching}
+                    exportable
+                    exportFilename="rescatto_ordenes_finanzas"
+                    exportTransformer={(o) => ({
+                        id: o.id,
+                        venueName: o.venueName,
+                        total: o.subtotal,
+                        platformFee: o.platformFee || 0,
+                        venueEarnings: (o.subtotal - (o.platformFee || 0)),
+                        status: o.status,
+                        createdAt: o.createdAt ? new Date(o.createdAt).toLocaleString('es-CO') : ''
+                    })}
+                />
             </div>
         </div>
     );

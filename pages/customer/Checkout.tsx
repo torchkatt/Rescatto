@@ -51,6 +51,7 @@ export const Checkout: React.FC = () => {
     const [cityError, setCityError] = useState<string | null>(null);
     const orderJustPlacedRef = React.useRef(false);
     const [selectedRedemption, setSelectedRedemption] = useState<ActiveRedemption | null>(null);
+    const [customerNote, setCustomerNote] = useState('');
 
     const isPhoneValid = phone.length >= 7 && phone.length <= 17 && /^\+?\d+$/.test(phone);
     const [addressTouched, setAddressTouched] = useState(false);
@@ -305,7 +306,8 @@ export const Checkout: React.FC = () => {
                 selectedDonationCenter,
                 estimatedCo2,
                 selectedRedemption,
-                calculateOrderTotals
+                calculateOrderTotals,
+                customerNote,
             });
         } catch (err: any) {
             logger.error("Error in handlePlaceOrder:", err);
@@ -421,6 +423,25 @@ export const Checkout: React.FC = () => {
                                 </button>
                             </div>
 
+                            {/* Eco-Impact Badge (Rappi Style) */}
+                            {items.some(i => i.isRescue !== false) && (
+                                <div className="bg-gradient-to-r from-emerald-500 to-teal-600 rounded-2xl p-4 text-white shadow-lg shadow-emerald-200/50 flex items-center justify-between animate-in slide-in-from-top duration-500">
+                                    <div className="flex items-center gap-3">
+                                        <div className="bg-white/20 p-2 rounded-xl">
+                                            <Leaf size={24} className="fill-white" />
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-black uppercase tracking-widest opacity-80">Héroe del Rescate</p>
+                                            <p className="text-sm font-bold">¡Estás salvando {formatKgCO2(estimatedCo2)} de CO2!</p>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-[10px] font-bold opacity-70 uppercase">Puntos extra</p>
+                                        <p className="text-lg font-black">+{estimatedPoints} ✨</p>
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
                                 <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
                                     {deliveryMethod === 'delivery' ? <MapPin className="text-emerald-600" size={20} /> : deliveryMethod === 'pickup' ? <Store className="text-emerald-600" size={20} /> : <Heart className="text-emerald-600" size={20} />}
@@ -512,6 +533,27 @@ export const Checkout: React.FC = () => {
                                         </div>
                                     </label>
 
+                                </div>
+                            </div>
+
+                            {/* Personalization Section */}
+                            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                                <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                                    <Gift className="text-emerald-600" size={20} />
+                                    Personalización y Comentarios
+                                </h3>
+                                <p className="text-xs text-gray-500 mb-3">
+                                    ¿Alguna instrucción especial? (ej. "Sin cebolla", "Tocar el timbre fuerte", "Dejar en portería")
+                                </p>
+                                <textarea
+                                    value={customerNote}
+                                    onChange={(e) => setCustomerNote(e.target.value)}
+                                    placeholder="Escribe tus notas aquí..."
+                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm transition-all h-24 resize-none bg-gray-50/50"
+                                    maxLength={500}
+                                />
+                                <div className="mt-2 text-[10px] text-right text-gray-400 font-medium">
+                                    {customerNote.length}/500 caracteres
                                 </div>
                             </div>
 

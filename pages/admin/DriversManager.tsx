@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { collection, query, where, getDocs, limit, startAfter, DocumentSnapshot } from 'firebase/firestore';
-import { db } from '../../services/firebase';
 import { adminService } from '../../services/adminService';
+import { useAdminTable } from '../../hooks/useAdminTable';
 import { User, UserRole, OrderStatus } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -10,10 +9,13 @@ import { LoadingSpinner } from '../../components/customer/common/Loading';
 import MobileDrawer from '../../components/common/MobileDrawer';
 import { logger } from '../../utils/logger';
 import { formatCOP } from '../../utils/formatters';
-import {
-    Truck, Search, RefreshCw, CheckCircle, XCircle, Star,
-    Phone, MapPin, Package, DollarSign, Eye, UserCheck, UserX, ChevronDown
+import { 
+    Truck, Search, RefreshCw, CheckCircle, XCircle, Star, 
+    Phone, MapPin, Package, DollarSign, Eye, UserCheck, UserX, ChevronDown, RotateCw
 } from 'lucide-react';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../../services/firebase';
+import { DataTable, Column } from '../../components/common/DataTable';
 
 interface DriverRow extends User {
     totalDeliveries: number;
@@ -49,84 +51,26 @@ export const DriversManager: React.FC = () => {
     const toast = useToast();
     const confirm = useConfirm();
 
-    const [drivers, setDrivers] = useState<DriverRow[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [loadingMore, setLoadingMore] = useState(false);
-    const [hasMore, setHasMore] = useState(true);
-    const [lastDoc, setLastDoc] = useState<DocumentSnapshot | null>(null);
-    const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState<'all' | 'verified' | 'unverified'>('all');
     const [selectedDriver, setSelectedDriver] = useState<DriverRow | null>(null);
     const [drawerOpen, setDrawerOpen] = useState(false);
-    const [page, setPage] = useState(0);
 
-    const loadDrivers = useCallback(async (initial = false) => {
-        if (initial) {
-            setLoading(true);
-            setDrivers([]);
-            setLastDoc(null);
-            setHasMore(true);
-        } else {
-            setLoadingMore(true);
-        }
-
-        try {
-            const usersRef = collection(db, 'users');
-            let q = query(usersRef, where('role', '==', UserRole.DRIVER), limit(PAGE_SIZE));
-            if (!initial && lastDoc) {
-                q = query(usersRef, where('role', '==', UserRole.DRIVER), startAfter(lastDoc), limit(PAGE_SIZE));
-            }
-            const snap = await getDocs(q);
-            const driverUsers = snap.docs.map(d => ({ id: d.id, ...d.data() } as User));
-            const newLastDoc = snap.docs[snap.docs.length - 1] ?? null;
-
-            // Load order stats for each driver in this page
-            const driverRows = await Promise.all(driverUsers.map(fetchDriverStats));
-
-            // Sort: active first, then by total deliveries desc
-            driverRows.sort((a, b) => {
-                if (b.activeDeliveries !== a.activeDeliveries) return b.activeDeliveries - a.activeDeliveries;
-                return b.totalDeliveries - a.totalDeliveries;
-            });
-
-            if (initial) setDrivers(driverRows);
-            else setDrivers(prev => [...prev, ...driverRows]);
-
-            setLastDoc(newLastDoc);
-            setHasMore(snap.docs.length === PAGE_SIZE);
-        } catch (err) {
-            logger.error('Error cargando conductores:', err);
-            toast.error('Error al cargar conductores');
-        } finally {
-            setLoading(false);
-            setLoadingMore(false);
-        }
-    }, [lastDoc, toast]);
-
-    useEffect(() => {
-        loadDrivers(true);
-        // Solo ejecutar en montaje; loadDrivers(true) reinicia paginación y no depende de lastDoc
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    const filtered = useMemo(() => {
-        let list = drivers;
-        if (searchTerm.trim()) {
-            const q = searchTerm.toLowerCase();
-            list = list.filter(d =>
-                d.fullName?.toLowerCase().includes(q) ||
-                d.email?.toLowerCase().includes(q) ||
-                d.phone?.toLowerCase().includes(q) ||
-                d.city?.toLowerCase().includes(q)
-            );
-        }
-        if (filterStatus === 'verified') list = list.filter(d => d.isVerified);
-        if (filterStatus === 'unverified') list = list.filter(d => !d.isVerified);
-        return list;
-    }, [drivers, searchTerm, filterStatus]);
-
-    const paginated = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
-    const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+    const table = useAdminTable<DriverRow>({
+        fetchFn: async (size, cursor, term) => {
+            const result = await adminService.getDriversPaginated(size, cursor, term);
+            const enriched = await Promise.all(result.data.map(fetchDriverStats));
+            
+            // Apply status filter if searching (since getDriversPaginated doesn't handle status filter yet)
+            let data = enriched;
+            if (filterStatus === 'verified') data = data.filter(d => d.isVerified);
+            if (filterStatus === 'unverified') data = data.filter(d => !d.isVerified);
+            
+            return { ...result, data };
+        },
+        countFn: () => adminService.getDriversCount(),
+        initialPageSize: 20,
+        dependencies: [filterStatus]
+    });
 
     const handleVerify = async (driver: DriverRow, verify: boolean) => {
         if (!currentUser) return;
@@ -142,7 +86,7 @@ export const DriversManager: React.FC = () => {
         try {
             await adminService.verifyUser(driver.id, verify, currentUser.id);
             toast.success(verify ? 'Conductor verificado' : 'Verificación removida');
-            setDrivers(prev =>
+            table.setData(prev =>
                 prev.map(d => d.id === driver.id ? { ...d, isVerified: verify } : d)
             );
             if (selectedDriver?.id === driver.id) {
@@ -160,14 +104,14 @@ export const DriversManager: React.FC = () => {
     };
 
     const totalStats = useMemo(() => ({
-        total: drivers.length,
-        verified: drivers.filter(d => d.isVerified).length,
-        active: drivers.filter(d => d.activeDeliveries > 0).length,
-        totalDeliveries: drivers.reduce((s, d) => s + d.totalDeliveries, 0),
-        totalEarnings: drivers.reduce((s, d) => s + d.totalEarnings, 0),
-    }), [drivers]);
+        total: table.data.length,
+        verified: table.data.filter(d => d.isVerified).length,
+        active: table.data.filter(d => d.activeDeliveries > 0).length,
+        totalDeliveries: table.data.reduce((s, d) => s + d.totalDeliveries, 0),
+        totalEarnings: table.data.reduce((s, d) => s + d.totalEarnings, 0),
+    }), [table.data]);
 
-    if (loading) return (
+    if (table.isLoading && table.data.length === 0) return (
         <div className="flex justify-center items-center h-96">
             <LoadingSpinner />
         </div>
@@ -175,20 +119,16 @@ export const DriversManager: React.FC = () => {
 
     return (
         <div className="space-y-6 overflow-x-hidden">
-            {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-extrabold text-gray-800 flex items-center gap-3">
                         <Truck className="text-emerald-600" size={28} />
                         Conductores
                     </h1>
-                    <p className="text-gray-500 text-sm mt-1">
-                        {drivers.length}{hasMore ? '+' : ''} conductores cargados
-                    </p>
                 </div>
                 <button
-                    onClick={() => loadDrivers(true)}
-                    disabled={loading}
+                    onClick={() => table.reload()}
+                    disabled={table.isLoading}
                     className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-sm transition-all active:scale-95 disabled:opacity-50"
                 >
                     <RefreshCw size={16} />
@@ -196,7 +136,6 @@ export const DriversManager: React.FC = () => {
                 </button>
             </div>
 
-            {/* Stats Cards */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                 {[
                     { label: 'Total', value: totalStats.total, icon: <Truck size={16} />, color: 'bg-gray-100 text-gray-700' },
@@ -215,199 +154,139 @@ export const DriversManager: React.FC = () => {
                 ))}
             </div>
 
-            {/* Filters */}
             <div className="flex flex-col sm:flex-row gap-3">
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                     <input
                         type="search"
                         placeholder="Buscar por nombre, email, ciudad..."
-                        value={searchTerm}
-                        onChange={e => { setSearchTerm(e.target.value); setPage(0); }}
+                        value={table.searchTerm}
+                        onChange={e => table.setSearchTerm(e.target.value)}
                         className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none bg-white"
                     />
                 </div>
                 <div className="flex gap-2">
-                    {(['all', 'verified', 'unverified'] as const).map(f => (
+                    {['all', 'verified', 'unverified'].map((status) => (
                         <button
-                            key={f}
-                            onClick={() => { setFilterStatus(f); setPage(0); }}
-                            className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${filterStatus === f ? 'bg-gray-900 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                            key={status}
+                            onClick={() => setFilterStatus(status as any)}
+                            className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border ${
+                                filterStatus === status
+                                    ? 'bg-gray-900 text-white border-gray-900 shadow-xl scale-105 z-10'
+                                    : 'bg-white border-gray-200 text-gray-500 hover:border-emerald-300 hover:bg-emerald-50 shadow-sm'
+                            }`}
                         >
-                            {f === 'all' ? 'Todos' : f === 'verified' ? 'Verificados' : 'Sin verificar'}
+                            {status === 'all' ? 'Todos' : status === 'verified' ? 'Verificados' : 'Pendientes'}
                         </button>
                     ))}
                 </div>
             </div>
 
-            {/* Table — desktop */}
-            <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                        <thead>
-                            <tr className="bg-gray-50 border-b border-gray-100">
-                                <th className="text-left px-4 py-3 font-semibold text-gray-500 uppercase text-xs tracking-wide">Conductor</th>
-                                <th className="text-left px-4 py-3 font-semibold text-gray-500 uppercase text-xs tracking-wide">Ciudad</th>
-                                <th className="text-center px-4 py-3 font-semibold text-gray-500 uppercase text-xs tracking-wide">Estado</th>
-                                <th className="text-right px-4 py-3 font-semibold text-gray-500 uppercase text-xs tracking-wide">Entregas</th>
-                                <th className="text-right px-4 py-3 font-semibold text-gray-500 uppercase text-xs tracking-wide">Activas</th>
-                                <th className="text-right px-4 py-3 font-semibold text-gray-500 uppercase text-xs tracking-wide">Ganancias</th>
-                                <th className="text-right px-4 py-3 font-semibold text-gray-500 uppercase text-xs tracking-wide">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-50">
-                            {paginated.length === 0 ? (
-                                <tr>
-                                    <td colSpan={7} className="text-center py-16 text-gray-400">
-                                        <Truck size={32} className="mx-auto mb-2 opacity-30" />
-                                        <p className="font-medium">No se encontraron conductores</p>
-                                    </td>
-                                </tr>
-                            ) : paginated.map(driver => (
-                                <tr key={driver.id} className="hover:bg-gray-50/50 transition-colors">
-                                    <td className="px-4 py-3">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-bold text-sm shrink-0 overflow-hidden">
-                                                {driver.avatarUrl
-                                                    ? <img src={driver.avatarUrl} alt="" className="w-full h-full object-cover" loading="lazy" onError={e => { e.currentTarget.style.display = 'none'; }} />
-                                                    : driver.fullName?.charAt(0).toUpperCase()}
-                                            </div>
-                                            <div className="min-w-0">
-                                                <p className="font-semibold text-gray-900 truncate">{driver.fullName}</p>
-                                                <p className="text-xs text-gray-400 truncate">{driver.email}</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-3 text-gray-600">{driver.city || '—'}</td>
-                                    <td className="px-4 py-3 text-center">
-                                        {driver.isVerified
-                                            ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold"><CheckCircle size={11} />Verificado</span>
-                                            : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-bold"><XCircle size={11} />Pendiente</span>}
-                                    </td>
-                                    <td className="px-4 py-3 text-right font-semibold text-gray-700">{driver.totalDeliveries}</td>
-                                    <td className="px-4 py-3 text-right">
-                                        {driver.activeDeliveries > 0
-                                            ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-bold animate-pulse">{driver.activeDeliveries} activa{driver.activeDeliveries > 1 ? 's' : ''}</span>
-                                            : <span className="text-gray-300 text-xs">—</span>}
-                                    </td>
-                                    <td className="px-4 py-3 text-right text-gray-700 font-semibold">{formatCOP(driver.totalEarnings)}</td>
-                                    <td className="px-4 py-3 text-right">
-                                        <div className="flex items-center justify-end gap-1">
-                                            <button
-                                                onClick={() => openDetail(driver)}
-                                                title="Ver detalle"
-                                                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
-                                            >
-                                                <Eye size={15} />
-                                            </button>
-                                            {driver.isVerified
-                                                ? <button onClick={() => handleVerify(driver, false)} title="Quitar verificación" className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors"><UserX size={15} /></button>
-                                                : <button onClick={() => handleVerify(driver, true)} title="Verificar conductor" className="p-1.5 rounded-lg hover:bg-emerald-50 text-gray-400 hover:text-emerald-600 transition-colors"><UserCheck size={15} /></button>}
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-
-                {/* Pagination (client-side) + Load more (server-side) */}
-                <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50 gap-3 flex-wrap">
-                    <span className="text-xs text-gray-500">
-                        {filtered.length === 0 ? '0' : `${page * PAGE_SIZE + 1}–${Math.min((page + 1) * PAGE_SIZE, filtered.length)}`} de {filtered.length}{hasMore ? '+' : ''} cargados
-                    </span>
-                    <div className="flex gap-2">
-                        {totalPages > 1 && (
-                            <>
-                                <button disabled={page === 0} onClick={() => setPage(p => p - 1)} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white border border-gray-200 disabled:opacity-40 hover:bg-gray-100 transition-colors">Anterior</button>
-                                <button disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white border border-gray-200 disabled:opacity-40 hover:bg-gray-100 transition-colors">Siguiente</button>
-                            </>
-                        )}
-                        {hasMore && (
-                            <button
-                                onClick={() => loadDrivers(false)}
-                                disabled={loadingMore}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-50"
-                            >
-                                {loadingMore ? <RefreshCw size={12} className="animate-spin" /> : <ChevronDown size={12} />}
-                                {loadingMore ? 'Cargando...' : 'Cargar más'}
-                            </button>
-                        )}
-                    </div>
-                </div>
+            {/* Table */}
+            <div className="bg-white/90 backdrop-blur-md rounded-[2.5rem] p-6 shadow-2xl border border-gray-100">
+                <DataTable
+                    columns={[
+                        {
+                            header: 'Conductor',
+                            accessor: 'fullName' as keyof DriverRow,
+                            sortable: true,
+                            render: (value: string, driver: DriverRow) => (
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-2xl bg-emerald-600 flex items-center justify-center text-white font-black text-sm shrink-0 overflow-hidden shadow-lg shadow-emerald-500/20">
+                                        {driver.avatarUrl
+                                            ? <img src={driver.avatarUrl} alt="" className="w-full h-full object-cover" />
+                                            : value?.charAt(0).toUpperCase()}
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="font-bold text-gray-900">{value}</span>
+                                        <span className="text-[10px] text-gray-400 font-medium">{driver.email}</span>
+                                    </div>
+                                </div>
+                            )
+                        },
+                        {
+                            header: 'Ciudad',
+                            accessor: 'city' as keyof DriverRow,
+                            sortable: true,
+                            className: 'hidden sm:table-cell font-medium text-gray-600'
+                        },
+                        {
+                            header: 'Estado',
+                            accessor: 'isVerified' as keyof DriverRow,
+                            sortable: true,
+                            render: (value: boolean) => value
+                                ? <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase tracking-widest border border-emerald-100"><CheckCircle size={12} />Verificado</span>
+                                : <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-50 text-amber-700 text-[10px] font-black uppercase tracking-widest border border-amber-100"><XCircle size={12} />Pendiente</span>
+                        },
+                        {
+                            header: 'Entregas',
+                            accessor: 'totalDeliveries' as keyof DriverRow,
+                            sortable: true,
+                            className: 'text-right font-black text-gray-700'
+                        },
+                        {
+                            header: 'Activas',
+                            accessor: 'activeDeliveries' as keyof DriverRow,
+                            sortable: true,
+                            className: 'text-right',
+                            render: (value: number) => value > 0
+                                ? <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-50 text-blue-700 text-[10px] font-black uppercase tracking-widest animate-pulse border border-blue-100">{value} Activa{value > 1 ? 's' : ''}</span>
+                                : <span className="text-gray-300 font-medium">—</span>
+                        },
+                        {
+                            header: 'Ganancias',
+                            accessor: 'totalEarnings' as keyof DriverRow,
+                            sortable: true,
+                            className: 'text-right font-black text-emerald-600',
+                            render: (value: number) => formatCOP(value)
+                        },
+                        {
+                            header: 'Acciones',
+                            accessor: 'id' as keyof DriverRow,
+                            className: 'text-right',
+                            render: (id: string, driver: DriverRow) => (
+                                <div className="flex justify-end gap-1">
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); openDetail(driver); }}
+                                        className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all active:scale-90"
+                                    >
+                                        <Eye size={18} />
+                                    </button>
+                                    {driver.isVerified
+                                        ? <button onClick={(e) => { e.stopPropagation(); handleVerify(driver, false); }} className="p-2.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all active:scale-90"><UserX size={18} /></button>
+                                        : <button onClick={(e) => { e.stopPropagation(); handleVerify(driver, true); }} className="p-2.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all active:scale-90"><UserCheck size={18} /></button>}
+                                </div>
+                            )
+                        }
+                    ]}
+                    data={table.data}
+                    placeholder="Buscar por nombre, email, ciudad..."
+                    initialPageSize={table.pageSize}
+                    manualPagination
+                    totalItems={table.totalItems}
+                    currentPage={table.currentPage}
+                    onPageChange={table.onPageChange}
+                    onPageSizeChange={table.onPageSizeChange}
+                    searchTerm={table.searchTerm}
+                    onSearchChange={table.setSearchTerm}
+                    isSearching={table.isSearching}
+                    isLoading={table.isLoading}
+                    onRowClick={(item) => openDetail(item)}
+                    exportable
+                    exportFilename="rescatto_conductores"
+                    exportTransformer={(d) => ({
+                        fullName: d.fullName || '',
+                        email: d.email || '',
+                        city: d.city || '',
+                        isVerified: d.isVerified ? 'Verificado' : 'Pendiente',
+                        totalDeliveries: d.totalDeliveries,
+                        totalEarnings: d.totalEarnings,
+                        activeDeliveries: d.activeDeliveries
+                    })}
+                />
             </div>
 
-            {/* Cards — mobile */}
-            <div className="md:hidden space-y-3">
-                {paginated.length === 0 ? (
-                    <div className="text-center py-16 text-gray-400">
-                        <Truck size={40} className="mx-auto mb-3 opacity-30" />
-                        <p className="font-medium">No se encontraron conductores</p>
-                    </div>
-                ) : paginated.map(driver => (
-                    <div key={driver.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-                        <div className="flex items-start justify-between gap-3 mb-3">
-                            <div className="flex items-center gap-3 min-w-0">
-                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-bold shrink-0 overflow-hidden">
-                                    {driver.avatarUrl
-                                        ? <img src={driver.avatarUrl} alt="" className="w-full h-full object-cover" loading="lazy" onError={e => { e.currentTarget.style.display = 'none'; }} />
-                                        : driver.fullName?.charAt(0).toUpperCase()}
-                                </div>
-                                <div className="min-w-0">
-                                    <p className="font-bold text-gray-900 truncate">{driver.fullName}</p>
-                                    <p className="text-xs text-gray-400 truncate">{driver.email}</p>
-                                </div>
-                            </div>
-                            {driver.isVerified
-                                ? <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold"><CheckCircle size={10} />Verificado</span>
-                                : <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold"><XCircle size={10} />Pendiente</span>}
-                        </div>
 
-                        <div className="grid grid-cols-3 gap-2 mb-3 text-center">
-                            <div className="bg-gray-50 rounded-xl p-2">
-                                <p className="text-xs text-gray-500">Entregas</p>
-                                <p className="font-extrabold text-gray-800">{driver.totalDeliveries}</p>
-                            </div>
-                            <div className={`rounded-xl p-2 ${driver.activeDeliveries > 0 ? 'bg-blue-50' : 'bg-gray-50'}`}>
-                                <p className="text-xs text-gray-500">Activas</p>
-                                <p className={`font-extrabold ${driver.activeDeliveries > 0 ? 'text-blue-700' : 'text-gray-800'}`}>{driver.activeDeliveries}</p>
-                            </div>
-                            <div className="bg-gray-50 rounded-xl p-2">
-                                <p className="text-xs text-gray-500">Ciudad</p>
-                                <p className="font-bold text-gray-700 text-xs truncate">{driver.city || '—'}</p>
-                            </div>
-                        </div>
-
-                        <div className="flex gap-2">
-                            <button onClick={() => openDetail(driver)} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-gray-100 text-gray-700 text-xs font-bold hover:bg-gray-200 transition-colors active:scale-95">
-                                <Eye size={13} /> Ver detalle
-                            </button>
-                            {driver.isVerified
-                                ? <button onClick={() => handleVerify(driver, false)} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-red-50 text-red-600 text-xs font-bold hover:bg-red-100 transition-colors active:scale-95"><UserX size={13} /> Quitar</button>
-                                : <button onClick={() => handleVerify(driver, true)} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-bold hover:bg-emerald-100 transition-colors active:scale-95"><UserCheck size={13} /> Verificar</button>}
-                        </div>
-                    </div>
-                ))}
-
-                <div className="flex flex-wrap gap-2 justify-center pt-2">
-                    {totalPages > 1 && (
-                        <>
-                            <button disabled={page === 0} onClick={() => setPage(p => p - 1)} className="px-4 py-2 rounded-xl text-sm font-bold bg-white border border-gray-200 disabled:opacity-40">Anterior</button>
-                            <button disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="px-4 py-2 rounded-xl text-sm font-bold bg-white border border-gray-200 disabled:opacity-40">Siguiente</button>
-                        </>
-                    )}
-                    {hasMore && (
-                        <button
-                            onClick={() => loadDrivers(false)}
-                            disabled={loadingMore}
-                            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 transition-colors"
-                        >
-                            {loadingMore ? <RefreshCw size={14} className="animate-spin" /> : <ChevronDown size={14} />}
-                            {loadingMore ? 'Cargando...' : 'Cargar más'}
-                        </button>
-                    )}
-                </div>
-            </div>
 
             {/* Detail Drawer */}
             <MobileDrawer

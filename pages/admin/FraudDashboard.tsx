@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
@@ -7,6 +7,7 @@ import { useConfirm } from '../../context/ConfirmContext';
 import { usePaginatedQuery } from '../../hooks/usePaginatedQuery';
 import { collection, query, where, orderBy } from 'firebase/firestore';
 import { db } from '../../services/firebase';
+import { adminService } from '../../services/adminService';
 import {
     ScanSearch, AlertTriangle, ShieldCheck, ShieldOff,
     RefreshCw, CheckCircle, Clock, ChevronDown
@@ -61,9 +62,15 @@ export const FraudDashboard: React.FC = () => {
         [flaggedOnly]
     );
 
+    // Memoizar opciones para evitar re-renders infinitos en usePaginatedQuery
+    const queryOptions = useMemo(() => ({
+        pageSize: 30,
+        transform: (doc: any) => ({ id: doc.id, ...doc.data() } as FraudMetric)
+    }), []);
+
     const { data: metrics, loading, loadingMore, hasMore, loadMore, refresh } = usePaginatedQuery<FraudMetric>(
         buildQuery,
-        { pageSize: 30, transform: (doc) => ({ id: doc.id, ...doc.data() } as FraudMetric) }
+        queryOptions
     );
 
     const handleResolve = async (metric: FraudMetric) => {

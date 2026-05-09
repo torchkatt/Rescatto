@@ -246,6 +246,12 @@ const Orders: React.FC = () => {
                       {t('orders_delivery_note', { note: order.deliveryNotes })}
                     </div>
                   )}
+                  {order.customerNote && (
+                    <div className="bg-blue-50 p-2 rounded text-xs text-blue-800 font-medium italic border border-blue-200 flex items-center gap-2">
+                      <span className="font-black uppercase text-[10px]">Nota del Cliente:</span>
+                      "{order.customerNote}"
+                    </div>
+                  )}
                 </div>
 
                 <div className="text-sm text-red-600 font-bold flex items-center gap-1 bg-red-50 p-2 rounded mb-2 border border-red-100">

@@ -25,6 +25,7 @@ interface OrderPayload {
   donationCenterName?: string;
   estimatedCo2: number;
   redemptionId: string | null;
+  customerNote?: string | null;
 }
 
 export const useOrderFlow = () => {
@@ -85,17 +86,17 @@ export const useOrderFlow = () => {
     }
     return `/app/orders?orderId=${orderId}`;
   };
-
   const processOrder = async (params: {
     paymentMethod: 'cash' | 'card',
     deliveryMethod: 'delivery' | 'pickup' | 'donation',
-    address: string,
+    address: string | null,
     phoneDigits: string,
     selectedDonationCenter: any,
     estimatedCo2: number,
     selectedRedemption: any,
     calculateOrderTotals: (venueId: string, venueItems: any[]) => any,
-    transactionId?: string | null
+    transactionId?: string | null,
+    customerNote?: string | null
   }) => {
     const {
       paymentMethod,
@@ -106,7 +107,8 @@ export const useOrderFlow = () => {
       estimatedCo2,
       selectedRedemption,
       calculateOrderTotals,
-      transactionId = null
+      transactionId = null,
+      customerNote = null
     } = params;
 
     const venueGroups = getCartByVenue();
@@ -138,6 +140,7 @@ export const useOrderFlow = () => {
             donationCenterName: selectedDonationCenter?.name,
             estimatedCo2: estimatedCo2 / venueGroups.size,
             redemptionId: selectedRedemption?.id ?? null,
+            customerNote,
           };
 
           let attempt = 0;

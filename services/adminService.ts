@@ -16,9 +16,10 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from './firebase';
-import { User, Venue, Product, Order } from '../types';
+import { User, Venue, Product, Order, UserRole } from '../types';
 import { loggerService } from './loggerService';
 import { logger } from '../utils/logger';
+import { inMemorySearch } from '../utils/searchUtils';
 
 const VENUES_CACHE_KEY = 'venues_cache_all';
 const CACHE_TTL = 10 * 60 * 1000; // 10 Minutos de Caché para Negocios (Suelen cambiar poco)
@@ -36,7 +37,7 @@ export const adminService = {
         const snapshot = await getDocs(q);
         const data = snapshot.docs.map(doc => ({
             id: doc.id,
-            ...doc.data()
+            ...doc.data() as any
         }));
 
         return {
@@ -48,7 +49,7 @@ export const adminService = {
 
     // --- USUARIOS ---
 
-    getAllUsers: async (cityFilter?: string): Promise<User[]> => {
+    async getAllUsers(cityFilter?: string): Promise<User[]> {
         const usersRef = collection(db, 'users');
         const users: User[] = [];
         let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
@@ -68,7 +69,7 @@ export const adminService = {
             const snapshot = await getDocs(q);
             users.push(...snapshot.docs.map(doc => ({
                 id: doc.id,
-                ...doc.data()
+                ...doc.data() as any
             })) as User[]);
             lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
             hasMore = snapshot.docs.length === 50;
@@ -76,19 +77,45 @@ export const adminService = {
         return users;
     },
 
-    getUsersPaginated: async (pageSize: number = 20, lastDoc: QueryDocumentSnapshot<DocumentData> | null = null) => {
+    async getUsersCount() {
         const usersRef = collection(db, 'users');
-        // Simple pagination by raw doc ID order since users don't have a strict createdAt field everywhere
-        let q = query(usersRef, limit(pageSize));
+        const snapshot = await getCountFromServer(usersRef);
+        return snapshot.data().count;
+    },
 
-        if (lastDoc) {
-            q = query(usersRef, startAfter(lastDoc), limit(pageSize));
+    async getUsersCountByRole(role: string) {
+        const usersRef = collection(db, 'users');
+        const snapshot = await getCountFromServer(query(usersRef, where('role', '==', role)));
+        return snapshot.data().count;
+    },
+
+    async getUsersPaginated(pageSize: number = 20, lastDoc: QueryDocumentSnapshot<DocumentData> | null = null, searchTerm: string = '', roleFilter: string = '') {
+        const usersRef = collection(db, 'users');
+
+        if (searchTerm) {
+            const allUsers = await this.getAllUsers();
+            const result = inMemorySearch<User>(allUsers, searchTerm, ['fullName', 'email', 'city', 'role', 'id']);
+            // Aplica filtro de rol si está activo
+            if (roleFilter) result.data = result.data.filter(u => u.role === roleFilter) as any;
+            return result;
+        }
+
+        // PAGINACIÓN NORMAL: sin búsqueda, paginación por cursor eficiente
+        let q;
+        if (roleFilter) {
+            q = lastDoc
+                ? query(usersRef, where('role', '==', roleFilter), startAfter(lastDoc), limit(pageSize))
+                : query(usersRef, where('role', '==', roleFilter), limit(pageSize));
+        } else {
+            q = lastDoc
+                ? query(usersRef, startAfter(lastDoc), limit(pageSize))
+                : query(usersRef, limit(pageSize));
         }
 
         const snapshot = await getDocs(q);
         const data = snapshot.docs.map(doc => ({
             id: doc.id,
-            ...doc.data()
+            ...doc.data() as any
         })) as User[];
 
         return {
@@ -126,22 +153,43 @@ export const adminService = {
     // Elimina el documento de Firestore y la cuenta de Firebase Auth (vía Cloud Function)
     deleteUserDoc: async (userId: string, adminId?: string) => {
         try {
-            // 1. Intentar borrar la cuenta de Auth
+            // Invocamos la Cloud Function que se encarga de Auth y Firestore (Admin SDK bypasses rules)
             const deleteAccount = httpsCallable(functions, 'deleteUserAccount');
             await deleteAccount({ uid: userId });
+
+            if (adminId) {
+                await loggerService.logAction('USER_DELETED', adminId, userId, 'users', {});
+            }
         } catch (error) {
-            logger.error("Error al borrar cuenta de Auth (posiblemente no es Super Admin o ya no existe):", error);
-            // Continuamos para al menos limpiar el documento si el usuario lo desea, 
-            // o podrías elegir lanzar el error. Dado que el usuario pidió que se borrara,
-            // intentaremos ambos.
+            logger.error("Error al eliminar usuario (Auth/Firestore):", error);
+            throw error; // Lanzamos para que el frontend pueda mostrar el error
+        }
+    },
+    
+    async getDriversPaginated(pageSize: number = 20, lastDoc: QueryDocumentSnapshot<DocumentData> | null = null, searchTerm: string = '') {
+        const usersRef = collection(db, 'users');
+        
+        if (searchTerm) {
+            const allDrivers = (await this.getAllUsers()).filter(u => u.role === UserRole.DRIVER);
+            return inMemorySearch<User>(allDrivers, searchTerm, ['fullName', 'email', 'city', 'id']);
         }
 
-        // 2. Borrar documento de Firestore
-        await deleteDoc(doc(db, 'users', userId));
+        const q = lastDoc
+            ? query(usersRef, where('role', '==', UserRole.DRIVER), startAfter(lastDoc), limit(pageSize))
+            : query(usersRef, where('role', '==', UserRole.DRIVER), limit(pageSize));
 
-        if (adminId) {
-            await loggerService.logAction('USER_DELETED', adminId, userId, 'users', {});
-        }
+        const snapshot = await getDocs(q);
+        return {
+            data: snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any })) as User[],
+            lastDoc: snapshot.docs[snapshot.docs.length - 1] || null,
+            hasMore: snapshot.docs.length === pageSize
+        };
+    },
+
+    async getDriversCount() {
+        const usersRef = collection(db, 'users');
+        const snapshot = await getCountFromServer(query(usersRef, where('role', '==', UserRole.DRIVER)));
+        return snapshot.data().count;
     },
 
     // --- GESTIÓN DE SEDES ---
@@ -177,7 +225,7 @@ export const adminService = {
             const snapshot = await getDocs(q);
             const batch = snapshot.docs.map(doc => ({
                 id: doc.id,
-                ...doc.data()
+                ...doc.data() as any
             })) as Venue[];
             venues.push(...batch);
             lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
@@ -203,7 +251,7 @@ export const adminService = {
         const snapshot = await getDocs(q);
         const data = snapshot.docs.map(doc => ({
             id: doc.id,
-            ...doc.data()
+            ...doc.data() as any
         })) as Venue[];
 
         return {
@@ -272,7 +320,7 @@ export const adminService = {
             const snapshot = await getDocs(q);
             const batch = snapshot.docs.map(doc => ({
                 id: doc.id,
-                ...doc.data()
+                ...doc.data() as any
             })) as Product[];
             products.push(...batch);
             lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
@@ -302,7 +350,7 @@ export const adminService = {
                 const snapshot = await getDocs(q);
                 categories.push(...snapshot.docs.map(doc => ({
                     id: doc.id,
-                    ...doc.data()
+                    ...doc.data() as any
                 })));
                 lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
                 hasMore = snapshot.docs.length === 50;
@@ -314,9 +362,15 @@ export const adminService = {
         }
     },
 
-    getCategoriesPaginated: async (pageSize: number = 20, lastDoc: QueryDocumentSnapshot<DocumentData> | null = null) => {
+    async getCategoriesPaginated(pageSize: number = 20, lastDoc: QueryDocumentSnapshot<DocumentData> | null = null, searchTerm: string = '') {
         try {
             const categoriesRef = collection(db, 'categories');
+            
+            if (searchTerm) {
+                const allCats = await this.getAllCategories();
+                return inMemorySearch<any>(allCats, searchTerm, ['name', 'slug']);
+            }
+
             let q = query(categoriesRef, orderBy('name'), limit(pageSize));
             if (lastDoc) {
                 q = query(categoriesRef, orderBy('name'), startAfter(lastDoc), limit(pageSize));
@@ -324,7 +378,7 @@ export const adminService = {
             const snapshot = await getDocs(q);
             const data = snapshot.docs.map(doc => ({
                 id: doc.id,
-                ...doc.data()
+                ...doc.data() as any
             }));
             return {
                 data,
@@ -407,7 +461,7 @@ export const adminService = {
             const snapshot = await getDocs(q);
             orders.push(...snapshot.docs.map(doc => ({
                 id: doc.id,
-                ...doc.data()
+                ...doc.data() as any
             })) as Order[]);
             lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
             hasMore = snapshot.docs.length === 50;
@@ -426,7 +480,7 @@ export const adminService = {
         const snapshot = await getDocs(q);
         const data = snapshot.docs.map(doc => ({
             id: doc.id,
-            ...doc.data()
+            ...doc.data() as any
         })) as Order[];
 
         return {
@@ -463,7 +517,7 @@ export const adminService = {
         );
 
         const snapshot = await getDocs(q);
-        const orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Order[];
+        const orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any })) as Order[];
 
         const summary = {
             totalOrders: orders.length,
@@ -488,9 +542,62 @@ export const adminService = {
 
     // --- BILLETERAS / COMISIONES ---
 
-    getAllWallets: async (): Promise<{ venueId: string; balance: number; updatedAt: string }[]> => {
+    async getAllWallets(): Promise<{ venueId: string; balance: number; updatedAt: string; venueName?: string; city?: string }[]> {
         const snapshot = await getDocs(collection(db, 'wallets'));
-        return snapshot.docs.map(d => ({ venueId: d.id, ...d.data() } as { venueId: string; balance: number; updatedAt: string }));
+        return snapshot.docs.map(d => ({ venueId: d.id, ...d.data() as any } as { venueId: string; balance: number; updatedAt: string }));
+    },
+
+    async getCommissionsPaginated(pageSize: number = 20, lastDoc: any = null, searchTerm: string = '') {
+        try {
+            const [venues, wallets] = await Promise.all([
+                this.getAllVenues(),
+                this.getAllWallets(),
+            ]);
+
+            const venueMap = new Map<string, any>(venues.map(v => [v.id!, v]));
+
+            // Merge wallets into venues list
+            let allRows = venues.map(v => {
+                const w = wallets.find(wallet => wallet.venueId === v.id);
+                return {
+                    venueId: v.id!,
+                    venueName: v.name,
+                    city: v.city || '—',
+                    balance: w?.balance ?? 0,
+                    updatedAt: w?.updatedAt ?? '',
+                };
+            });
+
+            // Apply search
+            if (searchTerm) {
+                const low = searchTerm.toLowerCase();
+                allRows = allRows.filter(r => 
+                    r.venueName.toLowerCase().includes(low) || 
+                    r.city.toLowerCase().includes(low) ||
+                    r.venueId.toLowerCase().includes(low)
+                );
+            }
+
+            // Sort by most debt first (consistent with original)
+            allRows.sort((a, b) => a.balance - b.balance);
+
+            const start = lastDoc ? allRows.findIndex(w => w.venueId === lastDoc.venueId) + 1 : 0;
+            const page = allRows.slice(start, start + pageSize);
+
+            return {
+                data: page,
+                lastDoc: (page.length > 0 ? { venueId: page[page.length - 1].venueId } : null) as any,
+                hasMore: start + pageSize < allRows.length
+            };
+        } catch (error) {
+            logger.error('Error fetching commissions paginated:', error);
+            throw error;
+        }
+    },
+
+    async getCommissionsCount() {
+        const snapshot = await getCountFromServer(collection(db, 'wallets'));
+        return snapshot.data().count;
     },
 
     recordSettlement: async (params: { venueId: string; amount: number; type: 'DEBT_PAYMENT' | 'PAYOUT'; description: string }) => {
@@ -532,5 +639,30 @@ export const adminService = {
             hasMore = snapshot.docs.length === 50;
         }
         return points;
+    },
+
+    async getFraudMetricsPaginated(pageSize: number = 30, lastDoc: any = null, flaggedOnly: boolean = true) {
+        const metricsRef = collection(db, 'fraud_metrics');
+        let constraints: any[] = [];
+        
+        if (flaggedOnly) {
+            constraints.push(where('isFlagged', '==', true));
+        }
+        
+        constraints.push(orderBy('score', 'desc'));
+        constraints.push(limit(pageSize));
+        
+        if (lastDoc) {
+            constraints.push(startAfter(lastDoc));
+        }
+
+        const q = query(metricsRef, ...constraints);
+        const snapshot = await getDocs(q);
+        
+        return {
+            data: snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any })),
+            lastDoc: snapshot.docs[snapshot.docs.length - 1] || null,
+            hasMore: snapshot.docs.length === pageSize
+        };
     }
 };

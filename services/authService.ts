@@ -303,8 +303,12 @@ export const authService = {
   },
 
   sendVerificationEmail: async (email?: string): Promise<void> => {
+    const targetEmail = email || auth.currentUser?.email;
+    if (!targetEmail) {
+      throw new Error('No se pudo determinar el correo para enviar la verificación.');
+    }
     const sendFn = httpsCallable(functions, 'sendVerificationEmail');
-    await sendFn({ email });
+    await sendFn({ email: targetEmail });
   },
 
   resetPassword: async (email: string): Promise<void> => {

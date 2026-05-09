@@ -130,156 +130,185 @@ export const HelpCenter: React.FC<HelpCenterProps> = ({ onClose }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-900 pb-24">
-      {/* Header */}
-      <div className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 sticky top-0 z-10">
-        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
-          <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl">
-            <BookOpen size={20} className="text-emerald-600 dark:text-emerald-400" />
-          </div>
-          <div className="flex-1">
-            <h1 className="font-bold text-gray-900 dark:text-white text-base leading-tight">Centro de ayuda</h1>
-            <p className="text-xs text-gray-500 dark:text-slate-400">{roleLabel}</p>
-          </div>
-          {onClose && (
-            <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-xl transition-colors">
-              <X size={18} className="text-gray-500" />
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-
-        {/* Hero + descarga */}
-        <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-2xl p-6 text-white">
-          <div className="flex items-start gap-4">
-            <div className="p-3 bg-white/10 rounded-xl">
-              <BookOpen size={24} />
+    <div className={`min-h-full bg-neutral-50 dark:bg-neutral-900 ${onClose ? 'pb-12' : 'pb-24'}`}>
+      {/* Header - Solo se muestra si hay onClose (modo modal) */}
+      {onClose && (
+        <div className="bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-neutral-700 sticky top-0 z-10">
+          <div className="max-w-6xl mx-auto px-4 py-4 flex items-center gap-3">
+            <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl">
+              <BookOpen size={20} className="text-emerald-600 dark:text-emerald-400" />
             </div>
             <div className="flex-1">
-              <h2 className="font-bold text-lg leading-tight">Manual de {roleLabel}</h2>
-              <p className="text-emerald-100 text-sm mt-1 leading-relaxed">
-                Guía completa para sacar el máximo provecho de Rescatto según tu rol.
-              </p>
-              {manual && (
-                <p className="text-emerald-200 text-xs mt-2">
-                  v{manual.version} · {manual.sizeKB > 0 ? `${manual.sizeKB} KB` : 'Disponible'}
-                </p>
-              )}
+              <h1 className="font-bold text-gray-900 dark:text-white text-base leading-tight">Centro de ayuda</h1>
+              <p className="text-xs text-gray-500 dark:text-neutral-400">{roleLabel}</p>
             </div>
+            <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-neutral-700 rounded-xl transition-colors">
+              <X size={18} className="text-gray-500" />
+            </button>
           </div>
+        </div>
+      )}
 
-          <div className="flex gap-3 mt-5">
-            <button
-              onClick={handleDownload}
-              disabled={loading || !manual}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-white text-emerald-700 font-semibold text-sm rounded-xl hover:bg-emerald-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Download size={16} />
-              Descargar PDF
-            </button>
-            <button
-              onClick={handleOpenOnline}
-              disabled={loading || !manual}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-white/10 text-white font-semibold text-sm rounded-xl hover:bg-white/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <ExternalLink size={16} />
-              Ver en línea
-            </button>
+      <div className={`max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 ${onClose ? 'py-6' : 'py-4'} space-y-8`}>
+
+        {/* Hero + descarga - Full Width */}
+        <div className="bg-gradient-to-br from-emerald-600 to-teal-700 rounded-3xl p-6 sm:p-10 text-white shadow-2xl shadow-emerald-900/20 relative overflow-hidden group">
+          {/* Fondo decorativo */}
+          <div className="absolute top-0 right-0 -mt-10 -mr-10 w-40 h-40 bg-white/5 rounded-full blur-3xl group-hover:bg-white/10 transition-colors" />
+          
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center gap-6 md:gap-12">
+            <div className="flex items-start gap-5 flex-1">
+              <div className="p-4 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 shadow-inner shrink-0">
+                <BookOpen size={32} />
+              </div>
+              <div>
+                <h2 className="font-bold text-2xl sm:text-3xl leading-tight tracking-tight">Manual de {roleLabel}</h2>
+                <p className="text-emerald-50/80 text-base mt-2 leading-relaxed max-w-xl">
+                  Guía interactiva diseñada para que domines todas las funciones de Rescatto y maximices tu impacto ambiental.
+                </p>
+                {manual && (
+                  <div className="flex items-center gap-3 mt-4 text-[10px] font-bold text-emerald-100/60 uppercase tracking-[0.2em]">
+                    <span className="bg-emerald-500/20 px-2 py-1 rounded-md border border-white/5">Versión {manual.version}</span>
+                    <span>•</span>
+                    <span>{manual.sizeKB > 0 ? `${manual.sizeKB} KB` : 'Formato PDF'}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-4 shrink-0">
+              <button
+                onClick={handleDownload}
+                disabled={loading || !manual}
+                className="flex items-center justify-center gap-2 px-8 py-4 bg-white text-emerald-700 font-bold text-sm rounded-2xl hover:bg-emerald-50 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-black/10"
+              >
+                <Download size={18} />
+                Descargar PDF
+              </button>
+              <button
+                onClick={handleOpenOnline}
+                disabled={loading || !manual}
+                className="flex items-center justify-center gap-2 px-8 py-4 bg-emerald-500/20 text-white font-bold text-sm rounded-2xl hover:bg-emerald-500/30 border border-white/20 backdrop-blur-md transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ExternalLink size={18} />
+                Ver en línea
+              </button>
+            </div>
           </div>
 
           {loading && (
-            <p className="text-emerald-200 text-xs mt-3 text-center">Cargando manual...</p>
-          )}
-          {!loading && !manual && (
-            <p className="text-yellow-200 text-xs mt-3 text-center">
-              El manual aún no está generado. Ejecuta <code className="bg-white/10 px-1 rounded">pnpm docs:pdf</code> para crearlo.
-            </p>
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 text-emerald-200/50 text-[10px] font-bold uppercase tracking-tighter">
+              <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-ping" /> Sincronizando con el servidor...
+            </div>
           )}
         </div>
 
-        {/* Vista en línea (iframe) */}
+        {/* Vista en línea (iframe) - Animada y con más altura */}
         {pdfOpen && manual && (
-          <div className="bg-white dark:bg-slate-800 rounded-2xl overflow-hidden border border-gray-200 dark:border-slate-700">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-slate-700">
-              <span className="font-medium text-sm text-gray-700 dark:text-slate-300">Vista previa del manual</span>
+          <div className="bg-white dark:bg-neutral-800 rounded-3xl overflow-hidden border border-gray-200 dark:border-neutral-700 shadow-2xl animate-in fade-in slide-in-from-top-4 duration-500">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-neutral-700/50 bg-gray-50/50 dark:bg-neutral-800/80 backdrop-blur-md">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                <span className="font-black text-[10px] uppercase tracking-[0.2em] text-gray-500 dark:text-neutral-400">Previsualización Interactiva</span>
+              </div>
               <button
                 onClick={() => setPdfOpen(false)}
-                className="p-1.5 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                className="p-2 hover:bg-red-500/10 hover:text-red-500 rounded-xl transition-all"
               >
-                <X size={16} className="text-gray-500" />
+                <X size={20} className="text-gray-400" />
               </button>
             </div>
             <iframe
               ref={iframeRef}
               src={manual.url}
               title={`Manual ${roleLabel}`}
-              className="w-full h-[500px]"
+              className="w-full h-[700px] border-none bg-neutral-100 dark:bg-neutral-900"
               onError={() => {
-                // Safari bloquea iframes PDF — abre en pestaña nueva
                 window.open(manual.url, '_blank', 'noopener,noreferrer');
                 setPdfOpen(false);
               }}
             />
-            <p className="text-xs text-gray-400 text-center py-2">
-              Si el documento no carga,{' '}
+            <div className="bg-white dark:bg-neutral-900/80 px-6 py-4 border-t border-gray-100 dark:border-neutral-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <p className="text-[11px] text-gray-400 font-medium">Desliza para navegar por el documento oficial.</p>
               <button
                 onClick={() => { window.open(manual.url, '_blank', 'noopener,noreferrer'); setPdfOpen(false); }}
-                className="text-emerald-600 underline"
+                className="text-xs font-black text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 uppercase tracking-widest flex items-center gap-2 transition-colors"
               >
-                ábrelo en una nueva pestaña
-              </button>.
-            </p>
+                Abrir en pantalla completa <ExternalLink size={12} />
+              </button>
+            </div>
           </div>
         )}
 
-        {/* FAQ */}
-        <div>
-          <div className="flex items-center gap-2 mb-4">
-            <HelpCircle size={18} className="text-emerald-600 dark:text-emerald-400" />
-            <h2 className="font-bold text-gray-900 dark:text-white">Preguntas frecuentes</h2>
+        {/* Layout de Rejilla para FAQ y Soporte */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          
+          {/* Columna Izquierda: FAQ (Más ancha) */}
+          <div className="lg:col-span-8 space-y-6">
+            <div className="flex items-center gap-3 px-1">
+              <div className="p-2 bg-emerald-500/10 rounded-lg">
+                <HelpCircle size={20} className="text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <h2 className="font-bold text-xl text-gray-900 dark:text-white">Preguntas frecuentes</h2>
+            </div>
+            <div className="grid grid-cols-1 gap-4">
+              {faqs.map((faq, i) => (
+                <FaqItem key={i} q={faq.q} a={faq.a} />
+              ))}
+            </div>
           </div>
-          <div className="space-y-2">
-            {faqs.map((faq, i) => (
-              <FaqItem key={i} q={faq.q} a={faq.a} />
-            ))}
-          </div>
-        </div>
 
-        {/* Contacto */}
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-200 dark:border-slate-700 p-5">
-          <h2 className="font-bold text-gray-900 dark:text-white mb-4">¿Necesitas más ayuda?</h2>
-          <div className="space-y-3">
-            <a
-              href="https://wa.me/573000000000?text=Hola%2C%20necesito%20ayuda%20con%20Rescatto"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors group"
-            >
-              <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-xl">
-                <MessageCircle size={18} className="text-green-600 dark:text-green-400" />
+          {/* Columna Derecha: Soporte (Sidebar) */}
+          <div className="lg:col-span-4 space-y-6">
+            <div className="bg-white dark:bg-neutral-800 rounded-3xl border border-gray-200 dark:border-neutral-700 p-6 sm:p-8 shadow-xl shadow-black/5 sticky top-24">
+              <div className="mb-8">
+                <h2 className="font-bold text-lg text-gray-900 dark:text-white leading-tight">¿No encuentras lo que buscas?</h2>
+                <p className="text-sm text-gray-500 dark:text-neutral-400 mt-2">Nuestro equipo de soporte técnico está disponible para ayudarte personalmente.</p>
               </div>
-              <div>
-                <p className="font-medium text-sm text-gray-800 dark:text-slate-200 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">WhatsApp</p>
-                <p className="text-xs text-gray-500 dark:text-slate-400">Respuesta rápida · Lunes a sábado</p>
+
+              <div className="space-y-4">
+                <a
+                  href="https://wa.me/573000000000?text=Hola%2C%20necesito%20ayuda%20con%20Rescatto"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-4 p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900/50 border border-transparent hover:border-emerald-500/30 hover:bg-white dark:hover:bg-neutral-800 transition-all group shadow-sm hover:shadow-md"
+                >
+                  <div className="p-3 bg-green-100 dark:bg-green-900/20 rounded-2xl shrink-0 group-hover:scale-110 transition-transform">
+                    <MessageCircle size={24} className="text-green-600 dark:text-green-400" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-sm text-gray-800 dark:text-neutral-200">WhatsApp Business</p>
+                    <p className="text-[10px] text-gray-500 dark:text-neutral-500 font-bold uppercase tracking-wider mt-0.5">Atención Inmediata</p>
+                  </div>
+                  <ExternalLink size={16} className="text-neutral-300 dark:text-neutral-700 group-hover:text-emerald-500 transition-colors" />
+                </a>
+
+                <a
+                  href="mailto:soporte@rescatto.com?subject=Soporte%20Rescatto"
+                  className="flex items-center gap-4 p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900/50 border border-transparent hover:border-emerald-500/30 hover:bg-white dark:hover:bg-neutral-800 transition-all group shadow-sm hover:shadow-md"
+                >
+                  <div className="p-3 bg-blue-100 dark:bg-blue-900/20 rounded-2xl shrink-0 group-hover:scale-110 transition-transform">
+                    <Mail size={24} className="text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-sm text-gray-800 dark:text-neutral-200">Correo Corporativo</p>
+                    <p className="text-[10px] text-gray-500 dark:text-neutral-500 font-bold uppercase tracking-wider mt-0.5">Casos y Reclamos</p>
+                  </div>
+                  <ExternalLink size={16} className="text-neutral-300 dark:text-neutral-700 group-hover:text-emerald-500 transition-colors" />
+                </a>
               </div>
-              <ExternalLink size={14} className="ml-auto text-gray-400" />
-            </a>
-            <a
-              href="mailto:soporte@rescatto.com?subject=Soporte%20Rescatto"
-              className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors group"
-            >
-              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
-                <Mail size={18} className="text-blue-600 dark:text-blue-400" />
+
+              <div className="mt-8 pt-6 border-t border-gray-100 dark:border-neutral-700/50">
+                <div className="flex items-center gap-3 text-xs text-gray-400 dark:text-neutral-500">
+                  <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+                    <HelpCircle size={14} />
+                  </div>
+                  <span>Horario: Lun - Sáb, 8:00 AM - 6:00 PM</span>
+                </div>
               </div>
-              <div>
-                <p className="font-medium text-sm text-gray-800 dark:text-slate-200 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">soporte@rescatto.com</p>
-                <p className="text-xs text-gray-500 dark:text-slate-400">Para casos formales y reclamos</p>
-              </div>
-              <ExternalLink size={14} className="ml-auto text-gray-400" />
-            </a>
+            </div>
           </div>
+
         </div>
 
       </div>

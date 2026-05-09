@@ -17,7 +17,8 @@ import { logger } from '../../utils/logger';
 import { formatCOP } from '../../utils/formatters';
 import { geminiService } from '../../services/geminiService';
 import { Sparkles } from 'lucide-react';
-import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
+import { db } from '../../services/firebase';
+import { QueryDocumentSnapshot, DocumentData, collection, query, where, getDocs } from 'firebase/firestore';
 
 export const ProductManager: React.FC = () => {
     const toast = useToast();
@@ -47,17 +48,26 @@ export const ProductManager: React.FC = () => {
     const [formData, setFormData] = useState({
         name: '',
         category: '',
-        type: ProductType.SPECIFIC_DISH,
+        subcategory: '',
+        description: '',
         originalPrice: 0,
         discountedPrice: 0,
         quantity: 0,
-        imageUrl: '',
-        description: '',
         availableUntil: '',
+        imageUrl: '',
+        isRescue: true,
         isDynamicPricing: false,
         isRecurring: false,
         recurrencyDays: [] as string[],
         tags: [] as string[],
+        type: ProductType.SPECIFIC_DISH, // Mantener en estado pero deshabilitar en UI
+    });
+
+    const [predefinedCategories, setPredefinedCategories] = useState<Record<string, string[]>>({
+        "Alimentos": ["Panadería", "Frutas y Verduras", "Lácteos", "Cárnicos", "Snacks"],
+        "Bebidas": ["Café y Té", "Jugos Naturales", "Gaseosas", "Cervezas", "Vinos"],
+        "Platos Preparados": ["Almuerzos", "Cenas", "Desayunos", "Comida Rápida"],
+        "Otros": ["Limpieza", "Hogar", "Personal"]
     });
 
     const [isGeneratingAI, setIsGeneratingAI] = useState(false);
@@ -67,6 +77,7 @@ export const ProductManager: React.FC = () => {
     useEffect(() => {
         if (user) {
             loadTags();
+            loadPredefinedCategories();
 
             if (user.role === UserRole.SUPER_ADMIN || (user.venueIds && user.venueIds.length > 0)) {
                 loadVenues();
@@ -79,6 +90,24 @@ export const ProductManager: React.FC = () => {
         // loadVenues/loadTags también se usan en handlers de formulario; incluirlas como dep causaría re-runs
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.id, user?.role, user?.venueId, venueIdsKey]);
+
+    const loadPredefinedCategories = async () => {
+        try {
+            const q = query(collection(db, 'product_categories'), where('isActive', '==', true));
+            const snap = await getDocs(q);
+            if (!snap.empty) {
+                const cats: Record<string, string[]> = {};
+                snap.docs.forEach(doc => {
+                    const data = doc.data();
+                    cats[data.name] = data.subcategories || [];
+                });
+                setPredefinedCategories(cats);
+            }
+        } catch (error) {
+            logger.error('Error loading predefined categories:', error);
+            // Fallback to hardcoded ones is already set in state
+        }
+    };
 
     useEffect(() => {
         if (selectedVenueId) {
@@ -168,6 +197,8 @@ export const ProductManager: React.FC = () => {
                 isRecurring: product.isRecurring || false,
                 recurrencyDays: product.recurrencyDays || [],
                 tags: product.tags || [],
+                isRescue: product.isRescue ?? true,
+                subcategory: product.subcategory || '',
             });
         } else {
             setEditingProduct(null);
@@ -185,6 +216,8 @@ export const ProductManager: React.FC = () => {
                 isRecurring: false,
                 recurrencyDays: [],
                 tags: [],
+                isRescue: true,
+                subcategory: '',
             });
         }
         setShowModal(true);
@@ -229,7 +262,9 @@ export const ProductManager: React.FC = () => {
         const productData = {
             ...formData,
             venueId: selectedVenueId,
-            availableUntil: new Date(formData.availableUntil).toISOString(),
+            availableUntil: formData.isRescue 
+                ? new Date(formData.availableUntil).toISOString()
+                : '2099-12-31T23:59:59.000Z',
         };
 
         try {
@@ -247,7 +282,9 @@ export const ProductManager: React.FC = () => {
                 recurrencyDays: productData.recurrencyDays,
                 description: productData.description,
                 tags: productData.tags || [],
-                venueId: productData.venueId
+                venueId: productData.venueId,
+                isRescue: productData.isRescue,
+                subcategory: productData.subcategory
             };
 
             if (editingProduct) {
@@ -300,7 +337,8 @@ export const ProductManager: React.FC = () => {
         setEditingProduct(null);
         setFormData({
             name: `Copia de ${product.name}`,
-            category: product.category,
+            category: product.category || '',
+            subcategory: product.subcategory || '',
             type: product.type,
             originalPrice: product.originalPrice,
             discountedPrice: product.discountedPrice,
@@ -312,6 +350,7 @@ export const ProductManager: React.FC = () => {
             isRecurring: product.isRecurring || false,
             recurrencyDays: product.recurrencyDays || [],
             tags: product.tags || [],
+            isRescue: product.isRescue ?? true,
         });
         setShowModal(true);
         toast.info?.('Producto duplicado — ajusta el stock y la fecha antes de guardar');
@@ -466,9 +505,12 @@ export const ProductManager: React.FC = () => {
                                 >
                                     <div className="relative">
                                         <img
-                                            src={product.imageUrl}
+                                            src={product.imageUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=400&auto=format&fit=crop'}
                                             alt={product.name}
                                             className="w-full h-40 object-cover"
+                                            onError={(e) => {
+                                                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=400&auto=format&fit=crop';
+                                            }}
                                         />
                                         {/* Stock badge */}
                                         <div className={`absolute top-2 right-2 px-2 py-1 rounded text-[10px] font-bold shadow-sm backdrop-blur-sm ${product.quantity === 0
@@ -632,12 +674,55 @@ export const ProductManager: React.FC = () => {
                             <h3 className="text-xl font-bold">
                                 {editingProduct ? 'Editar Producto' : 'Nuevo Producto'}
                             </h3>
+                            {user?.role === UserRole.SUPER_ADMIN && !editingProduct && (
+                                <div className="ml-4 flex-1 max-w-xs">
+                                    <select
+                                        className="w-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-lg p-2 outline-none font-bold"
+                                        value={selectedVenueId || ''}
+                                        onChange={(e) => setSelectedVenueId(e.target.value)}
+                                        required
+                                    >
+                                        <option value="">Seleccionar Negocio *</option>
+                                        {venues.map(v => (
+                                            <option key={v.id} value={v.id}>{v.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
                             <button onClick={handleCloseModal} className="text-gray-400 hover:text-gray-600">
                                 <X size={24} />
                             </button>
                         </div>
 
                         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                            {/* Product Type Selection (Rescue vs Regular) */}
+                            <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100 flex items-center justify-between gap-4">
+                                <div>
+                                    <h4 className="text-sm font-bold text-emerald-800">Modelo de Venta</h4>
+                                    <p className="text-[10px] text-emerald-600 leading-tight">
+                                        {formData.isRescue 
+                                            ? 'Ideal para excedentes o platos del día con descuento masivo.' 
+                                            : 'Ideal para productos estándar que están siempre disponibles.'}
+                                    </p>
+                                </div>
+                                <div className="flex bg-white p-1 rounded-lg border border-emerald-200 shadow-sm shrink-0">
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData({ ...formData, isRescue: true })}
+                                        className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-tight transition-all ${formData.isRescue ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-400 hover:text-emerald-600'}`}
+                                    >
+                                        Rescate 🍃
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFormData({ ...formData, isRescue: false })}
+                                        className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-tight transition-all ${!formData.isRescue ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-400 hover:text-blue-600'}`}
+                                    >
+                                        Regular 💎
+                                    </button>
+                                </div>
+                            </div>
+
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="md:col-span-2">
                                     <div className="flex justify-between items-end mb-2">
@@ -678,28 +763,35 @@ export const ProductManager: React.FC = () => {
 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Categoría
+                                        Categoría *
                                     </label>
-                                    <input
-                                        type="text"
+                                    <select
                                         value={formData.category}
-                                        onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                                        placeholder="Ej: Platos Fuertes"
-                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-base transition-all duration-200"
-                                    />
+                                        onChange={(e) => setFormData({ ...formData, category: e.target.value, subcategory: '' })}
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-base transition-all duration-200"
+                                        required
+                                    >
+                                        <option value="">Seleccionar Categoría</option>
+                                        {Object.keys(predefinedCategories).map(cat => (
+                                            <option key={cat} value={cat}>{cat}</option>
+                                        ))}
+                                    </select>
                                 </div>
 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Tipo *
+                                        Subcategoría
                                     </label>
                                     <select
-                                        value={formData.type}
-                                        onChange={(e) => setFormData({ ...formData, type: e.target.value as ProductType })}
+                                        value={formData.subcategory}
+                                        onChange={(e) => setFormData({ ...formData, subcategory: e.target.value })}
                                         className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-base transition-all duration-200"
+                                        disabled={!formData.category}
                                     >
-                                        <option value={ProductType.SPECIFIC_DISH}>Plato Específico</option>
-                                        <option value={ProductType.SURPRISE_PACK}>Paquete Sorpresa</option>
+                                        <option value="">Seleccionar Subcategoría</option>
+                                        {formData.category && predefinedCategories[formData.category]?.map(sub => (
+                                            <option key={sub} value={sub}>{sub}</option>
+                                        ))}
                                     </select>
                                 </div>
 
@@ -762,18 +854,20 @@ export const ProductManager: React.FC = () => {
                                     />
                                 </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Disponible Hasta *
-                                    </label>
-                                    <input
-                                        type="date"
-                                        value={formData.availableUntil}
-                                        onChange={(e) => setFormData({ ...formData, availableUntil: e.target.value })}
-                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white appearance-none min-w-0 focus:ring-2 focus:ring-emerald-500 outline-none text-base transition-all duration-200"
-                                        required
-                                    />
-                                </div>
+                                {formData.isRescue && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Disponible Hasta *
+                                        </label>
+                                        <input
+                                            type="date"
+                                            value={formData.availableUntil}
+                                            onChange={(e) => setFormData({ ...formData, availableUntil: e.target.value })}
+                                            className="w-full px-4 py-2.5 border border-gray-300 rounded-xl bg-white appearance-none min-w-0 focus:ring-2 focus:ring-emerald-500 outline-none text-base transition-all duration-200"
+                                            required={formData.isRescue}
+                                        />
+                                    </div>
+                                )}
 
                                 <div className="md:col-span-2">
                                     <label className="block text-sm font-medium text-gray-700 mb-2">

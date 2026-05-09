@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { useAuth } from '../../context/AuthContext';
 import { adminService } from '../../services/adminService';
+import { useAdminTable } from '../../hooks/useAdminTable';
 import { Venue } from '../../types';
 import { formatCOP } from '../../utils/formatters';
 import { logger } from '../../utils/logger';
@@ -8,8 +8,10 @@ import { useToast } from '../../context/ToastContext';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
 import {
     Landmark, Search, AlertTriangle, CheckCircle, TrendingDown,
-    RefreshCw, X, ChevronLeft, ChevronRight
+    RefreshCw, X, ChevronLeft, ChevronRight, RotateCw
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { DataTable, Column } from '../../components/common/DataTable';
 
 interface WalletRow {
     venueId: string;
@@ -27,12 +29,24 @@ export const CommissionsManager: React.FC = () => {
     const { user } = useAuth();
     const toast = useToast();
 
-    const [rows, setRows] = useState<WalletRow[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
     const [filterTab, setFilterTab] = useState<FilterTab>('all');
-    const [page, setPage] = useState(0);
-    const [rowsPerPage, setRowsPerPage] = useState(PAGE_SIZE);
+
+    const table = useAdminTable<WalletRow>({
+        fetchFn: async (size, cursor, term) => {
+            const result = await adminService.getCommissionsPaginated(size, cursor, term);
+            
+            // Apply local tab filter (since getCommissionsPaginated doesn't handle debt/credit tabs yet)
+            let data = result.data;
+            if (filterTab === 'debt') data = data.filter(r => r.balance < 0);
+            if (filterTab === 'credit') data = data.filter(r => r.balance > 0);
+            if (filterTab === 'settled') data = data.filter(r => r.balance === 0);
+            
+            return { ...result, data };
+        },
+        countFn: () => adminService.getCommissionsCount(),
+        initialPageSize: 20,
+        dependencies: [filterTab]
+    });
 
     // Modal state
     const [modalVenue, setModalVenue] = useState<WalletRow | null>(null);
@@ -41,71 +55,17 @@ export const CommissionsManager: React.FC = () => {
     const [settlementDesc, setSettlementDesc] = useState('');
     const [saving, setSaving] = useState(false);
 
-    const loadData = async () => {
-        setLoading(true);
-        try {
-            const [venues, wallets] = await Promise.all([
-                adminService.getAllVenues(true),
-                adminService.getAllWallets(),
-            ]);
-
-            const venueMap = new Map<string, Venue>(venues.map(v => [v.id!, v]));
-
-            // Include every venue (with or without wallet)
-            const allRows: WalletRow[] = venues.map(v => {
-                const w = wallets.find(wallet => wallet.venueId === v.id);
-                return {
-                    venueId: v.id!,
-                    venueName: v.name,
-                    city: v.city || '—',
-                    balance: w?.balance ?? 0,
-                    updatedAt: w?.updatedAt ?? '',
-                };
-            });
-
-            // Sort by most debt first
-            allRows.sort((a, b) => a.balance - b.balance);
-            setRows(allRows);
-        } catch (e) {
-            logger.error('Error cargando billeteras', e);
-            toast.error('Error cargando datos de comisiones');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        loadData();
-        // loadData no tiene dependencias que cambien — también se usa en el botón de refresh y en handleSettle
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    const filtered = useMemo(() => {
-        let list = rows;
-        if (searchTerm) {
-            const q = searchTerm.toLowerCase();
-            list = list.filter(r => r.venueName.toLowerCase().includes(q) || r.city.toLowerCase().includes(q));
-        }
-        if (filterTab === 'debt') list = list.filter(r => r.balance < 0);
-        if (filterTab === 'credit') list = list.filter(r => r.balance > 0);
-        if (filterTab === 'settled') list = list.filter(r => r.balance === 0);
-        return list;
-    }, [rows, searchTerm, filterTab]);
-
-    const totalPages = Math.ceil(filtered.length / rowsPerPage);
-    const paginated = filtered.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
-
     const summary = useMemo(() => {
-        const debtRows = rows.filter(r => r.balance < 0);
-        const creditRows = rows.filter(r => r.balance > 0);
+        const debtRows = table.data.filter(r => r.balance < 0);
+        const creditRows = table.data.filter(r => r.balance > 0);
         return {
             totalDebt: debtRows.reduce((s, r) => s + Math.abs(r.balance), 0),
             totalCredit: creditRows.reduce((s, r) => s + r.balance, 0),
             debtCount: debtRows.length,
             creditCount: creditRows.length,
-            settledCount: rows.filter(r => r.balance === 0).length,
+            settledCount: table.data.filter(r => r.balance === 0).length,
         };
-    }, [rows]);
+    }, [table.data]);
 
     const handleSettle = async () => {
         if (!modalVenue) return;
@@ -124,7 +84,7 @@ export const CommissionsManager: React.FC = () => {
             setModalVenue(null);
             setSettlementAmount('');
             setSettlementDesc('');
-            await loadData();
+            table.reload();
         } catch (e: any) {
             logger.error('Error registrando pago', e);
             toast.error(e?.message || 'Error al registrar el movimiento');
@@ -151,31 +111,87 @@ export const CommissionsManager: React.FC = () => {
         );
     };
 
-    const tabs: { key: FilterTab; label: string; count: number }[] = [
-        { key: 'all', label: 'Todos', count: rows.length },
-        { key: 'debt', label: 'En Deuda', count: summary.debtCount },
-        { key: 'credit', label: 'Rescatto Debe', count: summary.creditCount },
-        { key: 'settled', label: 'Al Día', count: summary.settledCount },
+    const columns = [
+        {
+            header: 'Negocio',
+            accessor: 'venueName' as keyof WalletRow,
+            sortable: true,
+            className: 'font-bold text-gray-900'
+        },
+        {
+            header: 'Ciudad',
+            accessor: 'city' as keyof WalletRow,
+            sortable: true,
+            className: 'hidden sm:table-cell text-gray-500 font-medium'
+        },
+        {
+            header: 'Estado',
+            accessor: 'balance' as keyof WalletRow,
+            sortable: true,
+            render: (value: number) => statusBadge(value)
+        },
+        {
+            header: 'Saldo',
+            accessor: 'balance' as keyof WalletRow,
+            sortable: true,
+            className: 'text-right',
+            render: (value: number) => (
+                <span className={`font-black text-sm tracking-tight ${value < 0 ? 'text-red-600' : value > 0 ? 'text-blue-600' : 'text-gray-300'}`}>
+                    {value === 0 ? 'AL DÍA' : (value < 0 ? '-' : '+') + formatCOP(Math.abs(value))}
+                </span>
+            )
+        },
+        {
+            header: 'Última Act.',
+            accessor: 'updatedAt' as keyof WalletRow,
+            sortable: true,
+            className: 'hidden md:table-cell text-gray-400 text-[10px] font-bold uppercase tracking-widest',
+            render: (value: string) => value ? new Date(value).toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }) : '—'
+        },
+        {
+            header: 'Acciones',
+            accessor: 'venueId' as keyof WalletRow,
+            className: 'text-right',
+            render: (id: string, row: WalletRow) => (
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setModalVenue(row);
+                        setSettlementType(row.balance < 0 ? 'DEBT_PAYMENT' : 'PAYOUT');
+                        setSettlementAmount('');
+                        setSettlementDesc('');
+                    }}
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition shadow-lg shadow-emerald-900/20 active:scale-95"
+                >
+                    Registrar
+                </button>
+            )
+        }
     ];
+
+    if (table.isLoading && table.data.length === 0) return (
+        <div className="flex justify-center items-center h-96">
+            <LoadingSpinner />
+        </div>
+    );
 
     return (
         <div className="space-y-6 overflow-x-hidden">
-            {/* Header */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <h2 className="text-2xl font-bold text-white flex items-center gap-2">
                     <Landmark className="text-emerald-400" />
                     Comisiones y Deudas
                 </h2>
                 <button
-                    onClick={loadData}
-                    className="bg-white border border-gray-200 text-gray-600 p-2 rounded-lg hover:bg-gray-50 transition shadow-sm"
-                    title="Refrescar"
+                    onClick={() => table.reload()}
+                    disabled={table.isLoading}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-gray-100 hover:bg-gray-50 text-gray-600 font-bold text-xs shadow-sm transition-all active:scale-95 disabled:opacity-50"
                 >
-                    <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+                    <RefreshCw size={14} className={table.isLoading ? 'animate-spin' : ''} />
+                    Refrescar
                 </button>
             </div>
 
-            {/* Summary cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="bg-white rounded-xl border border-red-100 shadow-sm p-5">
                     <p className="text-xs font-semibold text-red-400 uppercase tracking-wider mb-1">Deuda Total de Negocios</p>
@@ -194,128 +210,60 @@ export const CommissionsManager: React.FC = () => {
                 </div>
             </div>
 
-            {/* Table card */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                {/* Card header */}
-                <div className="p-4 border-b border-gray-100 bg-gray-50 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <div className="relative flex-1 max-w-xs">
-                            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                            <input
-                                type="text"
-                                placeholder="Buscar negocio..."
-                                value={searchTerm}
-                                onChange={e => { setSearchTerm(e.target.value); setPage(0); }}
-                                className="pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-emerald-300 bg-white"
-                            />
-                        </div>
-                        {/* Filter tabs */}
-                        <div className="flex gap-1 flex-wrap">
-                            {tabs.map(t => (
-                                <button
-                                    key={t.key}
-                                    onClick={() => { setFilterTab(t.key); setPage(0); }}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${filterTab === t.key
-                                        ? 'bg-emerald-600 text-white'
-                                        : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}
-                                >
-                                    {t.label} <span className="opacity-60">({t.count})</span>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-500 shrink-0">
-                        <span>Filas:</span>
-                        <select
-                            value={rowsPerPage}
-                            onChange={e => { setRowsPerPage(Number(e.target.value)); setPage(0); }}
-                            className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none"
-                        >
-                            {[10, 20, 50].map(n => <option key={n} value={n}>{n}</option>)}
-                        </select>
-                    </div>
-                </div>
-
-                {loading ? (
-                    <div className="flex justify-center py-20"><LoadingSpinner size="md" /></div>
-                ) : filtered.length === 0 ? (
-                    <div className="py-20 text-center text-gray-400">
-                        <Landmark size={40} className="mx-auto mb-3 opacity-20" />
-                        <p className="font-medium">No se encontraron resultados</p>
-                    </div>
-                ) : (
-                    <div className="overflow-x-auto -mx-4 sm:mx-0">
-                        <table className="w-full min-w-[620px] text-sm text-left">
-                            <thead>
-                                <tr className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold tracking-wider">
-                                    <th className="px-4 py-3">Negocio</th>
-                                    <th className="px-4 py-3">Ciudad</th>
-                                    <th className="px-4 py-3">Estado</th>
-                                    <th className="px-4 py-3 text-right">Saldo</th>
-                                    <th className="px-4 py-3">Última actualización</th>
-                                    <th className="px-4 py-3 text-center">Acción</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {paginated.map(row => (
-                                    <tr key={row.venueId} className="hover:bg-gray-50 transition-colors">
-                                        <td className="px-4 py-3 font-medium text-gray-800">{row.venueName}</td>
-                                        <td className="px-4 py-3 text-gray-500">{row.city}</td>
-                                        <td className="px-4 py-3">{statusBadge(row.balance)}</td>
-                                        <td className={`px-4 py-3 text-right font-bold ${row.balance < 0 ? 'text-red-600' : row.balance > 0 ? 'text-blue-600' : 'text-gray-400'}`}>
-                                            {row.balance === 0 ? '—' : (row.balance < 0 ? '-' : '+') + formatCOP(Math.abs(row.balance))}
-                                        </td>
-                                        <td className="px-4 py-3 text-gray-400 text-xs">
-                                            {row.updatedAt ? new Date(row.updatedAt).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
-                                        </td>
-                                        <td className="px-4 py-3 text-center">
-                                            <button
-                                                onClick={() => {
-                                                    setModalVenue(row);
-                                                    setSettlementType(row.balance < 0 ? 'DEBT_PAYMENT' : 'PAYOUT');
-                                                    setSettlementAmount('');
-                                                    setSettlementDesc('');
-                                                }}
-                                                className="px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-semibold hover:bg-emerald-100 transition"
-                                            >
-                                                Registrar Movimiento
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-
-                {/* Pagination footer */}
-                {!loading && filtered.length > 0 && (
-                    <div className="p-4 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500">
-                        <span>
-                            Mostrando {page * rowsPerPage + 1}–{Math.min((page + 1) * rowsPerPage, filtered.length)} de {filtered.length}
+            <div className="flex flex-wrap gap-2">
+                {[
+                    { key: 'all', label: 'Todos', count: table.data.length },
+                    { key: 'debt', label: 'En Deuda', count: summary.debtCount },
+                    { key: 'credit', label: 'Rescatto Debe', count: summary.creditCount },
+                    { key: 'settled', label: 'Al Día', count: summary.settledCount },
+                ].map((t) => (
+                    <button
+                        key={t.key}
+                        onClick={() => setFilterTab(t.key as FilterTab)}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                            filterTab === t.key 
+                                ? 'bg-gray-900 text-white shadow-lg scale-105' 
+                                : 'bg-white border border-gray-100 text-gray-500 hover:bg-gray-50'
+                        }`}
+                    >
+                        {t.label}
+                        <span className={`ml-2 px-1.5 py-0.5 rounded-md text-[10px] ${
+                            filterTab === t.key ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'
+                        }`}>
+                            {t.count}
                         </span>
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={() => setPage(p => Math.max(0, p - 1))}
-                                disabled={page === 0}
-                                className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-                            >
-                                <ChevronLeft size={16} />
-                            </button>
-                            <span className="px-2">Pág. {page + 1} / {totalPages}</span>
-                            <button
-                                onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
-                                disabled={page >= totalPages - 1}
-                                className="p-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-                            >
-                                <ChevronRight size={16} />
-                            </button>
-                        </div>
-                    </div>
-                )}
+                    </button>
+                ))}
             </div>
 
-            {/* Settlement Modal */}
+            <div className="bg-white/90 backdrop-blur-md rounded-[2.5rem] p-6 shadow-2xl border border-gray-100">
+                <DataTable
+                    columns={columns}
+                    data={table.data}
+                    placeholder="Buscar por negocio o ciudad..."
+                    initialPageSize={table.pageSize}
+                    isLoading={table.isLoading}
+                    manualPagination
+                    totalItems={table.totalItems}
+                    currentPage={table.currentPage}
+                    onPageChange={table.onPageChange}
+                    onPageSizeChange={table.onPageSizeChange}
+                    searchTerm={table.searchTerm}
+                    onSearchChange={table.setSearchTerm}
+                    isSearching={table.isSearching}
+                    onRowClick={(item) => {/* Opcional: ver detalles */ }}
+                    exportable
+                    exportFilename="rescatto_comisiones"
+                    exportTransformer={(r) => ({
+                        venueName: r.venueName,
+                        city: r.city,
+                        balance: r.balance,
+                        status: r.balance < 0 ? 'En Deuda' : r.balance > 0 ? 'Rescatto Debe' : 'Al Día',
+                        updatedAt: r.updatedAt ? new Date(r.updatedAt).toLocaleDateString('es-CO') : '—'
+                    })}
+                />
+            </div>
+
             {modalVenue && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
                     <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 animate-in fade-in zoom-in duration-200">

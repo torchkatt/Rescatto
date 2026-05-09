@@ -5,12 +5,28 @@
     "tech_stack": ["React 18", "TypeScript", "Firebase (Firestore, Auth, Functions, Messaging)", "Vite", "Tailwind CSS", "Zustand", "Vitest", "Playwright", "PWA"],
     "architecture": "SPA with Firebase backend, role-based routing (admin, business, customer, driver, backoffice)"
   },
-  "last_session": "2026-04-24T19:00:00Z",
+  "last_session": "2026-05-09T05:00:00Z",
   "sessions": [
     {
       "date": "2026-04-24",
       "features_worked": ["ai-router-setup"],
       "files_modified": ["scripts/ai-router.ts", "AGENTS.md", ".ai-context/memory.json"]
+    },
+    {
+      "date": "2026-05-09",
+      "features_worked": ["admin-table-standardization", "server-side-pagination", "global-search-utility"],
+      "files_modified": [
+        "hooks/useAdminTable.ts",
+        "services/adminService.ts",
+        "utils/searchUtils.ts",
+        "components/common/DataTable.tsx",
+        "pages/admin/UsersManager.tsx",
+        "pages/admin/DriversManager.tsx",
+        "pages/admin/CommissionsManager.tsx",
+        "pages/admin/CategoriesManager.tsx",
+        "pages/admin/AuditLogs.tsx",
+        "pages/admin/FinanceManager.tsx"
+      ]
     }
   ],
   "active_features": [],
@@ -21,7 +37,8 @@
     "routing": "react-router-dom v6 with role-based ProtectedRoute",
     "ui": "Tailwind CSS utility-first, custom components in /components/",
     "i18n": "i18next with /locales/ es/en",
-    "ai": "Gemini API (commented out), DeepSeek API via ai-router.ts"
+    "ai": "Gemini API (commented out), DeepSeek API via ai-router.ts",
+    "datatable": "Uso de render prop para celdas personalizadas, border-gray-50 por defecto"
   },
   "architecture_decisions": [
     {
@@ -31,10 +48,34 @@
       "decision": "Usar deepseek-v4-pro para planificación estratégica y deepseek-v4-flash para implementación",
       "rationale": "90% ahorro de tokens vs usar pro siempre. Flash suficiente para implementación de tareas atómicas.",
       "status": "implemented"
+    },
+    {
+      "id": "ADR-002",
+      "date": "2026-05-09",
+      "title": "Estandarización de DataTable con Render Props",
+      "decision": "Añadir propiedad 'render' opcional a las columnas de DataTable para evitar lógica de renderizado fuera del componente.",
+      "rationale": "Mejora la seguridad de tipos y permite componentes de celda complejos sin hackeos de TypeScript.",
+      "status": "implemented"
+    },
+    {
+      "id": "ADR-003",
+      "date": "2026-05-09",
+      "title": "Siembra de Ecosistema vía Cloud Functions",
+      "decision": "Migrar la lógica de siembra masiva (Seed) de usuarios, sedes y productos al backend (seedFullEcosystem).",
+      "rationale": "Garantiza atomicidad, evita latencia de red en múltiples peticiones de cliente y permite gestionar Custom Claims de forma segura.",
+      "status": "implemented"
+    },
+    {
+      "id": "ADR-004",
+      "date": "2026-05-09",
+      "title": "Arquitectura Centralizada de Tablas Administrativas",
+      "decision": "Uso obligatorio de useAdminTable y inMemorySearch para todos los módulos administrativos.",
+      "rationale": "Elimina redundancia de código, centraliza la paginación server-side y reduce costos de Firestore al evitar cargas masivas.",
+      "status": "implemented"
     }
   ],
   "notes": {
-    "graphify": "graphify-out/ no existe aún. Reglas en AGENTS.md preservadas.",
+    "graphify": "Actualizado manualmente tras cambios en el core administrativo.",
     "gemini_service": "Comentado para evitar costos. Usar DeepSeek como alternativa."
   }
 }

@@ -43,6 +43,7 @@ export default {
             },
             animation: {
                 'slide-in-right': 'slideInRight 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                'slide-out-right': 'slideOutRight 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards',
                 'slide-in-left': 'slideInLeft 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
                 'fade-in-up': 'fadeInUp 0.5s ease-out forwards',
                 'cart-pop': 'cartPop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1)',
@@ -51,6 +52,10 @@ export default {
                 slideInRight: {
                     '0%': { opacity: '0', transform: 'translateX(100%)' },
                     '100%': { opacity: '1', transform: 'translateX(0)' },
+                },
+                slideOutRight: {
+                    '0%': { opacity: '1', transform: 'translateX(0)' },
+                    '100%': { opacity: '0', transform: 'translateX(120%)' },
                 },
                 slideInLeft: {
                     '0%': { opacity: '0', transform: 'translateX(-100%)' },

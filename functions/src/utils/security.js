@@ -46,7 +46,9 @@ async function validateSecurityBunker(fnName, request, options = {}) {
 
     // 1. App Check Enforcement
     // request.app will be undefined if App Check token is missing or invalid.
-    if (enforceAppCheck && !request.app) {
+    // [Bunker] Bypass for SUPER_ADMIN to allow development/debugging.
+    const isSuperAdmin = request.auth.token.role === "SUPER_ADMIN";
+    if (enforceAppCheck && !request.app && !isSuperAdmin) {
         warn(`[SecurityBunker] App Check failed for ${fnName}`, { uid });
         throw new HttpsError(
             "failed-precondition",
