@@ -97,7 +97,8 @@ export const Analytics: React.FC = () => {
         })();
 
         return () => { cancelled = true; };
-    }, [userId, userVenueId, venueIdsKey, userRole, userVenueIds, dateRange]);
+    }, [userId, userVenueId, venueIdsKey, userRole, userVenueIds, dateRange, showToast]);
+
 
     const exportToCSV = () => {
         if (!dailyTrends.length) return;

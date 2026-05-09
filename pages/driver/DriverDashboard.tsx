@@ -76,43 +76,11 @@ export const DriverDashboard: React.FC = () => {
     const [sortBy, setSortBy] = useState<'recent' | 'amount'>('recent');
     const [statusFilter, setStatusFilter] = useState<'all' | OrderStatus.DRIVER_ASSIGNED | OrderStatus.IN_TRANSIT>('all');
 
-    useEffect(() => {
-        if (!user || user.role !== UserRole.DRIVER) return;
+    const userId = user?.id;
+    const userRole = user?.role;
+    const userCity = user?.city;
 
-        let cancelled = false;
-
-        const loadInitial = async () => {
-            setLoading(true);
-            await Promise.all([loadAvailable(true), loadMine(true)]);
-            if (!cancelled) setLoading(false);
-        };
-
-        if (user?.id) {
-            getRatingStats(user.id, 'user').then(stats => {
-                setDriverStats(stats);
-            });
-            loadInitial();
-        }
-
-        // Location Check
-        if ("geolocation" in navigator) {
-            navigator.geolocation.getCurrentPosition(
-                () => setGpsError(null),
-                (err) => {
-                    if (err.code === 1) setGpsError("Permiso de ubicación denegado. Revisa tu configuración.");
-                    else setGpsError("Ubicación no disponible en este momento.");
-                }
-            );
-        }
-
-        return () => {
-            cancelled = true;
-        };
-        // loadAvailable y loadMine también se usan en botones "cargar más"; agregarlas como dep causaría re-runs no deseados
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user?.id, user?.role]);
-
-    const loadAvailable = async (initial = false) => {
+    const loadAvailable = React.useCallback(async (initial = false) => {
         if (initial) {
             setAvailableOrders([]);
             setAvailableLastDoc(null);
@@ -127,8 +95,8 @@ export const DriverDashboard: React.FC = () => {
                 orderBy('createdAt', 'desc'),
             ];
             // Filtrar por ciudad del driver si está disponible
-            if (user?.city) {
-                constraints.unshift(where('city', '==', user.city));
+            if (userCity) {
+                constraints.unshift(where('city', '==', userCity));
             }
             if (!initial && availableLastDoc) constraints.push(startAfter(availableLastDoc));
             const q = query(collection(db, 'orders'), ...constraints, limit(PAGE_SIZE));
@@ -162,10 +130,10 @@ export const DriverDashboard: React.FC = () => {
         } finally {
             if (!initial) setLoadingMoreAvailable(false);
         }
-    };
+    }, [userCity, availableLastDoc]);
 
-    const loadMine = async (initial = false) => {
-        if (!user?.id) return;
+    const loadMine = React.useCallback(async (initial = false) => {
+        if (!userId) return;
         if (initial) {
             setMyDeliveries([]);
             setCompletedOrders([]);
@@ -176,7 +144,7 @@ export const DriverDashboard: React.FC = () => {
         }
         try {
             const constraints: any[] = [
-                where('driverId', '==', user.id),
+                where('driverId', '==', userId),
                 orderBy('createdAt', 'desc'),
             ];
             if (!initial && mineLastDoc) constraints.push(startAfter(mineLastDoc));
@@ -216,7 +184,42 @@ export const DriverDashboard: React.FC = () => {
         } finally {
             if (!initial) setLoadingMoreMine(false);
         }
-    };
+    }, [userId, mineLastDoc]);
+
+    useEffect(() => {
+        if (!userId || userRole !== UserRole.DRIVER) return;
+
+        let cancelled = false;
+
+        const loadInitial = async () => {
+            setLoading(true);
+            await Promise.all([loadAvailable(true), loadMine(true)]);
+            if (!cancelled) setLoading(false);
+        };
+
+        getRatingStats(userId, 'user').then(stats => {
+            if (!cancelled) setDriverStats(stats);
+        });
+        loadInitial();
+
+        // Location Check
+        if ("geolocation" in navigator) {
+            navigator.geolocation.getCurrentPosition(
+                () => { if (!cancelled) setGpsError(null); },
+                (err) => {
+                    if (cancelled) return;
+                    if (err.code === 1) setGpsError("Permiso de ubicación denegado. Revisa tu configuración.");
+                    else setGpsError("Ubicación no disponible en este momento.");
+                }
+            );
+        }
+
+        return () => {
+            cancelled = true;
+        };
+    }, [userId, userRole, loadAvailable, loadMine]);
+
+
 
     const handleTakeDelivery = async (orderId: string) => {
         if (!user?.id) {

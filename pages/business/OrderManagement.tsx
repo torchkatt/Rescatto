@@ -79,14 +79,14 @@ export const OrderManagement: React.FC = () => {
     }, [searchInput]);
 
 
-    const normalizeText = (value: string) =>
+    const normalizeText = React.useCallback((value: string) =>
         value
             .toLowerCase()
             .normalize('NFD')
             .replace(/[\u0300-\u036f]/g, '')
-            .trim();
+            .trim(), []);
 
-    const matchesSearch = (order: Order, queryText: string) => {
+    const matchesSearch = React.useCallback((order: Order, queryText: string) => {
         if (!queryText) return true;
         const haystack = normalizeText([
             order.id,
@@ -108,7 +108,8 @@ export const OrderManagement: React.FC = () => {
         ].filter(Boolean).join(' '));
 
         return haystack.includes(normalizeText(queryText));
-    };
+    }, [normalizeText]);
+
 
     const updateOrderStatus = async (orderId: string, newStatus: OrderStatus) => {
         try {

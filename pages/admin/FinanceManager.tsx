@@ -108,7 +108,8 @@ export const FinanceManager: React.FC = () => {
         })();
 
         return () => { cancelled = true; };
-    }, []);
+    }, [showToast]);
+
 
     const filteredOrders = useMemo(() =>
         orders.filter(order =>

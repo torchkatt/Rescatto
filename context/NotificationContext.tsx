@@ -181,14 +181,17 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     };
 
     // ── FCM Push Notifications ─────────────────────────────────────────────
+    const userId = user?.id;
+    const isGuest = user?.isGuest;
+
     useEffect(() => {
         // Skip for unauthenticated or guest (anonymous) users
-        if (!user || user.isGuest) return;
+        if (!userId || isGuest) return;
 
         // Si ya tiene permiso concedido, renueva el token silenciosamente.
         // El prompt de permisos se muestra de forma contextual via NotificationPermissionModal.
         if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-            messagingService.requestPermissionAndSaveToken(user.id).catch(e =>
+            messagingService.requestPermissionAndSaveToken(userId).catch(e =>
                 logger.warn('FCM token request failed:', e)
             );
         }
@@ -202,7 +205,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         });
 
         return () => unsubForeground();
-    }, [user?.id, user?.isGuest, info]);
+    }, [userId, isGuest, info]);
+
     // ──────────────────────────────────────────────────────────────────────
 
     const markAsRead = async (id: string) => {
