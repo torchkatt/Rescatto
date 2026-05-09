@@ -16,9 +16,13 @@ export function useRecommendations() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
+    const userId = user?.id;
+    const userCity = user?.city;
+    const userFavoriteVenueIds = user?.favoriteVenueIds;
+
     useEffect(() => {
         const fetchRecommendations = async () => {
-            if (!user) {
+            if (!userId) {
                 setLoading(false);
                 return;
             }
@@ -26,17 +30,17 @@ export function useRecommendations() {
             try {
                 setLoading(true);
                 // 1. Fetch available products and venues in the user's city
-                const userCity = user.city || undefined;
+                const city = userCity || undefined;
                 const [venues, products] = await Promise.all([
-                    venueService.getAllVenues(userCity),
+                    venueService.getAllVenues(city),
                     dataService.getAllOrders().then(() => []) // This is a placeholder, we need a getAvailableProducts
                 ]);
 
                 // For the purpose of this implementation, let's assume we fetch all products
                 // In a real app, we'd query for currently available packs
-                const allVenues = await venueService.getAllVenues(userCity);
+                const allVenues = await venueService.getAllVenues(city);
                 const allAvailableProducts: Product[] = [];
-                
+
                 for (const venue of allVenues) {
                     const venueProducts = await dataService.getProducts(venue.id);
                     allAvailableProducts.push(...venueProducts.filter(p => p.quantity > 0));
@@ -47,12 +51,13 @@ export function useRecommendations() {
                     return;
                 }
 
-                // 2. Get AI recommendations
-                const recommendedIds = await aiService.getRecommendedPacks(user, allAvailableProducts, allVenues);
-                
+                // 2. Get AI recommendations — reconstruir objeto mínimo para el servicio
+                const userSnapshot = { id: userId, city: userCity, favoriteVenueIds: userFavoriteVenueIds } as any;
+                const recommendedIds = await aiService.getRecommendedPacks(userSnapshot, allAvailableProducts, allVenues);
+
                 // 3. Filter products based on AI IDs
                 const recommended = allAvailableProducts.filter(p => recommendedIds.includes(p.id));
-                
+
                 // Ensure we have at least some if AI fails or returns weird IDs
                 setRecommendedProducts(recommended.length > 0 ? recommended : allAvailableProducts.slice(0, 3));
             } catch (err) {
@@ -64,7 +69,7 @@ export function useRecommendations() {
         };
 
         fetchRecommendations();
-    }, [user?.id, user?.city, user?.favoriteVenueIds]);
+    }, [userId, userCity, userFavoriteVenueIds]);
 
     return { recommendedProducts, loading, error };
 }

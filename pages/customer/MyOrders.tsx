@@ -55,6 +55,8 @@ export const MyOrders: React.FC = () => {
     useEffect(() => {
         if (!user) return;
         loadOrders(true);
+        // loadOrders también se invoca en el botón "cargar más"; incluirla como dep causaría re-renders no deseados
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.id]);
 
     const loadOrders = async (initial = false) => {

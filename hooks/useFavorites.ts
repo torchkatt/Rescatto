@@ -9,15 +9,17 @@ export const useFavorites = () => {
     const [favorites, setFavorites] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
 
+    const userId = user?.id;
+
     // Load favorites from localStorage first (for speed), then sync with Firestore
     useEffect(() => {
-        if (!user) {
+        if (!userId) {
             setFavorites([]);
             setLoading(false);
             return;
         }
 
-        const localKey = `rescatto_favs_${user.id}`;
+        const localKey = `rescatto_favs_${userId}`;
 
         // 1. Load Local
         const localFavs = localStorage.getItem(localKey);
@@ -34,7 +36,7 @@ export const useFavorites = () => {
         let cancelled = false;
         const fetchRemote = async () => {
             try {
-                const userRef = doc(db, 'users', user.id);
+                const userRef = doc(db, 'users', userId);
                 const userDoc = await getDoc(userRef);
 
                 if (!cancelled && userDoc.exists()) {
@@ -56,7 +58,7 @@ export const useFavorites = () => {
 
         fetchRemote();
         return () => { cancelled = true; };
-    }, [user?.id]);
+    }, [userId]);
 
     const toggleFavorite = useCallback(async (venueId: string) => {
         if (!user) return false;

@@ -56,9 +56,10 @@ const CustomerHome: React.FC = () => {
         onOpenSearch: () => void;
     }>();
 
+    const userId = user?.id;
     useEffect(() => {
         const fetchInitial = async () => {
-            if (loading === false && !user) return;
+            if (loading === false && !userId) return;
             setFetchError(null);
             try {
                 setLoading(true);
@@ -102,7 +103,9 @@ const CustomerHome: React.FC = () => {
         };
 
         fetchInitial();
-    }, [user?.id, city]);
+        // loading se omite intencionalmente: agregarlo causaría loop (el efecto llama setLoading)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [userId, city]);
 
     const loadMoreVenues = async () => {
         if (!hasMoreVenues || loadingMoreVenues) return;

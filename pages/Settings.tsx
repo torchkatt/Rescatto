@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { dataService } from '../services/dataService';
 import { authService } from '../services/authService';
@@ -66,12 +66,16 @@ const Settings: React.FC = () => {
         }
     };
 
+    const venueIdsKey = useMemo(() => JSON.stringify(user?.venueIds), [user?.venueIds]);
+
     useEffect(() => {
         const venueId = getUserVenueId(user);
         if (venueId) {
             loadVenue(venueId);
         }
-    }, [user?.venueId, JSON.stringify(user?.venueIds)]);
+        // loadVenue también se llama en handleSave para re-sincronizar; no puede vivir solo dentro del efecto
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user?.venueId, venueIdsKey]);
 
     const loadVenue = async (venueId: string) => {
         setLoading(true);

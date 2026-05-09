@@ -32,6 +32,8 @@ export const AdminSubscriptions: React.FC = () => {
 
     useEffect(() => {
         loadRequests(true);
+        // loadRequests lee filter/lastDoc vía closure; agregar como dep causaría re-renders en "load more"
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [filter]);
 
     const loadRequests = async (initial = false) => {

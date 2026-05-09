@@ -101,9 +101,13 @@ export const DriversManager: React.FC = () => {
             setLoading(false);
             setLoadingMore(false);
         }
-    }, [lastDoc]);
+    }, [lastDoc, toast]);
 
-    useEffect(() => { loadDrivers(true); }, []);
+    useEffect(() => {
+        loadDrivers(true);
+        // Solo ejecutar en montaje; loadDrivers(true) reinicia paginación y no depende de lastDoc
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const filtered = useMemo(() => {
         let list = drivers;

@@ -145,6 +145,8 @@ export const VenuesManager: React.FC = () => {
 
     useEffect(() => {
         loadInitialData();
+        // loadInitialData es estable: no tiene dependencias externas que cambien tras el montaje
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const [isLoadMoreLoading, setIsLoadMoreLoading] = useState(false);

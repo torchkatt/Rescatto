@@ -20,6 +20,8 @@ export const AdminInventory: React.FC = () => {
 
     useEffect(() => {
         loadProducts(true);
+        // loadProducts es estable al montaje; también se llama desde goToPage y el botón de refresh
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const loadProducts = async (initial = false) => {

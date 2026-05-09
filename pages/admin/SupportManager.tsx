@@ -140,22 +140,28 @@ export const SupportManager: React.FC = () => {
             setLoadingChats(false);
             setLoadingMore(false);
         }
-    }, [lastDocs, currentPage, pageSize]);
+    }, [lastDocs, currentPage, pageSize, toast]);
 
-    useEffect(() => { loadChats(true); }, []);
+    useEffect(() => {
+        loadChats(true);
+        // Solo ejecutar en montaje; loadChats(true) reinicia el cursor y no depende del estado de paginación
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // ── Messages subscription ──────────────────────────────────────────────────
+    const selectedChatId = selectedChat?.id;
+    const userId = user?.id;
     useEffect(() => {
         if (unsubMsgsRef.current) { unsubMsgsRef.current(); unsubMsgsRef.current = null; }
-        if (!selectedChat) { setMessages([]); return; }
+        if (!selectedChatId) { setMessages([]); return; }
         setLoadingMessages(true);
-        unsubMsgsRef.current = subscribeToChatMessages(selectedChat.id, msgs => {
+        unsubMsgsRef.current = subscribeToChatMessages(selectedChatId, msgs => {
             setMessages(msgs);
             setLoadingMessages(false);
-            if (user) markMessagesAsRead(selectedChat.id, user.id).catch(() => { });
+            if (userId) markMessagesAsRead(selectedChatId, userId).catch(() => { });
         });
         return () => { if (unsubMsgsRef.current) unsubMsgsRef.current(); };
-    }, [selectedChat?.id]);
+    }, [selectedChatId, userId]);
 
     // Fetch order details if chat is linked to an order
     useEffect(() => {

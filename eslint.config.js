@@ -9,7 +9,9 @@ import unusedImports from 'eslint-plugin-unused-imports';
 export default [
     js.configs.recommended,
     reactPlugin.configs.flat.recommended,
-    reactHooksPlugin.configs.flat['recommended-latest'],
+    // NO usar recommended-latest ni recommended del hooks plugin —
+    // ambas configuraciones en v7 incluyen reglas del React Compiler (React 19).
+    // El proyecto usa React 18, por lo que solo activamos las reglas válidas para esa versión.
     {
         files: ['**/*.{ts,tsx}'],
         languageOptions: {
@@ -104,55 +106,62 @@ export default [
                 structuredClone: 'readonly',
                 TextEncoder: 'readonly',
                 TextDecoder: 'readonly',
-                // Other browser globals
+                // Otros
                 google: 'readonly',
                 confirm: 'readonly',
                 alert: 'readonly',
                 prompt: 'readonly',
-                // Node/build globals
                 process: 'readonly',
                 NodeJS: 'readonly',
             },
         },
         plugins: {
             '@typescript-eslint': tsPlugin,
+            'react-hooks': reactHooksPlugin,
             security: securityPlugin,
             'unused-imports': unusedImports,
         },
         rules: {
             ...tsPlugin.configs.recommended.rules,
-            // TypeScript handles prop types — disable redundant rule
-            'react/prop-types': 'off',
-            'react/react-in-jsx-scope': 'off',
+
+            // ── React ──────────────────────────────────────────────────────────
+            'react/prop-types': 'off',         // TypeScript ya valida props
+            'react/react-in-jsx-scope': 'off', // React 17+ no necesita el import
+
+            // ── React Hooks (solo reglas válidas para React 18) ────────────────
+            // rules-of-hooks: la regla fundamental — los hooks siempre en el mismo orden
             'react-hooks/rules-of-hooks': 'error',
-            // exhaustive-deps genera falsos positivos con refs estables (navigate, user.id, toast, etc.)
-            'react-hooks/exhaustive-deps': 'off',
-            // React 19 Compiler rules — demasiado estrictas para React 18
-            'react-hooks/react-compiler': 'off',
-            'react-hooks/set-state-in-effect': 'off',
-            'react-hooks/static-components': 'off',
-            'react-hooks/purity': 'off',
-            'react-hooks/immutability': 'off',
-            // any es necesario para Firebase data, event handlers y código legacy
+            // exhaustive-deps: útil para detectar dependencias faltantes en effects
+            'react-hooks/exhaustive-deps': 'warn',
+            // El resto de reglas del plugin son del React Compiler (React 19) y NO se activan.
+
+            // ── TypeScript ────────────────────────────────────────────────────
+            // any: Firebase retorna datos sin tipo, event handlers y código legacy lo requieren.
+            // TypeScript verifica tipos donde se declaran explícitamente.
             '@typescript-eslint/no-explicit-any': 'off',
-            // unused-imports auto-elimina imports no usados en --fix
+            // Unused vars: el plugin unused-imports se encarga con auto-fix
             '@typescript-eslint/no-unused-vars': 'off',
+
+            // ── Imports no usados (auto-fixable con --fix) ─────────────────────
             'unused-imports/no-unused-imports': 'warn',
-            // Variables no usadas en destructuring son patrones válidos — TypeScript las verifica en compilación
-            'unused-imports/no-unused-vars': 'off',
-            // console.* está controlado por el logger custom del proyecto
+            'unused-imports/no-unused-vars': 'off', // TS verifica variables en compilación
+
+            // ── Consola ───────────────────────────────────────────────────────
+            // El proyecto tiene utils/logger.ts. Los console.* directos en servicios
+            // deben migrarse al logger, pero en componentes React a veces son necesarios
+            // para debugging. Se mantiene como off para no generar ruido.
             'no-console': 'off',
-            // Seguridad: solo errores críticos reales
-            'security/detect-eval-with-expression': 'error',
-            'security/detect-unsafe-regex': 'error',
-            // detect-object-injection genera demasiados falsos positivos en acceso normal a objetos
-            'security/detect-object-injection': 'off',
-            'security/detect-non-literal-regexp': 'off',
-            'security/detect-non-literal-require': 'off',
-            'security/detect-possible-timing-attacks': 'off',
+
+            // ── Seguridad ─────────────────────────────────────────────────────
+            'security/detect-eval-with-expression': 'error',   // XSS real
+            'security/detect-unsafe-regex': 'error',           // ReDoS
+            'security/detect-object-injection': 'off',         // Falsos positivos en acceso normal a objetos
+            'security/detect-non-literal-regexp': 'off',       // Falsos positivos
+            'security/detect-non-literal-require': 'off',      // Solo aplica a Node.js puro
+            'security/detect-possible-timing-attacks': 'off',  // Falsos positivos en comparaciones normales
         },
         settings: {
-            react: { version: 'detect' },
+            react: { version: '18' },
         },
     },
     {

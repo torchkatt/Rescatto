@@ -15,8 +15,9 @@ export const FlashDealBanner: React.FC<Props> = ({ deal, onDismiss }) => {
     const [secondsLeft, setSecondsLeft] = useState(flashDealService.getSecondsRemaining(deal));
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+    const dealEndTime = deal.endTime;
     useEffect(() => {
-        setSecondsLeft(flashDealService.getSecondsRemaining(deal));
+        setSecondsLeft(Math.max(0, Math.floor((new Date(dealEndTime).getTime() - Date.now()) / 1000)));
         intervalRef.current = setInterval(() => {
             setSecondsLeft(prev => {
                 if (prev <= 1) {
@@ -27,7 +28,7 @@ export const FlashDealBanner: React.FC<Props> = ({ deal, onDismiss }) => {
             });
         }, 1000);
         return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-    }, [deal.endTime]);
+    }, [dealEndTime]);
 
     if (secondsLeft <= 0) return null;
 

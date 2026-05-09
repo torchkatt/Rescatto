@@ -17,15 +17,19 @@ export const RoleSpecificStats: React.FC<RoleSpecificStatsProps> = ({ user, onRe
     const [venues, setVenues] = useState<Venue[]>([]);
     const [loadingVenues, setLoadingVenues] = useState(false);
 
+    const userVenueId = user.venueId;
+    const userVenueIds = user.venueIds;
+    const userRole = user.role;
+
     useEffect(() => {
         const loadVenues = async () => {
-            if (user.role === UserRole.VENUE_OWNER || user.role === UserRole.KITCHEN_STAFF || user.role === UserRole.ADMIN) {
+            if (userRole === UserRole.VENUE_OWNER || userRole === UserRole.KITCHEN_STAFF || userRole === UserRole.ADMIN) {
                 setLoadingVenues(true);
                 try {
                     // Logic to fetch venues based on user linkage (venueId string or venueIds array)
-                    const venueIdsToFetch = user.venueIds && user.venueIds.length > 0
-                        ? user.venueIds
-                        : (user.venueId && user.venueId !== 'default-venue' ? [user.venueId] : []);
+                    const venueIdsToFetch = userVenueIds && userVenueIds.length > 0
+                        ? userVenueIds
+                        : (userVenueId && userVenueId !== 'default-venue' ? [userVenueId] : []);
 
                     if (venueIdsToFetch.length === 0) {
                         setVenues([]);
@@ -47,7 +51,7 @@ export const RoleSpecificStats: React.FC<RoleSpecificStatsProps> = ({ user, onRe
         };
 
         loadVenues();
-    }, [user.venueId, JSON.stringify(user.venueIds), user.role]);
+    }, [userVenueId, userVenueIds, userRole]);
 
     // --- CUSTOMER VIEW ---
     if (user.role === UserRole.CUSTOMER) {

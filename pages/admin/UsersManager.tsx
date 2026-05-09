@@ -158,6 +158,8 @@ export const UsersManager: React.FC = () => {
     useEffect(() => {
         loadUsers();
         loadVenues();
+        // loadUsers y loadVenues son estables al montaje; también se invocan desde handlers de formulario
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const handleToggleVerification = async (user: User) => {

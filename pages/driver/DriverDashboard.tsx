@@ -108,6 +108,8 @@ export const DriverDashboard: React.FC = () => {
         return () => {
             cancelled = true;
         };
+        // loadAvailable y loadMine también se usan en botones "cargar más"; agregarlas como dep causaría re-runs no deseados
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.id, user?.role]);
 
     const loadAvailable = async (initial = false) => {

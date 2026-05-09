@@ -29,10 +29,6 @@ export const AdminSales: React.FC = () => {
     const [topProducts, setTopProducts] = useState<any[]>([]);
     const [dailyTrends, setDailyTrends] = useState<any[]>([]);
 
-    useEffect(() => {
-        loadData(true);
-    }, [selectedPeriod]);
-
     const loadData = async (initial = false) => {
         if (initial) setLoading(true);
         else setRefreshing(true);
@@ -54,6 +50,12 @@ export const AdminSales: React.FC = () => {
             setRefreshing(false);
         }
     };
+
+    useEffect(() => {
+        loadData(true);
+        // loadData se define arriba y depende de selectedPeriod via closure — moverla al efecto causaría re-renders por el botón de refresh
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedPeriod]);
 
     const exportToCSV = () => {
         if (!dailyTrends.length) return;

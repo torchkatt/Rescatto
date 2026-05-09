@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { adminService } from '../../services/adminService';
 import { productService } from '../../services/productService';
@@ -62,6 +62,8 @@ export const ProductManager: React.FC = () => {
 
     const [isGeneratingAI, setIsGeneratingAI] = useState(false);
 
+    const venueIdsKey = useMemo(() => JSON.stringify(user?.venueIds), [user?.venueIds]);
+
     useEffect(() => {
         if (user) {
             loadTags();
@@ -74,12 +76,16 @@ export const ProductManager: React.FC = () => {
                 setLoading(false);
             }
         }
-    }, [user?.id, user?.role, user?.venueId, JSON.stringify(user?.venueIds)]);
+        // loadVenues/loadTags también se usan en handlers de formulario; incluirlas como dep causaría re-runs
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user?.id, user?.role, user?.venueId, venueIdsKey]);
 
     useEffect(() => {
         if (selectedVenueId) {
             loadProducts(true);
         }
+        // loadProducts también se usa en el botón "cargar más" y handlers de CRUD
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedVenueId]);
 
     const loadVenues = async () => {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { UserRole } from '../../types';
@@ -49,48 +49,55 @@ export const Analytics: React.FC = () => {
         }
     }, [selectedPreset, customStart, customEnd]);
 
+    const userId = user?.id;
+    const userRole = user?.role;
+    const userVenueId = user?.venueId;
+    const userVenueIds = user?.venueIds;
+    const venueIdsKey = useMemo(() => JSON.stringify(userVenueIds), [userVenueIds]);
+
     useEffect(() => {
-        if (user && dateRange) {
-            loadAnalytics();
-        }
-    }, [user?.id, user?.venueId, JSON.stringify(user?.venueIds), user?.role, dateRange]);
+        if (!userId || !dateRange) return;
+        let cancelled = false;
 
-    const loadAnalytics = async () => {
-        if (!user) return;
+        (async () => {
+            let targetVenues: string | string[];
 
-        let targetVenues: string | string[];
+            if (userRole === UserRole.SUPER_ADMIN) {
+                targetVenues = 'all';
+            } else if (userVenueIds && userVenueIds.length > 0) {
+                targetVenues = userVenueIds;
+            } else if (userVenueId) {
+                targetVenues = userVenueId;
+            } else {
+                setLoading(false);
+                return;
+            }
 
-        if (user.role === UserRole.SUPER_ADMIN) {
-            targetVenues = 'all';
-        } else if (user.venueIds && user.venueIds.length > 0) {
-            targetVenues = user.venueIds;
-        } else if (user.venueId) {
-            targetVenues = user.venueId;
-        } else {
-            setLoading(false);
-            return;
-        }
+            setLoading(true);
+            try {
+                const [revenue, orders, products, trends] = await Promise.all([
+                    getRevenueMetrics(targetVenues, dateRange),
+                    getOrderStatistics(targetVenues, dateRange),
+                    getTopProducts(targetVenues, dateRange, 5),
+                    getDailyRevenueTrends(targetVenues, dateRange),
+                ]);
 
-        setLoading(true);
-        try {
-            const [revenue, orders, products, trends] = await Promise.all([
-                getRevenueMetrics(targetVenues, dateRange),
-                getOrderStatistics(targetVenues, dateRange),
-                getTopProducts(targetVenues, dateRange, 5),
-                getDailyRevenueTrends(targetVenues, dateRange),
-            ]);
+                if (!cancelled) {
+                    setRevenueMetrics(revenue);
+                    setOrderStats(orders);
+                    setTopProducts(products);
+                    setDailyTrends(trends);
+                }
+            } catch (error) {
+                logger.error('Error loading analytics:', error);
+                if (!cancelled) showToast('error', 'Error al cargar datos de analytics');
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        })();
 
-            setRevenueMetrics(revenue);
-            setOrderStats(orders);
-            setTopProducts(products);
-            setDailyTrends(trends);
-        } catch (error) {
-            logger.error('Error loading analytics:', error);
-            showToast('error', 'Error al cargar datos de analytics');
-        } finally {
-            setLoading(false);
-        }
-    };
+        return () => { cancelled = true; };
+    }, [userId, userVenueId, venueIdsKey, userRole, userVenueIds, dateRange]);
 
     const exportToCSV = () => {
         if (!dailyTrends.length) return;

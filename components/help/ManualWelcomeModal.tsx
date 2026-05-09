@@ -34,18 +34,22 @@ export const ManualWelcomeModal: React.FC = () => {
   const [visible, setVisible] = useState(false);
   const [manualUrl, setManualUrl] = useState<string | null>(null);
 
+  const userId = user?.id;
+  const userIsGuest = user?.isGuest;
+  const userRole = user?.role;
+  const userCreatedAt = (user as any)?.createdAt;
   useEffect(() => {
-    if (!user || user.isGuest) return;
+    if (!userId || userIsGuest) return;
     if (localStorage.getItem(PROMPTED_KEY) === '1') return;
-    if (!isNewUser((user as any).createdAt)) return;
+    if (!isNewUser(userCreatedAt)) return;
 
     // Marcar como mostrado de inmediato para no mostrarlo dos veces
     localStorage.setItem(PROMPTED_KEY, '1');
 
     // Pequeño delay para no interrumpir la carga inicial
     const timer = setTimeout(() => {
-      if (user.role) {
-        helpService.getManualForRole(user.role).then(entry => {
+      if (userRole) {
+        helpService.getManualForRole(userRole).then(entry => {
           if (entry) setManualUrl(entry.url);
           setVisible(true);
         }).catch(() => setVisible(true));
@@ -55,7 +59,7 @@ export const ManualWelcomeModal: React.FC = () => {
     }, 2500);
 
     return () => clearTimeout(timer);
-  }, [user?.id]);
+  }, [userId, userIsGuest, userRole, userCreatedAt]);
 
   const handleDownload = () => {
     if (!manualUrl) return;

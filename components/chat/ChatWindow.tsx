@@ -92,7 +92,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 setNewMessagesCount((prev) => prev + 1);
             }
         }
-    }, [messages, typing]);
+    }, [messages, typing, isAtBottom, user?.id]);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Order, OrderStatus, UserRole } from '../types';
 import { Clock, CheckCircle, Package, RotateCw, UtensilsCrossed, AlertCircle } from 'lucide-react';
 import { dataService } from '../services/dataService';
@@ -20,10 +20,14 @@ const Orders: React.FC = () => {
   const { user } = useAuth();
   const { showToast } = useToast();
 
+  const venueIdsKey = useMemo(() => JSON.stringify(user?.venueIds), [user?.venueIds]);
+
   useEffect(() => {
     if (!user) return;
     loadOrders(true);
-  }, [user?.id, user?.venueId, JSON.stringify(user?.venueIds), user?.role]);
+    // loadOrders también se usa en el botón "cargar más"; incluirla como dep causaría loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, user?.venueId, venueIdsKey, user?.role]);
 
   const resolveTargetVenues = () => {
     let targetVenues: string | string[] | 'all' = 'all';

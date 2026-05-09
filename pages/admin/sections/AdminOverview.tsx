@@ -40,72 +40,76 @@ export const AdminOverview: React.FC<Props> = ({ city }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        loadStats();
-    }, []);
+        let cancelled = false;
 
-    const loadStats = async () => {
-        setLoading(true);
-        try {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const todayOrdersQuery = query(
-                collection(db, 'orders'),
-                where('createdAt', '>=', Timestamp.fromDate(today))
-            );
+        (async () => {
+            setLoading(true);
+            try {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const todayOrdersQuery = query(
+                    collection(db, 'orders'),
+                    where('createdAt', '>=', Timestamp.fromDate(today))
+                );
 
-            // Run optimized queries in parallel — cuts dashboard load time by ~95%
-            const [usersCount, venuesCount, productsSnapshot, todayOrdersSnapshot, activeDeliveriesCount, pendingOrdersCount] = await Promise.all([
-                getCountFromServer(city ? query(collection(db, 'users'), where('city', '==', city)) : collection(db, 'users')),
-                getCountFromServer(city ? query(collection(db, 'venues'), where('city', '==', city)) : collection(db, 'venues')),
-                getCountFromServer(city ? query(collection(db, 'products'), where('city', '==', city)) : collection(db, 'products')),
-                getDocs(city ? query(todayOrdersQuery, where('city', '==', city)) : todayOrdersQuery),
-                getCountFromServer(query(collection(db, 'orders'), where('status', '==', 'IN_TRANSIT'), ...(city ? [where('city', '==', city)] : []))),
-                getCountFromServer(query(collection(db, 'orders'), where('status', 'in', ['PENDING', 'PAID']), ...(city ? [where('city', '==', city)] : []))),
-            ]);
+                // Consultas en paralelo — reduce tiempo de carga ~95%
+                const [usersCount, venuesCount, productsSnapshot, todayOrdersSnapshot, activeDeliveriesCount, pendingOrdersCount] = await Promise.all([
+                    getCountFromServer(city ? query(collection(db, 'users'), where('city', '==', city)) : collection(db, 'users')),
+                    getCountFromServer(city ? query(collection(db, 'venues'), where('city', '==', city)) : collection(db, 'venues')),
+                    getCountFromServer(city ? query(collection(db, 'products'), where('city', '==', city)) : collection(db, 'products')),
+                    getDocs(city ? query(todayOrdersQuery, where('city', '==', city)) : todayOrdersQuery),
+                    getCountFromServer(query(collection(db, 'orders'), where('status', '==', 'IN_TRANSIT'), ...(city ? [where('city', '==', city)] : []))),
+                    getCountFromServer(query(collection(db, 'orders'), where('status', 'in', ['PENDING', 'PAID']), ...(city ? [where('city', '==', city)] : []))),
+                ]);
 
-            const totalProducts = productsSnapshot.data().count;
+                const totalProducts = productsSnapshot.data().count;
 
-            const todaySales = todayOrdersSnapshot.docs.reduce((sum, d) => {
-                const data = d.data();
-                return sum + (Number(data.totalAmount) || 0);
-            }, 0);
+                const todaySales = todayOrdersSnapshot.docs.reduce((sum, d) => {
+                    const data = d.data();
+                    return sum + (Number(data.totalAmount) || 0);
+                }, 0);
 
-            // Build 7-day chart data
-            const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); sevenDaysAgo.setHours(0, 0, 0, 0);
-            const weekOrdersQuery = query(
-                collection(db, 'orders'),
-                where('createdAt', '>=', Timestamp.fromDate(sevenDaysAgo)),
-                ...(city ? [where('city', '==', city)] : [])
-            );
-            const weekOrdersSnap = await getDocs(weekOrdersQuery);
-            const dayMap: Record<string, number> = {};
-            for (let i = 0; i < 7; i++) {
-                const d = new Date(); d.setDate(d.getDate() - (6 - i)); d.setHours(0, 0, 0, 0);
-                const key = d.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric' });
-                dayMap[key] = 0;
+                // Construir datos de los últimos 7 días
+                const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); sevenDaysAgo.setHours(0, 0, 0, 0);
+                const weekOrdersQuery = query(
+                    collection(db, 'orders'),
+                    where('createdAt', '>=', Timestamp.fromDate(sevenDaysAgo)),
+                    ...(city ? [where('city', '==', city)] : [])
+                );
+                const weekOrdersSnap = await getDocs(weekOrdersQuery);
+                const dayMap: Record<string, number> = {};
+                for (let i = 0; i < 7; i++) {
+                    const d = new Date(); d.setDate(d.getDate() - (6 - i)); d.setHours(0, 0, 0, 0);
+                    const key = d.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric' });
+                    dayMap[key] = 0;
+                }
+                weekOrdersSnap.docs.forEach(d => {
+                    const data = d.data();
+                    const ts = data.createdAt?.toDate?.() || new Date(data.createdAt);
+                    const key = ts.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric' });
+                    if (key in dayMap) dayMap[key] += Number(data.totalAmount) || 0;
+                });
+
+                if (!cancelled) {
+                    setWeeklyData(Object.entries(dayMap).map(([day, ventas]) => ({ day, ventas })));
+                    setStats({
+                        totalUsers: usersCount.data().count,
+                        totalVenues: venuesCount.data().count,
+                        totalProducts,
+                        todaySales,
+                        activeDeliveries: activeDeliveriesCount.data().count,
+                        pendingOrders: pendingOrdersCount.data().count,
+                    });
+                }
+            } catch (error) {
+                logger.error('Failed to load stats:', error);
+            } finally {
+                if (!cancelled) setLoading(false);
             }
-            weekOrdersSnap.docs.forEach(d => {
-                const data = d.data();
-                const ts = data.createdAt?.toDate?.() || new Date(data.createdAt);
-                const key = ts.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric' });
-                if (key in dayMap) dayMap[key] += Number(data.totalAmount) || 0;
-            });
-            setWeeklyData(Object.entries(dayMap).map(([day, ventas]) => ({ day, ventas })));
+        })();
 
-            setStats({
-                totalUsers: usersCount.data().count,
-                totalVenues: venuesCount.data().count,
-                totalProducts,
-                todaySales,
-                activeDeliveries: activeDeliveriesCount.data().count,
-                pendingOrders: pendingOrdersCount.data().count,
-            });
-        } catch (error) {
-            logger.error('Failed to load stats:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
+        return () => { cancelled = true; };
+    }, [city]);
 
     const statCards = [
         {

@@ -147,9 +147,9 @@ export const AuditLogs: React.FC = () => {
         }
     };
 
-    useEffect(() => {
-        fetchLogs();
-    }, []);
+    // Carga inicial: se omite fetchLogs de deps deliberadamente (lee estado vía closure al montar)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    useEffect(() => { fetchLogs(); }, []);
 
     const resolveEntityNames = async (logsToResolve: AuditLog[]) => {
         const uniqueIds = new Set<string>();

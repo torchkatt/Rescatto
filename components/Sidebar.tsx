@@ -28,20 +28,22 @@ const Sidebar: React.FC = () => {
   const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
 
   // Real-time badge: pedidos PENDING + PAID para la sede actual
+  const sidebarVenueId = user ? getUserVenueId(user) : null;
+  const sidebarUserRole = user?.role;
+  const sidebarUserId = user?.id;
   useEffect(() => {
-    if (!user?.id) return;
-    if (user.role === UserRole.CUSTOMER || user.role === UserRole.DRIVER) return;
+    if (!sidebarUserId) return;
+    if (sidebarUserRole === UserRole.CUSTOMER || sidebarUserRole === UserRole.DRIVER) return;
 
-    const venueId = getUserVenueId(user);
-    if (!venueId && user.role !== UserRole.SUPER_ADMIN) return;
+    if (!sidebarVenueId && sidebarUserRole !== UserRole.SUPER_ADMIN) return;
 
     const constraints: any[] = [where('status', 'in', ['PENDING', 'PAID'])];
-    if (venueId) constraints.push(where('venueId', '==', venueId));
+    if (sidebarVenueId) constraints.push(where('venueId', '==', sidebarVenueId));
 
     const q = query(collection(db, 'orders'), ...constraints);
     const unsub = onSnapshot(q, snap => setPendingOrdersCount(snap.size), () => { });
     return () => unsub();
-  }, [user?.id, user?.venueId, user?.venueIds, user?.role]);
+  }, [sidebarUserId, sidebarVenueId, sidebarUserRole]);
 
   // Bloquear scroll del cuerpo cuando el menú móvil está abierto
   React.useEffect(() => {

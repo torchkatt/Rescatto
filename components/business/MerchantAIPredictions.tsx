@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Venue } from '../../types';
 import { aiService } from '../../services/aiService';
 import { dataService } from '../../services/dataService';
@@ -14,11 +14,7 @@ export const MerchantAIPredictions: React.FC<Props> = ({ venue }) => {
   const [prediction, setPrediction] = useState<any>(null);
   const [weather] = useState({ temp: 18, condition: 'Cloudy', icon: <Cloud className="text-gray-400" /> });
 
-  useEffect(() => {
-    fetchPrediction();
-  }, [venue.id]);
-
-  const fetchPrediction = async () => {
+  const fetchPrediction = useCallback(async () => {
     if (!venue?.id) return;
     setLoading(true);
     try {
@@ -41,7 +37,11 @@ export const MerchantAIPredictions: React.FC<Props> = ({ venue }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [venue]);
+
+  useEffect(() => {
+    fetchPrediction();
+  }, [fetchPrediction]);
 
   if (loading) {
     return (

@@ -52,7 +52,7 @@ export const ReferralSection: React.FC<Props> = ({ user }) => {
         };
 
         ensureCode();
-    }, [hasValidReferralCode, error]);
+    }, [hasValidReferralCode, error, t]);
 
     // Count how many users have been invited with this code
     useEffect(() => {

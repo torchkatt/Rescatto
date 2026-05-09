@@ -34,6 +34,8 @@ export const CategoriesManager: React.FC = () => {
 
     useEffect(() => {
         loadCategories(true);
+        // loadCategories es estable al montaje; también se llama desde handlers de edición/eliminación
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const loadCategories = async (initial = false) => {

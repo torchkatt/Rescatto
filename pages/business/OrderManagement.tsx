@@ -359,7 +359,7 @@ export const OrderManagement: React.FC = () => {
     const tableOrders = useMemo(() => {
         if (!isSuperAdmin) return filteredOrders;
         return filteredOrders.filter(order => matchesSearch(order, searchTerm));
-    }, [filteredOrders, isSuperAdmin, searchTerm]);
+    }, [filteredOrders, isSuperAdmin, searchTerm, matchesSearch]);
 
     useEffect(() => {
         if (searchInputRef.current && document.activeElement === searchInputRef.current) {

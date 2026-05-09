@@ -31,7 +31,7 @@ export const Cart: React.FC = () => {
         const names = expiredItems.map(item => item.name).slice(0, 3).join(', ');
         expiredItems.forEach(item => removeFromCart(item.id));
         error(`Productos expirados eliminados: ${names}${expiredItems.length > 3 ? '...' : ''}`);
-    }, [expiredItems.length]);
+    }, [expiredItems, removeFromCart, error]);
 
     const urgentItems = useMemo(() => {
         const now = Date.now();

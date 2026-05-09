@@ -76,17 +76,20 @@ export const FlashDealsManager: React.FC = () => {
 
     // ── Venue selection ───────────────────────────────────────────────────────
 
+    const userId = user?.id;
+    const userRole = user?.role;
+    const userVenueId = user?.venueId;
     useEffect(() => {
-        if (!user) return;
-        if (user.role === UserRole.SUPER_ADMIN) {
+        if (!userId) return;
+        if (userRole === UserRole.SUPER_ADMIN) {
             adminService.getAllVenues().then(v => {
                 setVenues(v);
                 if (v.length > 0) setSelectedVenueId(v[0].id);
             });
-        } else if (user.venueId) {
-            setSelectedVenueId(user.venueId);
+        } else if (userVenueId) {
+            setSelectedVenueId(userVenueId);
         }
-    }, [user?.id, user?.role, user?.venueId]);
+    }, [userId, userRole, userVenueId]);
 
     // ── Load deals + products when venue changes ──────────────────────────────
 
@@ -107,7 +110,7 @@ export const FlashDealsManager: React.FC = () => {
             logger.error('FlashDealsManager load error:', err);
             toast.error('Error cargando flash deals');
         }).finally(() => setLoading(false));
-    }, [selectedVenueId]);
+    }, [selectedVenueId, toast]);
 
     // ── Modal helpers ─────────────────────────────────────────────────────────
 

@@ -74,7 +74,11 @@ export const CommissionsManager: React.FC = () => {
         }
     };
 
-    useEffect(() => { loadData(); }, []);
+    useEffect(() => {
+        loadData();
+        // loadData no tiene dependencias que cambien — también se usa en el botón de refresh y en handleSettle
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const filtered = useMemo(() => {
         let list = rows;

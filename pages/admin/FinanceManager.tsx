@@ -64,14 +64,6 @@ export const FinanceManager: React.FC = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(20);
 
-    useEffect(() => {
-        loadGlobalStats();
-    }, [selectedPeriod]);
-
-    useEffect(() => {
-        loadOrdersTable();
-    }, []);
-
     const loadGlobalStats = async () => {
         setStatsLoading(true);
         try {
@@ -89,20 +81,34 @@ export const FinanceManager: React.FC = () => {
         }
     };
 
-    const loadOrdersTable = async () => {
-        setLoading(true);
-        try {
-            const result = await adminService.getOrdersPaginated(20);
-            setOrders(result.data);
-            setLastDoc(result.lastDoc);
-            setHasMore(result.hasMore);
-        } catch (error) {
-            logger.error('Error loading finance orders:', error);
-            showToast('error', 'Error al cargar órdenes');
-        } finally {
-            setLoading(false);
-        }
-    };
+    useEffect(() => {
+        loadGlobalStats();
+        // loadGlobalStats lee selectedPeriod via closure; incluirla causaría loop si se pasa como dep
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedPeriod]);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        (async () => {
+            setLoading(true);
+            try {
+                const result = await adminService.getOrdersPaginated(20);
+                if (!cancelled) {
+                    setOrders(result.data);
+                    setLastDoc(result.lastDoc);
+                    setHasMore(result.hasMore);
+                }
+            } catch (error) {
+                logger.error('Error loading finance orders:', error);
+                if (!cancelled) showToast('error', 'Error al cargar órdenes');
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        })();
+
+        return () => { cancelled = true; };
+    }, []);
 
     const filteredOrders = useMemo(() =>
         orders.filter(order =>

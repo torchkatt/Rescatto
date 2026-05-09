@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Search, X, Star, ShoppingBag, Leaf, Flame, TrendingUp } from 'lucide-react';
 import { Product, Venue } from '../../../types';
 import { productService } from '../../../services/productService';
@@ -21,20 +21,7 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({ isOpen, onClose })
   const [selectedDiet, setSelectedDiet] = useState<string | null>(null);
   const [venuesMap, setVenuesMap] = useState<Record<string, Venue>>({});
 
-  // Debounced search
-  useEffect(() => {
-    const delayDebounceFn = setTimeout(() => {
-      if (searchTerm.length >= 2 || selectedDiet) {
-        handleSearch();
-      } else {
-        setResults([]);
-      }
-    }, 300);
-
-    return () => clearTimeout(delayDebounceFn);
-  }, [searchTerm, selectedDiet]);
-
-  const handleSearch = async () => {
+  const handleSearch = useCallback(async () => {
     setLoading(true);
     try {
       const searchResults = await productService.searchProducts(searchTerm, {
@@ -58,7 +45,20 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({ isOpen, onClose })
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchTerm, city, selectedDiet]);
+
+  // Debounced search
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      if (searchTerm.length >= 2 || selectedDiet) {
+        handleSearch();
+      } else {
+        setResults([]);
+      }
+    }, 300);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchTerm, selectedDiet, handleSearch]);
 
   if (!isOpen) return null;
 

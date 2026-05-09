@@ -60,10 +60,6 @@ export const VenueDetail: React.FC = () => {
         return () => clearInterval(interval);
     }, []);
 
-    useEffect(() => {
-        if (venueId) loadVenueData(venueId);
-    }, [venueId]);
-
     const loadVenueData = async (id: string) => {
         setLoading(true);
         setLoadError(null);
@@ -96,6 +92,12 @@ export const VenueDetail: React.FC = () => {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        if (venueId) loadVenueData(venueId);
+        // loadVenueData también se usa en resetErrorBoundary; incluirla como dep causaría re-runs no deseados
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [venueId]);
 
     const loadMoreProducts = async () => {
         if (!venueId || !hasMoreProducts || loadingMoreProducts) return;

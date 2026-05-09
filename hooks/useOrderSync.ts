@@ -25,8 +25,14 @@ export function useOrderSync(options: OrderSyncOptions = {}) {
 
     const { onlyActive = true, venueId: manualVenueId, limit: maxOrders = 100 } = options;
 
+    const userId = user?.id;
+    const userRole = user?.role;
+    const userVenueId = user?.venueId;
+    const userVenueIds = user?.venueIds;
+    const manualVenueIdKey = useMemo(() => JSON.stringify(manualVenueId), [manualVenueId]);
+
     useEffect(() => {
-        if (!user) {
+        if (!userId) {
             setLoading(false);
             return;
         }
@@ -44,12 +50,12 @@ export function useOrderSync(options: OrderSyncOptions = {}) {
             let targetVenues: string | string[] = 'all';
             if (manualVenueId) {
                 targetVenues = manualVenueId;
-            } else if (user.role !== UserRole.SUPER_ADMIN) {
-                if (user.venueIds && user.venueIds.length > 0) {
-                    targetVenues = user.venueIds;
-                } else if (user.venueId) {
-                    targetVenues = user.venueId;
-                } else if (user.role !== UserRole.DRIVER && user.role !== UserRole.CUSTOMER) {
+            } else if (userRole !== UserRole.SUPER_ADMIN) {
+                if (userVenueIds && userVenueIds.length > 0) {
+                    targetVenues = userVenueIds;
+                } else if (userVenueId) {
+                    targetVenues = userVenueId;
+                } else if (userRole !== UserRole.DRIVER && userRole !== UserRole.CUSTOMER) {
                     // Non-admin without venue shouldn't see orders
                     setOrders([]);
                     setLoading(false);
@@ -60,10 +66,10 @@ export function useOrderSync(options: OrderSyncOptions = {}) {
             // 2. Build Query
             let conditions = [];
 
-            if (user.role === UserRole.CUSTOMER) {
-                conditions.push(where('customerId', '==', user.id));
-            } else if (user.role === UserRole.DRIVER) {
-                conditions.push(where('driverId', '==', user.id));
+            if (userRole === UserRole.CUSTOMER) {
+                conditions.push(where('customerId', '==', userId));
+            } else if (userRole === UserRole.DRIVER) {
+                conditions.push(where('driverId', '==', userId));
             } else if (targetVenues !== 'all') {
                 if (Array.isArray(targetVenues)) {
                     conditions.push(where('venueId', 'in', targetVenues.slice(0, 30)));
@@ -124,7 +130,7 @@ export function useOrderSync(options: OrderSyncOptions = {}) {
         return () => {
             unsubscribe();
         };
-    }, [user?.id, JSON.stringify(manualVenueId), onlyActive, maxOrders]);
+    }, [userId, userRole, userVenueId, userVenueIds, manualVenueId, manualVenueIdKey, onlyActive, maxOrders]);
 
     const stats = useMemo(() => {
         return {

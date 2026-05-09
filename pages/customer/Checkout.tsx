@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
@@ -68,7 +68,7 @@ export const Checkout: React.FC = () => {
                 error(t('checkout_session_error'));
             });
         }
-    }, [authLoading, isAuthenticated, loginAsGuest, error]);
+    }, [authLoading, isAuthenticated, loginAsGuest, error, t]);
 
     // Rellenar datos cuando el usuario (o guest) se carga
     useEffect(() => {
@@ -76,9 +76,10 @@ export const Checkout: React.FC = () => {
             if (user.address && !address) setAddress(user.address);
             if (user.phone && !phone) setPhone(user.phone);
         }
-    }, [user]);
+    }, [user, address, phone]);
 
-    const venueGroups = getCartByVenue();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const venueGroups = useMemo(() => getCartByVenue(), [items]);
 
     // Load Venues Data on Mount or when items change
     useEffect(() => {
@@ -97,7 +98,7 @@ export const Checkout: React.FC = () => {
             setVenuesData(data);
         };
         loadVenues();
-    }, [items]); // Reload if items change (active venues might change)
+    }, [venueGroups]); // Reload if cart items change (active venues might change)
 
 
     // Calculate Fees when dependencies change
@@ -125,7 +126,7 @@ export const Checkout: React.FC = () => {
         });
         setDeliveryCosts(newCosts);
 
-    }, [venuesData, items, deliveryMethod]);
+    }, [venuesData, venueGroups, deliveryMethod, latitude, longitude]);
 
 
     // Validate City Consistency
@@ -148,7 +149,7 @@ export const Checkout: React.FC = () => {
             }
         };
         validateCity();
-    }, [items, city, venuesData]);
+    }, [venueGroups, city, venuesData, t]);
 
 
     // Helper to calculate totals

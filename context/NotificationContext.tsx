@@ -202,7 +202,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         });
 
         return () => unsubForeground();
-    }, [user?.id, user?.isGuest]);
+    }, [user?.id, user?.isGuest, info]);
     // ──────────────────────────────────────────────────────────────────────
 
     const markAsRead = async (id: string) => {

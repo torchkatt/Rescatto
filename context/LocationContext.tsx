@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { reverseGeocode } from '../services/locationService';
 import { logger } from '../utils/logger';
 
@@ -81,14 +81,7 @@ export const LocationProvider: React.FC<{ children: ReactNode }> = ({ children }
         }
     );
 
-    useEffect(() => {
-        // Intentar detectar ubicación al montar solo si no hay una guardada.
-        if (location.loading) {
-            detectLocation();
-        }
-    }, []);
-
-    const detectLocation = (): Promise<void> => {
+    const detectLocation = useCallback((): Promise<void> => {
         return new Promise((resolve) => {
             setLocation(prev => ({ ...prev, loading: true, error: null }));
 
@@ -162,7 +155,15 @@ export const LocationProvider: React.FC<{ children: ReactNode }> = ({ children }
                 { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
             );
         });
-    };
+    }, []);
+
+    const locationLoading = location.loading;
+    useEffect(() => {
+        // Intentar detectar ubicación al montar solo si no hay una guardada.
+        if (locationLoading) {
+            detectLocation();
+        }
+    }, [locationLoading, detectLocation]);
 
     const setManualLocation = (lat: number, lng: number, address: string, city: string) => {
         persistLocation(lat, lng, address, city);

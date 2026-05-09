@@ -43,7 +43,7 @@ export const AdminSettings: React.FC = () => {
             }
         };
         load();
-    }, []);
+    }, [toast]);
 
     const handleSave = async () => {
         setSaving(true);
