@@ -5,7 +5,16 @@ const { admin, db } = require("../admin");
 const { log, error: logError } = require("../utils/logger");
 const { IS_PROD, ALLOWED_ORIGINS } = require("../utils/config");
 const { writeAuditLog } = require("../utils/audit");
-const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY || "sk_test_mock_key_for_deploy");
+let stripeInstance = null;
+let lastKey = null;
+function getStripe() {
+    const key = process.env.STRIPE_SECRET_KEY || "sk_test_mock_key_for_deploy";
+    if (!stripeInstance || lastKey !== key) {
+        stripeInstance = require("stripe")(key);
+        lastKey = key;
+    }
+    return stripeInstance;
+}
 
 /**
  * Creates a Stripe Checkout Session for Rescatto Pass subscription.
@@ -39,7 +48,7 @@ exports.createStripeCheckoutSession = onCall({
     try {
         const userSnap = await db.collection("users").doc(userId).get();
         const userData = userSnap.data();
-
+        const stripe = getStripe();
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ["card"],
             line_items: [
@@ -78,6 +87,7 @@ exports.stripeWebhook = onRequest({
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
     let event;
+    const stripe = getStripe();
 
     try {
         event = stripe.webhooks.constructEvent(req.rawBody, sig, webhookSecret);

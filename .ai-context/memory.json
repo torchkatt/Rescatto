@@ -1,11 +1,11 @@
 {
   "project": {
-    "name": "rescatto-business-dashboard",
-    "description": "Business dashboard for Rescatto app - food rescue & sustainability platform",
+    "name": "rescatto",
+    "description": "Rescatto app - food rescue & sustainability platform (Customer, Business, Driver, and Admin backoffice)",
     "tech_stack": ["React 18", "TypeScript", "Firebase (Firestore, Auth, Functions, Messaging)", "Vite", "Tailwind CSS", "Zustand", "Vitest", "Playwright", "PWA"],
     "architecture": "SPA with Firebase backend, role-based routing (admin, business, customer, driver, backoffice)"
   },
-  "last_session": "2026-05-09T05:00:00Z",
+  "last_session": "2026-05-26T23:12:00Z",
   "sessions": [
     {
       "date": "2026-04-24",
@@ -26,6 +26,18 @@
         "pages/admin/CategoriesManager.tsx",
         "pages/admin/AuditLogs.tsx",
         "pages/admin/FinanceManager.tsx"
+      ]
+    },
+    {
+      "date": "2026-05-26",
+      "features_worked": ["payment-methods-enablement", "checkout-wompi-integration", "stripe-secret-bugfix"],
+      "files_modified": [
+        "pages/customer/Checkout.tsx",
+        "components/customer/checkout/PaymentForm.tsx",
+        "functions/src/services/stripeService.js",
+        "functions/src/schemas/index.js",
+        "functions/schemas.js",
+        "functions/tests/schemas.test.js"
       ]
     }
   ],

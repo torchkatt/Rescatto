@@ -6,6 +6,7 @@ import { useToast } from '../../context/ToastContext';
 import { DonationCenter, ActiveRedemption } from '../../types';
 import { ArrowLeft, CreditCard, Wallet, MapPin, Store, Leaf, Heart, Gift, Tag, Zap } from 'lucide-react';
 import { DonationCenterSelector } from '../../components/customer/checkout/DonationCenterSelector';
+import { PaymentForm } from '../../components/customer/checkout/PaymentForm';
 import { dataService } from '../../services/dataService';
 import { useLocation } from '../../context/LocationContext';
 import { PLATFORM_COMMISSION_RATE, DEFAULT_DELIVERY_FEE } from '../../utils/constants';
@@ -58,6 +59,14 @@ export const Checkout: React.FC = () => {
     const addressError = addressTouched && deliveryMethod === 'delivery' && address.trim().length < 5
         ? t('checkout_address_error', 'Ingresa una dirección válida (mínimo 5 caracteres)')
         : null;
+
+    const isFormValid = useMemo(() => {
+        if (deliveryMethod === 'delivery' && address.trim().length < 5) return false;
+        if (!isPhoneValid) return false;
+        if (deliveryMethod === 'donation' && !selectedDonationCenter) return false;
+        if (cityError) return false;
+        return true;
+    }, [deliveryMethod, address, isPhoneValid, selectedDonationCenter, cityError]);
 
     // Auto-login guiado para Guest Checkout (máximo un intento para evitar loops)
     const guestLoginAttempted = useRef(false);
@@ -299,7 +308,7 @@ export const Checkout: React.FC = () => {
 
             orderJustPlacedRef.current = true;
             await processOrder({
-                paymentMethod: 'cash',
+                paymentMethod,
                 deliveryMethod,
                 address,
                 phoneDigits: phone,
@@ -533,6 +542,25 @@ export const Checkout: React.FC = () => {
                                         </div>
                                     </label>
 
+                                    <label className={`flex items-center gap-3 p-4 border-2 rounded-xl cursor-pointer transition-all active:scale-[0.98] ${paymentMethod === 'card' ? 'border-emerald-600 bg-emerald-50/50 shadow-sm' : 'border-gray-100 hover:border-emerald-200'}`}>
+                                        <input
+                                            type="radio"
+                                            name="payment"
+                                            value="card"
+                                            checked={paymentMethod === 'card'}
+                                            onChange={(e) => setPaymentMethod(e.target.value as 'card')}
+                                            className="text-emerald-600 focus:ring-emerald-500 w-5 h-5"
+                                        />
+                                        <CreditCard className={paymentMethod === 'card' ? 'text-emerald-600' : 'text-gray-400'} size={24} />
+                                        <div>
+                                            <p className="font-bold text-gray-900">
+                                                {t('checkout_payment_card')}
+                                            </p>
+                                            <p className="text-sm text-gray-500">
+                                                {t('checkout_payment_card_desc')}
+                                            </p>
+                                        </div>
+                                    </label>
                                 </div>
                             </div>
 
@@ -685,7 +713,7 @@ export const Checkout: React.FC = () => {
                                 {paymentMethod === 'cash' ? (
                                     <button
                                         onClick={user?.isGuest ? () => { sessionStorage.setItem('rescatto_post_login_redirect', '/app/checkout'); navigate('/login'); } : handlePlaceOrder}
-                                        disabled={loading || !!cityError}
+                                        disabled={loading || !isFormValid}
                                         className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white font-bold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-lg flex items-center justify-center gap-2 active:scale-95"
                                     >
                                         {loading ? (
@@ -704,10 +732,36 @@ export const Checkout: React.FC = () => {
                                             </>
                                         )}
                                     </button>
+                                ) : user?.isGuest ? (
+                                    <button
+                                        onClick={() => { sessionStorage.setItem('rescatto_post_login_redirect', '/app/checkout'); navigate('/login'); }}
+                                        className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white font-bold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 text-lg flex items-center justify-center gap-2 active:scale-95"
+                                    >
+                                        <span>{t('checkout_login_continue')}</span>
+                                    </button>
                                 ) : (
-                                    <div className="text-sm text-gray-500 text-center italic p-2 bg-gray-50 rounded-lg">
-                                        Completa el pago en el formulario de arriba
-                                    </div>
+                                    <PaymentForm
+                                        amount={getGrandTotal()}
+                                        disabled={!isFormValid || loading}
+                                        onSuccess={async (transactionId) => {
+                                            orderJustPlacedRef.current = true;
+                                            await processOrder({
+                                                paymentMethod: 'card',
+                                                deliveryMethod,
+                                                address,
+                                                phoneDigits: phone,
+                                                selectedDonationCenter,
+                                                estimatedCo2,
+                                                selectedRedemption,
+                                                calculateOrderTotals,
+                                                transactionId,
+                                                customerNote,
+                                            });
+                                        }}
+                                        onError={(errMsg) => {
+                                            error(errMsg);
+                                        }}
+                                    />
                                 )}
 
                                 <p className="text-xs text-gray-500 mt-4 text-center">

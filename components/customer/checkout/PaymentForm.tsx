@@ -16,9 +16,10 @@ interface PaymentFormProps {
     amount: number;
     onSuccess: (transactionId: string) => void;
     onError: (error: string) => void;
+    disabled?: boolean;
 }
 
-export const PaymentForm: React.FC<PaymentFormProps> = ({ amount, onSuccess, onError }) => {
+export const PaymentForm: React.FC<PaymentFormProps> = ({ amount, onSuccess, onError, disabled = false }) => {
     const { user } = useAuth();
     const [loading, setLoading] = useState(false);
 
@@ -95,7 +96,7 @@ export const PaymentForm: React.FC<PaymentFormProps> = ({ amount, onSuccess, onE
 
                 <button
                     onClick={openWompiWidget}
-                    disabled={loading}
+                    disabled={loading || disabled}
                     className="w-full bg-[#2C2A29] text-white font-bold py-4 px-6 rounded-xl hover:bg-black transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1 flex items-center justify-center gap-3 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
                 >
                     {loading ? (

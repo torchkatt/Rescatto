@@ -75,7 +75,7 @@ export const reportService = {
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
       doc.text(
-        `Generado por Rescatto Business - ${new Date().toLocaleString()}`,
+        `Generado por Rescatto - ${new Date().toLocaleString()}`,
         20,
         doc.internal.pageSize.height - 10
       );

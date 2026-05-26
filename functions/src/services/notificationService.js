@@ -101,7 +101,7 @@ const sendVerificationEmail = onCall(
               <a href="${link}" class="button">Verificar mi cuenta ahora</a>
               <p style="margin-top: 32px; font-size: 14px; color: #6b7280;">Si no creaste esta cuenta, puedes ignorar este correo.</p>
             </div>
-            <div class="footer"><p><strong>© 2024 Rescatto Business</strong></p></div>
+            <div class="footer"><p><strong>© 2024 Rescatto</strong></p></div>
           </div>
         </body>
         </html>`;

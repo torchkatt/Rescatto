@@ -9,7 +9,7 @@ const {
   SendVerificationEmailSchema,
   DeleteUserAccountSchema,
   GetFinanceStatsSchema,
-} = require("../schemas");
+} = require("../src/schemas");
 
 // Simple test runner
 let passed = 0;

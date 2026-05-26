@@ -179,7 +179,7 @@ const Login: React.FC = () => {
         <div className="relative z-10 p-16 flex flex-col justify-between h-full text-white">
           <div className="flex items-center gap-3 animate-fade-in-up">
             <Logo size="md" className="bg-white/10 backdrop-blur-md rounded-xl border border-white/10 shadow-lg p-1" iconColor="#34d399" />
-            <span className="text-2xl font-bold tracking-tight">Rescatto Business</span>
+            <span className="text-2xl font-bold tracking-tight">Rescatto</span>
           </div>
 
           <div className="mb-20 animate-fade-in-up delay-[200ms]">

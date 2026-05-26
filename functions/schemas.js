@@ -46,7 +46,7 @@ const CreateOrderSchema = z.object({
   donationCenterId: z.string().trim().min(1).max(128).optional().nullable(),
   donationCenterName: z.string().trim().max(200).optional().nullable(),
   estimatedCo2: z.number().min(0).max(10).optional().default(0),
-  deliveryFee: z.number().int().min(0).max(50_000).optional().nullable(),
+  deliveryFee: z.number().int().min(0).max(25_000).optional().nullable(),
   redemptionId: z.string().trim().min(1).max(128).optional().nullable(),
 }).strict();
 
