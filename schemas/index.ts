@@ -37,7 +37,20 @@ export const VenueSchema = z.object({
 }).passthrough();
 
 // ─── Product ────────────────────────────────────────────────────────────────
-export const ProductSchema = z.object({
+export const ProductSchema = z.preprocess((val: any) => {
+  if (val && typeof val === 'object') {
+    if (!val.type) {
+      val.type = val.isRescue ? 'SURPRISE_PACK' : 'SPECIFIC_DISH';
+    }
+    if (val.originalPrice === undefined && val.price !== undefined) {
+      val.originalPrice = val.price;
+    }
+    if (!val.availableUntil) {
+      val.availableUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    }
+  }
+  return val;
+}, z.object({
   id: z.string().min(1),
   venueId: z.string().min(1),
   name: z.string().min(1),
@@ -54,7 +67,7 @@ export const ProductSchema = z.object({
   dynamicTier: z.string().optional().nullable(),
   tags: z.array(z.string()).optional().default([]),
   dietaryTags: z.array(z.string()).optional().default([]),
-}).passthrough();
+}).passthrough());
 
 // ─── Order ──────────────────────────────────────────────────────────────────
 export const OrderSchema = z.object({
