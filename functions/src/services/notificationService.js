@@ -9,6 +9,14 @@ const { CreateNotificationSchema, SendVerificationEmailSchema } = require("../sc
 const { log, error: logError } = require("../utils/logger");
 const sgMail = require("@sendgrid/mail");
 const { CONFIG } = require("../utils/config");
+const nodemailer = require("nodemailer");
+
+function createGmailTransport() {
+    const user = process.env.GMAIL_USER;
+    const pass = process.env.GMAIL_APP_PASSWORD;
+    if (!user || !pass || pass === "PLACEHOLDER_CONFIGURE_ME") return null;
+    return nodemailer.createTransport({ service: "gmail", auth: { user, pass } });
+}
 
 /**
  * Creates a notification for a user.
@@ -51,7 +59,7 @@ const createNotification = onCall(withErrorHandling("createNotification", async 
  * Sends a verification email.
  */
 const sendVerificationEmail = onCall(
-    { secrets: ["SENDGRID_KEY"] },
+    { secrets: ["SENDGRID_KEY", "GMAIL_USER", "GMAIL_APP_PASSWORD"] },
     withErrorHandling("sendVerificationEmail", async (request) => {
         const dataParsed = SendVerificationEmailSchema.safeParse(request.data || {});
         if (!dataParsed.success) {
@@ -76,12 +84,7 @@ const sendVerificationEmail = onCall(
             return { success: true, link };
         }
 
-        if (!sgKey || sgKey === "PLACEHOLDER_KEY") {
-            logError(`FATAL: SENDGRID_KEY not configured. Verification link for ${email}: ${link}`);
-            throw new HttpsError("internal", "Email service not configured.");
-        }
-        sgMail.setApiKey(sgKey);
-
+        const subject = "Verifica tu cuenta en Rescatto 🥗";
         const htmlContent = `
         <!DOCTYPE html>
         <html>
@@ -115,14 +118,45 @@ const sendVerificationEmail = onCall(
         </body>
         </html>`;
 
-        await sgMail.send({
-            to: email,
-            from: CONFIG.sendgrid.from,
-            subject: "Verifica tu cuenta en Rescatto 🥗",
-            html: htmlContent,
-        });
-        log(`Verification email sent to ${email} via SendGrid`);
-        return { success: true };
+        // Intentar enviar con SendGrid si la clave parece válida
+        if (sgKey && sgKey !== "PLACEHOLDER_KEY" && sgKey.startsWith("SG.")) {
+            try {
+                sgMail.setApiKey(sgKey);
+                await sgMail.send({
+                    to: email,
+                    from: CONFIG.sendgrid.from,
+                    subject: subject,
+                    html: htmlContent,
+                });
+                log(`Verification email sent to ${email} via SendGrid`);
+                return { success: true };
+            } catch (sgErr) {
+                logError("SendGrid failed, attempting Gmail fallback...", sgErr);
+            }
+        } else {
+            log("SendGrid not configured or invalid key, attempting Gmail...");
+        }
+
+        // Fallback a Gmail
+        const transport = createGmailTransport();
+        if (transport) {
+            try {
+                await transport.sendMail({
+                    from: `"Rescatto" <${process.env.GMAIL_USER}>`,
+                    to: email,
+                    subject: subject,
+                    html: htmlContent,
+                });
+                log(`Verification email sent to ${email} via Gmail/Nodemailer fallback`);
+                return { success: true };
+            } catch (gmailErr) {
+                logError("Gmail fallback failed as well", gmailErr);
+                throw new HttpsError("internal", "No se pudo enviar el correo de verificación. Inténtalo más tarde.");
+            }
+        } else {
+            logError("Gmail not configured either. No email sent.");
+            throw new HttpsError("internal", "Servicio de email no configurado en el servidor.");
+        }
     })
 );
 
