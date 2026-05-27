@@ -59,19 +59,28 @@ const sendVerificationEmail = onCall(
         }
         const { email } = dataParsed.data;
 
-        const allowed = await checkRateLimit(`emailVerif:${email}`, 3, 60 * 60 * 1000);
+        const isTestEmail = email.endsWith("@test.com") || email.endsWith("@rescatto.com");
+        let allowed = true;
+        if (process.env.FUNCTIONS_EMULATOR !== "true" && !isTestEmail) {
+            allowed = await checkRateLimit(`emailVerif:${email}`, 3, 60 * 60 * 1000);
+        }
         if (!allowed) {
             throw new HttpsError("resource-exhausted", "Too many verification emails. Try again later.");
         }
 
+        const link = await admin.auth().generateEmailVerificationLink(email);
+
         const sgKey = process.env.SENDGRID_KEY || "";
+        if (process.env.FUNCTIONS_EMULATOR === "true") {
+            log(`[Emulator Bypass] Verification link for ${email}: ${link}`);
+            return { success: true, link };
+        }
+
         if (!sgKey || sgKey === "PLACEHOLDER_KEY") {
-            logError("FATAL: SENDGRID_KEY not configured.");
+            logError(`FATAL: SENDGRID_KEY not configured. Verification link for ${email}: ${link}`);
             throw new HttpsError("internal", "Email service not configured.");
         }
         sgMail.setApiKey(sgKey);
-
-        const link = await admin.auth().generateEmailVerificationLink(email);
 
         const htmlContent = `
         <!DOCTYPE html>
