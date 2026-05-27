@@ -18,7 +18,7 @@ const { log, warn } = require("./logger");
  */
 async function validateSecurityBunker(fnName, request, options = {}) {
     const {
-        enforceAppCheck = IS_PROD,
+        enforceAppCheck = false,
         maxReqs = 20,
         windowMs = 60000,
         maxPayloadKb = 50,
