@@ -149,11 +149,25 @@
             "queryScope": "COLLECTION",
             "fields": [
                 {
-                    "fieldPath": "quantity",
+                    "fieldPath": "city",
                     "order": "ASCENDING"
                 },
                 {
+                    "fieldPath": "quantity",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "venues",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
                     "fieldPath": "city",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "name",
                     "order": "ASCENDING"
                 }
             ]
