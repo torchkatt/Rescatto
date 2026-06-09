@@ -18,7 +18,10 @@ const CreateNotificationSchema = z.object({
     .refine((v) => !v || v.startsWith("/"), { message: "link must start with /" })
     .optional()
     .nullable(),
+  // Optional: chatId allows a chat participant to notify the other participant
+  chatId: z.string().trim().min(1).max(128).optional().nullable(),
 }).strict();
+
 
 // ─── generateWompiSignature ─────────────────────────────────────────────────
 const GenerateWompiSignatureSchema = z.object({

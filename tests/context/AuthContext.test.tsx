@@ -32,6 +32,8 @@ const mockOnAuthStateChanged = vi.mocked(firebaseAuth.onAuthStateChanged);
 const mockOnSnapshot = vi.mocked(firestore.onSnapshot);
 const mockDoc = vi.mocked(firestore.doc);
 const mockGetDoc = vi.mocked(firestore.getDoc);
+const mockUpdateDoc = vi.mocked(firestore.updateDoc);
+const mockGetDocs = vi.mocked(firestore.getDocs);
 
 const makeFirebaseUser = (uid = 'uid-1') => ({ uid, email: 'test@test.com' } as any);
 const makeUserDoc = (role: UserRole = UserRole.CUSTOMER) => ({
@@ -54,6 +56,8 @@ describe('AuthContext', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mockDoc.mockReturnValue({ id: 'uid-1' } as any);
+        mockUpdateDoc.mockResolvedValue(undefined);
+        mockGetDocs.mockResolvedValue({ forEach: () => {} } as any);
     });
 
     it('starts with isLoading=true and user=null', () => {

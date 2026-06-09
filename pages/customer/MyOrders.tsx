@@ -551,6 +551,9 @@ export const MyOrders: React.FC = () => {
                                             <div className="text-sm text-gray-600">
                                                 <p><strong>{t('orders_address')}</strong> {order.deliveryAddress}</p>
                                                 <p><strong>{t('orders_phone')}</strong> {order.phone}</p>
+                                                {order.customerNote && (
+                                                    <p><strong>{t('orders_comments', 'Comentarios')}:</strong> {order.customerNote}</p>
+                                                )}
                                             </div>
                                             <div className="text-right">
                                                 <p className="text-sm text-gray-500">{t('cart_total')}</p>

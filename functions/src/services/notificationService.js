@@ -30,14 +30,46 @@ const createNotification = onCall(withErrorHandling("createNotification", async 
     if (!dataParsed.success) {
         throw new HttpsError("invalid-argument", dataParsed.error.issues[0]?.message || "Invalid data.");
     }
-    const { userId, title, message, type, link } = dataParsed.data;
+    const { userId, title, message, type, link, chatId } = dataParsed.data;
 
-    // Solo admins pueden crear notificaciones para otros usuarios
+    // Solo admins pueden crear notificaciones para otros usuarios,
+    // EXCEPTO si comparten un chat activo (notificaciones de mensajes entre participantes).
     if (userId !== request.auth.uid) {
         const callerDoc = await db.collection("users").doc(request.auth.uid).get();
         const callerRole = callerDoc.exists ? callerDoc.data().role : null;
-        if (callerRole !== "SUPER_ADMIN" && callerRole !== "ADMIN") {
-            throw new HttpsError("permission-denied", "No puedes crear notificaciones para otro usuario.");
+        const isAdmin = callerRole === "SUPER_ADMIN" || callerRole === "ADMIN";
+
+        if (!isAdmin) {
+            let isSharedChatParticipant = false;
+
+            // Si el frontend pasó chatId, verificar directamente (más eficiente)
+            if (chatId) {
+                const chatDoc = await db.collection("chats").doc(chatId).get();
+                if (chatDoc.exists) {
+                    const participants = chatDoc.data().participants || [];
+                    isSharedChatParticipant =
+                        participants.includes(request.auth.uid) &&
+                        participants.includes(userId);
+                }
+            }
+
+            // Fallback: buscar cualquier chat compartido entre los dos usuarios
+            // (compatibilidad con versiones del frontend que no envían chatId)
+            if (!isSharedChatParticipant) {
+                const chatsSnapshot = await db.collection("chats")
+                    .where("participants", "array-contains", request.auth.uid)
+                    .limit(50)
+                    .get();
+
+                isSharedChatParticipant = chatsSnapshot.docs.some(chatDoc => {
+                    const participants = chatDoc.data().participants || [];
+                    return participants.includes(userId);
+                });
+            }
+
+            if (!isSharedChatParticipant) {
+                throw new HttpsError("permission-denied", "No puedes crear notificaciones para otro usuario.");
+            }
         }
     }
 
@@ -170,10 +202,10 @@ const onOrderNotification = onMessagePublished("order-events", async (event) => 
     const { orderId, venueId, customerName, totalAmount } = messageData;
 
     try {
-        const amountStr = new Intl.NumberFormat("es-CO", { 
-            style: "currency", 
-            currency: "COP", 
-            maximumFractionDigits: 0 
+        const amountStr = new Intl.NumberFormat("es-CO", {
+            style: "currency",
+            currency: "COP",
+            maximumFractionDigits: 0
         }).format(totalAmount || 0);
 
         const title = "¡Nuevo Pedido! 🎉";
@@ -209,10 +241,10 @@ const onOrderNotification = onMessagePublished("order-events", async (event) => 
             await messaging.sendEachForMulticast({
                 tokens,
                 notification: { title, body: message },
-                data: { 
-                    click_action: "FLUTTER_NOTIFICATION_CLICK", 
-                    link: `/order-management?search=${orderId}`, 
-                    orderId: String(orderId) 
+                data: {
+                    click_action: "FLUTTER_NOTIFICATION_CLICK",
+                    link: `/order-management?search=${orderId}`,
+                    orderId: String(orderId)
                 },
             });
         }

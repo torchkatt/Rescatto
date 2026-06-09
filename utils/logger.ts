@@ -6,7 +6,7 @@
 
 const isDev = import.meta.env.DEV;
 // Manual override to silence logs if they are too noisy
-const silentMode = true; 
+const silentMode = false; 
 
 export const logger = {
     /**

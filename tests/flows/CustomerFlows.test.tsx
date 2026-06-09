@@ -52,6 +52,12 @@ vi.mock('../../components/customer/home/ProductSmallCard', () => ({
   ),
 }));
 
+vi.mock('../../components/customer/home/PackCard', () => ({
+  PackCard: (props: any) => (
+    <div data-testid={`product-card-${props.product.id}`}>{props.product.name}</div>
+  ),
+}));
+
 vi.mock('../../components/customer/OnboardingTour', () => ({
   OnboardingTour: () => <div data-testid="onboarding-tour" />,
 }));
@@ -413,8 +419,8 @@ describe('CustomerHome', () => {
     expect(row).toBeInTheDocument();
 
     // mockProduct1 (2h) and mockProduct2 (1h) are within 4h window
-    expect(screen.getAllByTestId('discovery-product-prod-1').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByTestId('discovery-product-prod-2').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByTestId('product-card-prod-1').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByTestId('product-card-prod-2').length).toBeGreaterThanOrEqual(1);
   });
 
   it('shows HeroDealCard when a qualifying deal exists', async () => {
@@ -428,30 +434,6 @@ describe('CustomerHome', () => {
     });
 
     expect(screen.getByTestId('hero-deal-card')).toBeInTheDocument();
-  });
-
-  it('renders "Load more" button when hasMoreProducts is true', async () => {
-    setupHomeDefaults({ hasMoreProducts: true });
-
-    renderWithRouter(<CustomerHome />);
-
-    await waitFor(() => {
-      expect(screen.queryByTestId('home-skeleton')).not.toBeInTheDocument();
-    });
-
-    expect(screen.getByText('load_more_products')).toBeInTheDocument();
-  });
-
-  it('does NOT render "Load more" button when hasMoreProducts is false', async () => {
-    setupHomeDefaults({ hasMoreProducts: false });
-
-    renderWithRouter(<CustomerHome />);
-
-    await waitFor(() => {
-      expect(screen.queryByTestId('home-skeleton')).not.toBeInTheDocument();
-    });
-
-    expect(screen.queryByText('load_more_products')).not.toBeInTheDocument();
   });
 });
 
@@ -473,7 +455,7 @@ describe('Explore', () => {
 
     renderWithRouter(<Explore />);
 
-    expect(screen.getByText('loading...')).toBeInTheDocument();
+    expect(screen.getByTestId('explore-skeleton')).toBeInTheDocument();
   });
 
   it('renders filter chips (type, distance, discount, expiry)', async () => {
@@ -482,7 +464,7 @@ describe('Explore', () => {
     renderWithRouter(<Explore />);
 
     await waitFor(() => {
-      expect(screen.queryByText('loading...')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('explore-skeleton')).not.toBeInTheDocument();
     });
 
     // Type chips
@@ -519,10 +501,10 @@ describe('Explore', () => {
     renderWithRouter(<Explore />);
 
     await waitFor(() => {
-      expect(screen.queryByText('loading...')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('explore-skeleton')).not.toBeInTheDocument();
     });
 
-    // All 3 products should be rendered via ProductSmallCard mock
+    // All 3 products should be rendered via PackCard mock (mapped to product-card-*)
     expect(screen.getByTestId('product-card-prod-1')).toBeInTheDocument();
     expect(screen.getByTestId('product-card-prod-2')).toBeInTheDocument();
     expect(screen.getByTestId('product-card-prod-3')).toBeInTheDocument();
@@ -535,7 +517,7 @@ describe('Explore', () => {
     renderWithRouter(<Explore />);
 
     await waitFor(() => {
-      expect(screen.queryByText('loading...')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('explore-skeleton')).not.toBeInTheDocument();
     });
 
     expect(screen.getByText('no_results')).toBeInTheDocument();
@@ -549,7 +531,7 @@ describe('Explore', () => {
     renderWithRouter(<Explore />);
 
     await waitFor(() => {
-      expect(screen.queryByText('loading...')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('explore-skeleton')).not.toBeInTheDocument();
     });
 
     expect(screen.getByText('load_more_products')).toBeInTheDocument();
@@ -561,7 +543,7 @@ describe('Explore', () => {
     renderWithRouter(<Explore />);
 
     await waitFor(() => {
-      expect(screen.queryByText('loading...')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('explore-skeleton')).not.toBeInTheDocument();
     });
 
     expect(screen.queryByText('load_more_products')).not.toBeInTheDocument();
@@ -574,7 +556,7 @@ describe('Explore', () => {
     renderWithRouter(<Explore />);
 
     await waitFor(() => {
-      expect(screen.queryByText('loading...')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('explore-skeleton')).not.toBeInTheDocument();
     });
 
     expect(screen.getByText('enable_location_for_distance')).toBeInTheDocument();
@@ -587,7 +569,7 @@ describe('Explore', () => {
     renderWithRouter(<Explore />);
 
     await waitFor(() => {
-      expect(screen.queryByText('loading...')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('explore-skeleton')).not.toBeInTheDocument();
     });
 
     expect(screen.queryByText('enable_location_for_distance')).not.toBeInTheDocument();

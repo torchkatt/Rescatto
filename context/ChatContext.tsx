@@ -300,7 +300,8 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
                     title,
                     notificationText,
                     'info',
-                    `/chat?id=${currentChat.id}`
+                    `/chat?id=${currentChat.id}`,
+                    currentChat.id  // chatId para verificación de participante en backend
                 );
             }
         } catch (error) {

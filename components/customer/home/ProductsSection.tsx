@@ -26,7 +26,7 @@ export const ProductsSection: React.FC<ProductsSectionProps> = ({
     <div className="flex flex-col gap-12 mb-12">
       {/* Ending Soon Section */}
       {endingSoonProducts.length > 0 && (
-        <section>
+        <section data-testid="discovery-row-ending_soon">
           <SectionHeader
             title={t('ending_soon')}
             subtitle="¡Última oportunidad!"

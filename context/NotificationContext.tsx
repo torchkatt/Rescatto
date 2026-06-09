@@ -26,7 +26,7 @@ interface NotificationContextType {
     setActiveLink: (link: string | null) => void;
     markAsRead: (id: string) => Promise<void>;
     markAllAsRead: () => Promise<void>;
-    sendNotification: (userId: string, title: string, message: string, type?: 'info' | 'success' | 'warning' | 'error', link?: string) => Promise<void>;
+    sendNotification: (userId: string, title: string, message: string, type?: 'info' | 'success' | 'warning' | 'error', link?: string, chatId?: string) => Promise<void>;
     playMessageSound: () => void;
 }
 
@@ -227,7 +227,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     };
 
     // Helper to send notifications through backend callable authz checks
-    const sendNotification = async (userId: string, title: string, message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info', link?: string) => {
+    const sendNotification = async (userId: string, title: string, message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info', link?: string, chatId?: string) => {
         try {
             const createNotification = httpsCallable(functions, 'createNotification');
             await createNotification({
@@ -235,7 +235,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 title,
                 message,
                 type,
-                link: link || null
+                link: link || null,
+                ...(chatId ? { chatId } : {})
             });
         } catch (error) {
             logger.error('Error sending notification:', error);

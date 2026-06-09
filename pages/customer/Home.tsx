@@ -20,6 +20,7 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { HeroSection } from '../../components/customer/home/HeroSection';
 import { ProductsSection } from '../../components/customer/home/ProductsSection';
 import { VenuesSection } from '../../components/customer/home/VenuesSection';
+import { DesktopActiveVenues } from '../../components/customer/home/DesktopActiveVenues';
 
 const CustomerHome: React.FC = () => {
   const { t } = useTranslation();
@@ -224,7 +225,7 @@ const CustomerHome: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="p-6 space-y-12">
+      <div className="p-6 space-y-12" data-testid="home-skeleton">
         <Skeleton.Card variant="section-header" />
         <Skeleton.Card variant="pack-featured" count={1} className="max-w-4xl mx-auto" />
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
@@ -276,6 +277,11 @@ const CustomerHome: React.FC = () => {
 
           {/* Products Discovery */}
           <div className="px-6 lg:px-0">
+            <DesktopActiveVenues
+              venues={activeVenues}
+              venueProductCountMap={venueProductCountMap}
+            />
+
             <ProductsSection
               endingSoonProducts={endingSoonProducts}
               bestDiscountProducts={bestDiscountProducts}

@@ -181,7 +181,7 @@ const Explore: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="p-6 space-y-8">
+      <div className="p-6 space-y-8" data-testid="explore-skeleton">
         <div className="flex gap-4">
           <div className="w-10 h-10 rounded-full bg-gray-100 animate-pulse" />
           <div className="w-48 h-8 rounded-lg bg-gray-100 animate-pulse" />
@@ -280,6 +280,22 @@ const Explore: React.FC = () => {
                 {[20, 40, 60].map(d => (
                   <FilterChip key={d} value={d.toString()} className="!py-1.5 !px-3 !text-[10px]">
                     ≥{d}%
+                  </FilterChip>
+                ))}
+              </FilterChip.Group>
+            </div>
+
+            {/* Expiry Filter */}
+            <div className="flex flex-col gap-1.5 shrink-0">
+              <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">{t('filter_expires')}</span>
+              <FilterChip.Group
+                value={activeExpires.toString()}
+                onChange={(val) => setFilter('expiresIn', val as string)}
+                gap="xs"
+              >
+                {[1, 2, 4, 12].map(h => (
+                  <FilterChip key={h} value={h.toString()} className="!py-1.5 !px-3 !text-[10px]">
+                    ≤{h}h
                   </FilterChip>
                 ))}
               </FilterChip.Group>
