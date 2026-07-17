@@ -141,3 +141,15 @@ graphify-out/
 lint_output.txt
 test_failures.txt
 functions/lint_results.txt
+
+# Browser automation profile (local only, may contain browsing/session data)
+.chrome-profile/
+
+# Firebase CLI deploy cache (regenerated on every `firebase deploy`)
+.firebase/
+
+# PWA dev build output (vite-plugin-pwa)
+dev-dist/
+
+# Stray backup files
+*.bak

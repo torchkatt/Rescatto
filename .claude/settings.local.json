@@ -31,7 +31,14 @@
       "Bash(git push:*)",
       "Bash(ls /Users/alexandersandoval/Documents/PERSONAL/DESARROLLO/rescatto-business-dashboard/.env*)",
       "Bash(firebase deploy:*)",
-      "Bash(npx eslint *)"
+      "Bash(npx eslint *)",
+      "Bash(git status *)",
+      "Bash(git fetch *)",
+      "Bash(grep -E \"\\\\.env\\($|\\\\.\\)\")",
+      "Bash(xargs -0 -I{} du -k \"{}\")",
+      "Bash(git checkout *)",
+      "Bash(git pull *)",
+      "Bash(git rm *)"
     ]
   }
 }
