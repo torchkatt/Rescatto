@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { dataService } from '../services/dataService';
 import { authService } from '../services/authService';
 import { getUserVenueId } from '../utils/getUserVenueId';
-import { Save, Zap, Building, Clock, Loader2, Store, Lock, Truck } from 'lucide-react';
+import { Save, Zap, Building, Clock, Loader2, Store, Lock, Truck, FileText, Shield, Mail } from 'lucide-react';
 import { formatCOP } from '../utils/formatters';
 import { useToast } from '../context/ToastContext';
 import { Venue } from '../types';
@@ -502,6 +502,50 @@ const Settings: React.FC = () => {
                             </button>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            {/* Legal Documents */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
+                    <FileText className="text-gray-400" />
+                    <h2 className="text-lg font-bold text-gray-900">{(t('settings_legal') || 'Legal')}</h2>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <a
+                        href="/legal/terms"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl hover:bg-emerald-50 hover:border-emerald-200 border border-slate-100 transition-all group"
+                    >
+                        <FileText size={20} className="text-slate-400 group-hover:text-emerald-600 transition-colors" />
+                        <div className="flex-1">
+                            <p className="text-sm font-bold text-slate-700 group-hover:text-emerald-700">{(t('legal_terms_title') || 'Términos y Condiciones')}</p>
+                            <p className="text-xs text-slate-400">{(t('settings_legal_terms_desc') || 'Lee los términos de uso de Rescatto')}</p>
+                        </div>
+                    </a>
+                    <a
+                        href="/legal/privacy"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl hover:bg-emerald-50 hover:border-emerald-200 border border-slate-100 transition-all group"
+                    >
+                        <Shield size={20} className="text-slate-400 group-hover:text-emerald-600 transition-colors" />
+                        <div className="flex-1">
+                            <p className="text-sm font-bold text-slate-700 group-hover:text-emerald-700">{(t('legal_privacy_title') || 'Política de Privacidad')}</p>
+                            <p className="text-xs text-slate-400">{(t('settings_legal_privacy_desc') || 'Conoce cómo tratamos tus datos')}</p>
+                        </div>
+                    </a>
+                    <a
+                        href="mailto:soporte@rescatto.com"
+                        className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl hover:bg-emerald-50 hover:border-emerald-200 border border-slate-100 transition-all group"
+                    >
+                        <Mail size={20} className="text-slate-400 group-hover:text-emerald-600 transition-colors" />
+                        <div className="flex-1">
+                            <p className="text-sm font-bold text-slate-700 group-hover:text-emerald-700">{(t('settings_legal_contact') || 'Contacto Legal')}</p>
+                            <p className="text-xs text-slate-400">soporte@rescatto.com</p>
+                        </div>
+                    </a>
                 </div>
             </div>
 

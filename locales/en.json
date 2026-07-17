@@ -609,5 +609,9 @@
   "chat_ai_type_message": "Type your question...",
   "chat_ai_send": "Send",
   "chat_ai_listening": "Listening...",
-  "chat_ai_storage_migrate_to": "Migrate to"
+  "chat_ai_storage_migrate_to": "Migrate to",
+  "settings_legal": "Legal",
+  "settings_legal_terms_desc": "Read Rescatto terms of use",
+  "settings_legal_privacy_desc": "Learn how we handle your data",
+  "settings_legal_contact": "Legal Contact"
 }
