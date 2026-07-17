@@ -51,6 +51,7 @@ const AdminLab = lazyLoad(() => import('./pages/admin/AdminLab'), 'default');
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 import { UserRole } from './types';
+import LegalDoc from './pages/LegalDoc';
 
 // Pages - Business
 const Login = lazyLoad(() => import('./pages/Login'));
@@ -305,6 +306,8 @@ const AppRoutes: React.FC = () => {
 
                 {/* EMAIL VERIFICATION */}
                 <Route path="/verify-email" element={<VerifyEmail />} />
+                <Route path="/legal/terms" element={<LegalDoc />} />
+                <Route path="/legal/privacy" element={<LegalDoc />} />
 
                 {/* --- BACKOFFICE V2 ROUTES --- */}
                 <Route path="/backoffice" element={
