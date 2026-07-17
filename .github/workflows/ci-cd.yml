@@ -84,6 +84,10 @@ jobs:
         working-directory: ./functions
         run: npm ci --production
 
+      - name: 🔑 Set env vars
+        working-directory: ./functions
+        run: cp .env.yaml .env
+
       - uses: w9jds/firebase-action@v13
         with:
           args: deploy --only functions --project rescatto-staging
