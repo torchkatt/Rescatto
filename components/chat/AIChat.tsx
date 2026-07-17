@@ -48,12 +48,18 @@ export const AIChat: React.FC<AIChatProps> = ({ className = '' }) => {
     limit: number;
     tier: string;
   } | null>(null);
-  const [storageMode, setStorageMode] = useState<'local' | 'cloud'>('cloud');
-  const [showStorageMenu, setShowStorageMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const [storageMode, setStorageMode] = useState<'local' | 'cloud'>('local');
+  const [showStorageMenu, setShowStorageMenu] = useState(false);
+  const saveTimeoutRef = useRef<number>();
 
-  // Register navigate hook so tools can navigate the user
+  // ─── Guest guard: render only local suggestions, no API ───
+  if (user?.isGuest) {
+    return <AIChatGuestMode />;
+  }
+
+  // Register navigate hook
   useEffect(() => {
     setNavigateHook((path: string) => {
       navigate(path);
@@ -74,7 +80,6 @@ export const AIChat: React.FC<AIChatProps> = ({ className = '' }) => {
   }, [user?.id, user?.isGuest]);
 
   // Save conversation after messages change (debounced)
-  const saveTimeoutRef = useRef<number>();
   useEffect(() => {
     if (!user || messages.length === 0) return;
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
@@ -447,6 +452,39 @@ export const AIChat: React.FC<AIChatProps> = ({ className = '' }) => {
             )}
           </button>
         </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── Guest mode: local-only suggestions, no DeepSeek API ───
+const AIChatGuestMode: React.FC = () => {
+  const { t } = useTranslation();
+
+  const guestSuggestions = [
+    { icon: '🍽️', text: `${t('chat_ai_what_is') || '¿Qué es Rescatto?'}` },
+    { icon: '💡', text: `${t('chat_ai_how_it_works') || '¿Cómo funciona?'}` },
+    { icon: '🏪', text: `${t('chat_ai_find_venue') || '¿Cómo encuentro un restaurante?'}` },
+    { icon: '📦', text: `${t('chat_ai_what_is_pack') || '¿Qué es un pack sorpresa?'}` },
+  ];
+
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center mb-4 shadow-xl shadow-emerald-200">
+        <Sparkles size={28} className="text-white" />
+      </div>
+      <h3 className="text-lg font-black text-gray-800 mb-2">{t('chat_ai_welcome_guest') || 'RescattoBot'}</h3>
+      <p className="text-sm text-gray-500 mb-6 max-w-xs">{t('chat_ai_login_to_chat') || 'Inicia sesión para usar el asistente IA'}</p>
+      <div className="grid grid-cols-1 gap-2 w-full max-w-xs">
+        {guestSuggestions.map((s, i) => (
+          <div
+            key={i}
+            className="flex items-center gap-3 px-4 py-3 bg-gray-50 rounded-xl border border-gray-100 text-sm font-semibold text-gray-600"
+          >
+            <span className="text-lg">{s.icon}</span>
+            <span>{s.text}</span>
+          </div>
+        ))}
       </div>
     </div>
   );

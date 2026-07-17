@@ -1,26 +1,28 @@
 import React, { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useChat } from '../../context/ChatContext';
+import { useAuth } from '../../context/AuthContext';
 import { MessageSquare, X, Sparkles } from 'lucide-react';
 import { ChatList } from './ChatList';
 import { ChatWindow } from './ChatWindow';
 import { AIChat } from './AIChat';
 
 export const ChatButton: React.FC = () => {
+    const { user } = useAuth();
     const { unreadCount, currentChat, closeChat } = useChat();
     const location = useLocation();
     const [isOpen, setIsOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<'messages' | 'assistant'>('messages');
-    
+
+    // ─── Hide chat for unauthenticated users or guests ───
+    const shouldHide = !user || user.isGuest === true || location.pathname === '/login';
+    if (shouldHide) return null;
+
     // Draggable state
-    const [position, setPosition] = useState({ x: 0, y: 0 }); // Offset from bottom-right
+    const [position, setPosition] = useState({ x: 0, y: 0 });
     const [isDragging, setIsDragging] = useState(false);
     const dragStarted = React.useRef(false);
     const startPos = React.useRef({ x: 0, y: 0 });
-
-    const shouldHide = false; // Always show as per user request
-
-    if (shouldHide) return null;
 
     const toggleChat = (e: React.MouseEvent | React.TouchEvent) => {
         // Prevent click if we were dragging

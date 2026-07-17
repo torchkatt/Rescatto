@@ -613,5 +613,11 @@
   "settings_legal": "Legal",
   "settings_legal_terms_desc": "Lee los términos de uso de Rescatto",
   "settings_legal_privacy_desc": "Conoce cómo tratamos tus datos",
-  "settings_legal_contact": "Contacto Legal"
+  "settings_legal_contact": "Contacto Legal",
+  "chat_ai_welcome_guest": "RescattoBot",
+  "chat_ai_login_to_chat": "Inicia sesión para usar el asistente IA",
+  "chat_ai_what_is": "¿Qué es Rescatto?",
+  "chat_ai_how_it_works": "¿Cómo funciona?",
+  "chat_ai_find_venue": "¿Cómo encuentro un restaurante?",
+  "chat_ai_what_is_pack": "¿Qué es un pack sorpresa?"
 }
