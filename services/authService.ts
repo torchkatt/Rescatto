@@ -276,18 +276,32 @@ export const authService = {
   },
 
   loginWithFacebook: async (): Promise<User> => {
-    const provider = new FacebookAuthProvider();
-    const userCredential = await signInWithPopup(auth, provider);
-    await createUserDocument(userCredential.user);
-    const appUser = await mapFirebaseUserToAppUser(userCredential.user);
-
-    // Registrar acción en auditoría
-    await loggerService.logAction('LOGIN', appUser.id, appUser.id, 'users', {
-      method: 'facebook',
-      email: appUser.email
-    });
-
-    return appUser;
+    try {
+      const provider = new FacebookAuthProvider();
+      const userCredential = await signInWithPopup(auth, provider);
+      await createUserDocument(userCredential.user);
+      const appUser = await mapFirebaseUserToAppUser(userCredential.user);
+      await loggerService.logAction('LOGIN', appUser.id, appUser.id, 'users', {
+        method: 'facebook',
+        email: appUser.email
+      });
+      return appUser;
+    } catch (error: any) {
+      logger.error('Facebook login error:', error);
+      if (error.code === 'auth/popup-closed-by-user') {
+        throw new Error('Inicio de sesión cancelado.');
+      }
+      if (error.code === 'auth/unauthorized-domain') {
+        throw new Error('Facebook Sign-In requiere HTTPS. Usa Email o Google para pruebas locales.');
+      }
+      if (error.code === 'auth/operation-not-allowed') {
+        throw new Error('Facebook Sign-In no está habilitado en Firebase Console.');
+      }
+      if (error.code === 'auth/account-exists-with-different-credential') {
+        throw new Error('Ya existe una cuenta con este email. Intenta iniciar sesión con Email.');
+      }
+      throw new Error('Error al iniciar sesión con Facebook. Intenta con Email o Google.');
+    }
   },
 
   logout: async (): Promise<void> => {
