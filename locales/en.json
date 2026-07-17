@@ -583,5 +583,14 @@
   "legal_accept_text": "I have read and accept the",
   "legal_terms": "Terms and Conditions of Use",
   "legal_privacy": "Privacy Policy",
-  "legal_and": "and the"
+  "legal_and": "and the",
+  "legal_accepted": "Accepted",
+  "legal_not_accepted": "Not accepted",
+  "legal_loading": "Loading...",
+  "legal_error": "Error loading document. Please try again later.",
+  "legal_back": "← Back",
+  "legal_version": "Version",
+  "legal_contact": "For inquiries, claims or ARCO rights: soporte@rescatto.com",
+  "legal_terms_title": "Terms and Conditions of Use",
+  "legal_privacy_title": "Privacy Policy"
 }

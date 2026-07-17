@@ -21,7 +21,7 @@ const LegalAcceptance: React.FC<LegalAcceptanceProps> = ({ accepted, onChange, e
           className={`mt-0.5 flex-shrink-0 transition-colors ${
             accepted ? 'text-emerald-600' : 'text-slate-300 group-hover:text-slate-400'
           }`}
-          aria-label={accepted ? 'Aceptado' : 'No aceptado'}
+          aria-label={accepted ? (t('legal_accepted') || 'Aceptado') : (t('legal_not_accepted') || 'No aceptado')}
         >
           {accepted ? <CheckSquare size={20} /> : <Square size={20} />}
         </button>
