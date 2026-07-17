@@ -36,12 +36,12 @@ export const PackCard: React.FC<PackCardProps> = ({
   };
 
   const discount = Math.round(
-    ((product.originalPrice - (product.dynamicDiscountedPrice || product.discountedPrice)) /
-      product.originalPrice) *
+    (( (product.originalPrice || 0) - (product.dynamicDiscountedPrice || product.discountedPrice || 0)) /
+      (product.originalPrice || 1)) *
       100
   );
 
-  const finalPrice = product.dynamicDiscountedPrice || product.discountedPrice;
+  const finalPrice = product.dynamicDiscountedPrice || product.discountedPrice || 0;
   const isLowStock = product.quantity <= 3;
 
   if (variant === 'featured') {
