@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import * as Sentry from '@sentry/react';
+import { Toaster } from 'sileo';
 import App from './App';
 import './index.css';
 import { HelmetProvider } from 'react-helmet-async';
@@ -42,5 +43,6 @@ root.render(
     <HelmetProvider>
       <App />
     </HelmetProvider>
+    <Toaster position="top-right" />
   </React.StrictMode>
 );
