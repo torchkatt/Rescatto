@@ -235,8 +235,18 @@ export const authService = {
   },
 
   handleGoogleRedirectResult: async (): Promise<boolean> => {
-    // Compatibilidad en caso de que alguien siga atrapado en un flujo antiguo
-    return false;
+    try {
+      const { getRedirectResult } = await import('firebase/auth');
+      const result = await getRedirectResult(auth);
+      if (result?.user) {
+        await createUserDocument(result.user);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      logger.warn('handleGoogleRedirectResult: no redirect result', error);
+      return false;
+    }
   },
 
   loginWithApple: async (): Promise<User> => {
