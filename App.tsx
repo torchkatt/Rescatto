@@ -220,8 +220,6 @@ const CustomerLayout: React.FC = () => {
             {/* ── OVERLAYS FIJOS AL VIEWPORT (fuera del flex, sin ancestros con overflow) ── */}
             {/* Navegación inferior mobile */}
             <CustomerBottomNav />
-            {/* Botón flotante de chat */}
-            <ChatButton />
             {/* Botón flotante de ayuda */}
             <HelpFloatingButton layout="customer" />
 
@@ -539,6 +537,8 @@ const AppRoutes: React.FC = () => {
                 {/* Catch all */}
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
+            {/* Global AI Chat FAB — visible on ALL routes */}
+            <ChatButton />
         </React.Suspense>
     );
 }
