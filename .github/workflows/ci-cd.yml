@@ -59,6 +59,11 @@ jobs:
       - name: 🏗️ Build
         run: npm run build
 
+      - name: 🔑 Inject env vars
+        run: |
+          echo "VITE_DEEPSEEK_API_KEY=${{ secrets.DEEPSEEK_API_KEY }}" >> .env
+          echo "VITE_SENTRY_DSN=${{ secrets.SENTRY_DSN }}" >> .env
+
       - uses: w9jds/firebase-action@v13
         with:
           args: deploy --only firestore:rules,firestore:indexes,hosting --project rescatto-staging

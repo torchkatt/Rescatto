@@ -592,5 +592,21 @@
   "legal_version": "Version",
   "legal_contact": "For inquiries, claims or ARCO rights: soporte@rescatto.com",
   "legal_terms_title": "Terms and Conditions of Use",
-  "legal_privacy_title": "Privacy Policy"
+  "legal_privacy_title": "Privacy Policy",
+  "chat_ai_suggestions_title": "Quick suggestions",
+  "chat_ai_storage_cloud": "Cloud",
+  "chat_ai_storage_local": "Local",
+  "chat_ai_storage_migrate_to_cloud": "Migrate to Cloud",
+  "chat_ai_storage_migrate_to_local": "Migrate to Local",
+  "chat_ai_storage_saved_cloud": "Saved in cloud",
+  "chat_ai_storage_saved_local": "Saved locally",
+  "chat_ai_cleared": "Conversation cleared",
+  "chat_ai_delete": "Delete",
+  "chat_ai_messages_count": "{{count}} messages",
+  "chat_ai_limit_reached": "You have reached today's message limit.",
+  "chat_ai_migrated_cloud": "Conversations now in the cloud ☁️",
+  "chat_ai_migrated_local": "Conversations now on device 💻",
+  "chat_ai_type_message": "Type your question...",
+  "chat_ai_send": "Send",
+  "chat_ai_listening": "Listening..."
 }

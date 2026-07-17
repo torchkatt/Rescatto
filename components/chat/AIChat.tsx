@@ -257,7 +257,7 @@ export const AIChat: React.FC<AIChatProps> = ({ className = '' }) => {
               </h4>
 
               <div className="space-y-3 px-4">
-                <p className="text-[10px] text-gray-400 font-black uppercase tracking-[0.2em] mb-2">Sugerencias rápidas</p>
+                <p className="text-[10px] text-gray-400 font-black uppercase tracking-[0.2em] mb-2">{t('chat_ai_suggestions_title') || 'Sugerencias rápidas'}</p>
                 <div className="grid grid-cols-1 gap-2.5">
                   {quickSuggestions.map((suggestion, index) => {
                     const Icon = suggestion.icon;
@@ -293,7 +293,7 @@ export const AIChat: React.FC<AIChatProps> = ({ className = '' }) => {
                 title={storageMode === 'cloud' ? 'Guardado en la nube' : 'Guardado localmente'}
               >
                 {storageMode === 'cloud' ? <Cloud size={12} /> : <HardDrive size={12} />}
-                {storageMode === 'cloud' ? 'Nube' : 'Local'}
+                {storageMode === 'cloud' ? t('chat_ai_storage_cloud') || 'Nube' : t('chat_ai_storage_local') || 'Local'}
               </button>
 
               {showStorageMenu && (
