@@ -616,6 +616,7 @@ export interface AdditionalUserData {
       orderUpdates?: boolean;
     };
   };
+  tosAcceptedAt?: string;
 }
 
 // --- LOGÍSTICA & SEGUIMIENTO ---

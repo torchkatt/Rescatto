@@ -579,5 +579,9 @@
   "dashboard_no_data_desc": "Revenue will appear here when you receive your first orders.",
   "dashboard_greeting": "Hello, {{name}}!",
   "dashboard_greeting_sub": "Here's your business summary.",
-  "dashboard_error_data": "Error loading dashboard data"
+  "dashboard_error_data": "Error loading dashboard data",
+  "legal_accept_text": "I have read and accept the",
+  "legal_terms": "Terms and Conditions of Use",
+  "legal_privacy": "Privacy Policy",
+  "legal_and": "and the"
 }

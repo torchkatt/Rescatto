@@ -7,6 +7,7 @@ import { Logo } from '../components/common/Logo';
 import { logger } from '../utils/logger';
 import { auditService, AuditAction } from '../services/auditService';
 import { SEO } from '../components/common/SEO';
+import LegalAcceptance from '../components/LegalAcceptance';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -18,6 +19,8 @@ const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
+  const [legalAccepted, setLegalAccepted] = useState(false);
+  const [legalError, setLegalError] = useState('');
   const [emailTouched, setEmailTouched] = useState(false);
   const [confirmTouched, setConfirmTouched] = useState(false);
   const [selectedRole, setSelectedRole] = useState<'CUSTOMER' | 'BUSINESS'>('BUSINESS');
@@ -87,13 +90,19 @@ const Login: React.FC = () => {
           setError('La contraseña debe tener al menos 6 caracteres');
           return;
         }
+        if (!legalAccepted) {
+          setLegalError('Debes aceptar los Términos y Condiciones y la Política de Privacidad');
+          return;
+        }
+        setLegalError('');
         // Importación dinámica para evitar problemas de dependencia circular
         const { authService } = await import('../services/authService');
         const { UserRole } = await import('../types');
         // El registro usa el rol seleccionado en las pestañas
         const role = selectedRole === 'BUSINESS' ? UserRole.ADMIN : UserRole.CUSTOMER;
         await authService.register(email, password, fullName, role, { 
-            invitedBy: referralCode.trim().toUpperCase() 
+            invitedBy: referralCode.trim().toUpperCase(),
+            tosAcceptedAt: new Date().toISOString(),
         });
         navigate('/');
       } else {
@@ -376,6 +385,17 @@ const Login: React.FC = () => {
                     {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/* Legal acceptance */}
+            {isRegistering && (
+              <div className="pt-2">
+                <LegalAcceptance
+                  accepted={legalAccepted}
+                  onChange={(v) => { setLegalAccepted(v); setLegalError(''); }}
+                  error={legalError}
+                />
               </div>
             )}
 
