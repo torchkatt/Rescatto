@@ -413,7 +413,7 @@ const Login: React.FC = () => {
               <div className="flex-1 border-t border-slate-200"></div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               <button
                 onClick={handleGoogleLogin}
                 type="button"
@@ -422,7 +422,8 @@ const Login: React.FC = () => {
               >
                 <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="Google" />
               </button>
-              <button
+              {/* Apple login — desactivado temporalmente. Requiere cuenta Apple Developer ($99/año). Código preservado en authService.loginWithApple */}
+              {/* <button
                 onClick={handleAppleLogin}
                 type="button"
                 aria-label="Continuar con Apple"
@@ -431,7 +432,7 @@ const Login: React.FC = () => {
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
                 </svg>
-              </button>
+              </button> */}
               {/* Facebook login — desactivado temporalmente. Código preservado en authService.loginWithFacebook */}
               {/* <button
                 onClick={handleFacebookLogin}
