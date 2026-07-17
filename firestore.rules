@@ -683,5 +683,27 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ─── AI CHAT - USAGE TRACKING ──────────────────────────────────────────
+    // Each user tracks their own daily message count.
+    match /ai_chat_usage/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ─── AI CHAT - PERSISTENT MEMORY ──────────────────────────────────────
+    // Each user reads/writes their own AI memories (userId field on the document).
+    match /ai_chat_memories/{memoryId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    // ─── AI CHAT - CONVERSATIONS (subcollection under users) ──────────────
+    // Already under users/{userId}, need explicit match for the ai_chat subcollection.
+    // Each user can read/write their own conversation history.
+    match /users/{userId}/ai_chat/{docId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
   }
 }

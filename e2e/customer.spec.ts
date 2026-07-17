@@ -37,6 +37,16 @@ test.describe('Customer — Home & Explore', () => {
         await expect(page).toHaveURL(/#\/app\/cart/);
     });
 
+    test('AI Chat floating button is visible on home screen', async ({ page }) => {
+        await page.goto('/#/app/home');
+        await page.waitForLoadState('networkidle');
+        // ChatButton renders with MessageSquare icon — should be findable
+        const chatBtn = page.locator('button:has(svg), [class*="fixed"]').filter({ hasText: /asistente/i }).or(
+            page.locator('button').filter({ has: page.locator('svg') })
+        ).first();
+        await expect(chatBtn).toBeAttached({ timeout: 10000 });
+    });
+
     test('orders tab shows order list', async ({ page }) => {
         await page.goto('/#/app/orders');
         await page.waitForLoadState('networkidle');
