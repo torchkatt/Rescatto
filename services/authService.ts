@@ -250,18 +250,29 @@ export const authService = {
   },
 
   loginWithApple: async (): Promise<User> => {
-    const provider = new OAuthProvider('apple.com');
-    const userCredential = await signInWithPopup(auth, provider);
-    await createUserDocument(userCredential.user);
-    const appUser = await mapFirebaseUserToAppUser(userCredential.user);
-
-    // Registrar acción en auditoría
-    await loggerService.logAction('LOGIN', appUser.id, appUser.id, 'users', {
-      method: 'apple',
-      email: appUser.email
-    });
-
-    return appUser;
+    try {
+      const provider = new OAuthProvider('apple.com');
+      const userCredential = await signInWithPopup(auth, provider);
+      await createUserDocument(userCredential.user);
+      const appUser = await mapFirebaseUserToAppUser(userCredential.user);
+      await loggerService.logAction('LOGIN', appUser.id, appUser.id, 'users', {
+        method: 'apple',
+        email: appUser.email
+      });
+      return appUser;
+    } catch (error: any) {
+      logger.error('Apple login error:', error);
+      if (error.code === 'auth/popup-closed-by-user') {
+        throw new Error('Inicio de sesión cancelado.');
+      }
+      if (error.code === 'auth/unauthorized-domain') {
+        throw new Error('Apple Sign-In requiere HTTPS. Usa Email o Google para pruebas locales.');
+      }
+      if (error.code === 'auth/operation-not-allowed') {
+        throw new Error('Apple Sign-In no está habilitado en Firebase Console. Actívalo en Authentication > Sign-in providers.');
+      }
+      throw new Error('Error al iniciar sesión con Apple. Intenta con Email o Google.');
+    }
   },
 
   loginWithFacebook: async (): Promise<User> => {
