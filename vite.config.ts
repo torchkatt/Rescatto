@@ -128,9 +128,10 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage'],
+          firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage', 'firebase/functions', 'firebase/analytics', 'firebase/messaging'],
           recharts: ['recharts'],
-          vendor: ['react', 'react-dom', 'react-router-dom', 'lucide-react']
+          vendor: ['react', 'react-dom', 'react-router-dom', 'lucide-react'],
+          markdown: ['react-markdown', 'remark-gfm'],
         }
       }
     }

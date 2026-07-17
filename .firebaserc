@@ -1,7 +1,23 @@
 {
   "projects": {
     "default": "rescatto-c8d2b",
-    "production": "rescatto-c8d2b",
-    "staging": "rescatto-staging"
+    "staging": "rescatto-staging",
+    "prod": "rescatto-c8d2b"
+  },
+  "targets": {
+    "rescatto-c8d2b": {
+      "hosting": {
+        "rescatto-prod": [
+          "rescatto-c8d2b"
+        ]
+      }
+    },
+    "rescatto-staging": {
+      "hosting": {
+        "rescatto-staging": [
+          "rescatto-staging"
+        ]
+      }
+    }
   }
 }
