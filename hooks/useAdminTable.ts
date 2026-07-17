@@ -71,8 +71,13 @@ export function useAdminTable<T>({
         try {
             // Fetch count on page 1 only if no search is active
             if (page === 1 && countFn && !isSearch) {
-                const count = await countFn(term);
-                setTotalItems(count);
+                try {
+                    const count = await countFn(term);
+                    setTotalItems(count);
+                } catch {
+                    // count can fail on new collections (permission-denied on aggregate query)
+                    setTotalItems(0);
+                }
             }
 
             const cursor = page > 1 ? (cursors[page] ?? null) : null;

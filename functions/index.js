@@ -115,6 +115,14 @@ const {
     getMyLeaderboardRank
 } = require("./src/services/leaderboardService");
 
+// ─── Marketplace Functions ───────────────────────────────────────────────────
+const {
+    createTransaction,
+    createBooking,
+    cancelTransaction,
+    seedCategories
+} = require("./src/marketplace");
+
 // ─── Fraud Detection Services ─────────────────────────────────────────────────
 const {
     evaluateOrderFraud,
@@ -212,4 +220,10 @@ module.exports = {
     evaluateOrderFraud,
     getFraudMetrics,
     resolveFraudFlag,
+
+    // Marketplace
+    createTransaction,
+    createBooking,
+    cancelTransaction,
+    seedCategories,
 };

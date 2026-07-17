@@ -18,9 +18,11 @@ import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 // New Components
 import { Skeleton } from '../../components/ui/Skeleton';
 import { HeroSection } from '../../components/customer/home/HeroSection';
+import CategoriesSection from '../../components/customer/home/CategoriesSection';
 import { ProductsSection } from '../../components/customer/home/ProductsSection';
 import { VenuesSection } from '../../components/customer/home/VenuesSection';
 import { DesktopActiveVenues } from '../../components/customer/home/DesktopActiveVenues';
+import ServicesSection from '../../components/customer/home/ServicesSection';
 
 const CustomerHome: React.FC = () => {
   const { t } = useTranslation();
@@ -282,6 +284,8 @@ const CustomerHome: React.FC = () => {
               venueProductCountMap={venueProductCountMap}
             />
 
+            <CategoriesSection />
+
             <ProductsSection
               endingSoonProducts={endingSoonProducts}
               bestDiscountProducts={bestDiscountProducts}
@@ -302,6 +306,9 @@ const CustomerHome: React.FC = () => {
             loadMoreVenues={loadMoreVenues}
             loadingMoreVenues={loadingMoreVenues}
           />
+
+          {/* Services Discovery */}
+          <ServicesSection />
         </div>
       </main>
 

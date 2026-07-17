@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate, Link } from 'react-router-dom';
-import { LayoutDashboard, FileText, Settings, UtensilsCrossed, ClipboardList, LogOut, Menu, X, Package, BarChart, MessageSquare, Users, Shield, Download, Tag, RefreshCw, MapPin, DollarSign, Zap, Moon, Sun, Truck, TrendingUp, BadgeCheck, Building2, Landmark, UserCircle, HelpCircle } from 'lucide-react';
+import { LayoutDashboard, FileText, Settings, UtensilsCrossed, ClipboardList, LogOut, Menu, X, Package, BarChart, MessageSquare, Users, Shield, Download, Tag, RefreshCw, MapPin, DollarSign, Zap, Moon, Sun, Truck, TrendingUp, BadgeCheck, Building2, Landmark, UserCircle, HelpCircle, Store } from 'lucide-react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../context/AuthContext';
@@ -143,6 +143,19 @@ const Sidebar: React.FC = () => {
       </div>
 
       <nav className="flex-1 px-4 overflow-y-auto space-y-6 no-scrollbar pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+        {/* SECCIÓN MARKETPLACE — Customer */}
+        {hasRole([UserRole.CUSTOMER]) && (
+          <div className="space-y-1">
+            <p className="px-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Marketplace</p>
+            <NavLink to="/app/explore" className={navClass} onClick={() => setIsMobileOpen(false)}>
+              <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-white/10 transition-colors">
+                <Store size={18} className="sidebar-icon text-emerald-400" />
+              </div>
+              <span className="font-medium">Marketplace</span>
+            </NavLink>
+          </div>
+        )}
+
         {/* SECCIÓN PRINCIPAL */}
         {hasRole([UserRole.VENUE_OWNER]) && (
           <div className="space-y-1">

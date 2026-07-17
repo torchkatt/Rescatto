@@ -14,15 +14,15 @@ export const ChatButton: React.FC = () => {
     const [isOpen, setIsOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<'messages' | 'assistant'>('messages');
 
-    // ─── Hide chat for unauthenticated users or guests ───
-    const shouldHide = !user || user.isGuest === true || location.pathname === '/login';
-    if (shouldHide) return null;
-
-    // Draggable state
+    // Draggable state — MUST be before any conditional return (Rules of Hooks)
     const [position, setPosition] = useState({ x: 0, y: 0 });
     const [isDragging, setIsDragging] = useState(false);
     const dragStarted = React.useRef(false);
     const startPos = React.useRef({ x: 0, y: 0 });
+
+    // ─── Hide chat for unauthenticated users or guests ───
+    const shouldHide = !user || user.isGuest === true || location.pathname === '/login';
+    if (shouldHide) return null;
 
     const toggleChat = (e: React.MouseEvent | React.TouchEvent) => {
         // Prevent click if we were dragging

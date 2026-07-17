@@ -4,7 +4,7 @@ import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { DonationCenter, ActiveRedemption } from '../../types';
-import { ArrowLeft, CreditCard, Wallet, MapPin, Store, Leaf, Heart, Gift, Tag, Zap } from 'lucide-react';
+import { ArrowLeft, CreditCard, Wallet, MapPin, Store, Leaf, Heart, Gift, Tag, Zap, Truck, Download, Users } from 'lucide-react';
 import { DonationCenterSelector } from '../../components/customer/checkout/DonationCenterSelector';
 import { PaymentForm } from '../../components/customer/checkout/PaymentForm';
 import { dataService } from '../../services/dataService';
@@ -21,7 +21,7 @@ import { useOrderFlow } from '../../hooks/useOrderFlow';
 import { safeParseCheckoutForm } from '../../schemas';
 import { useTranslation } from 'react-i18next';
 
-type DeliveryMethod = 'delivery' | 'pickup' | 'donation';
+type DeliveryMethod = 'delivery' | 'pickup' | 'donation' | 'shipping' | 'digital' | 'inPerson';
 
 export const Checkout: React.FC = () => {
     const navigate = useNavigate();
@@ -56,12 +56,12 @@ export const Checkout: React.FC = () => {
 
     const isPhoneValid = phone.length >= 7 && phone.length <= 17 && /^\+?\d+$/.test(phone);
     const [addressTouched, setAddressTouched] = useState(false);
-    const addressError = addressTouched && deliveryMethod === 'delivery' && address.trim().length < 5
+    const addressError = addressTouched && (deliveryMethod === 'delivery' || deliveryMethod === 'shipping') && address.trim().length < 5
         ? t('checkout_address_error', 'Ingresa una dirección válida (mínimo 5 caracteres)')
         : null;
 
     const isFormValid = useMemo(() => {
-        if (deliveryMethod === 'delivery' && address.trim().length < 5) return false;
+        if ((deliveryMethod === 'delivery' || deliveryMethod === 'shipping') && address.trim().length < 5) return false;
         if (!isPhoneValid) return false;
         if (deliveryMethod === 'donation' && !selectedDonationCenter) return false;
         if (cityError) return false;
@@ -168,7 +168,7 @@ export const Checkout: React.FC = () => {
         const platformFee = Math.round((subtotal * PLATFORM_COMMISSION_RATE) * 100) / 100;
 
         let deliveryFee = 0;
-        if (deliveryMethod === 'delivery') {
+        if (deliveryMethod === 'delivery' || deliveryMethod === 'shipping') {
             const hasFreeDelivery = user?.rescattoPass?.isActive && 
                                   user?.rescattoPass?.status === 'active' && 
                                   user?.rescattoPass?.benefits?.freeDelivery;
@@ -215,6 +215,12 @@ export const Checkout: React.FC = () => {
             baseImpact += 0.3;
         } else if (deliveryMethod === 'donation') {
             baseImpact += 0.2;
+        } else if (deliveryMethod === 'digital') {
+            baseImpact += 0.0; // zero physical impact for digital
+        } else if (deliveryMethod === 'inPerson') {
+            baseImpact += 0.4; // travel impact for in-person
+        } else if (deliveryMethod === 'shipping') {
+            baseImpact += 0.5; // courier shipping impact
         }
 
         return Number(baseImpact.toFixed(1));
@@ -282,7 +288,7 @@ export const Checkout: React.FC = () => {
             const validation = safeParseCheckoutForm({
                 address: address || undefined,
                 phone: phone,
-                deliveryMethod,
+                deliveryMethod: deliveryMethod as 'delivery' | 'pickup' | 'donation',
                 selectedDonationCenterId: selectedDonationCenter?.id
             });
 
@@ -296,7 +302,7 @@ export const Checkout: React.FC = () => {
                 return;
             }
 
-            if (deliveryMethod === 'delivery') {
+            if (deliveryMethod === 'delivery' || deliveryMethod === 'shipping') {
                 for (const [venueId] of venueGroups.entries()) {
                     const calc = deliveryCosts[venueId];
                     if (calc && !calc.possible) {
@@ -309,7 +315,7 @@ export const Checkout: React.FC = () => {
             orderJustPlacedRef.current = true;
             await processOrder({
                 paymentMethod,
-                deliveryMethod,
+                deliveryMethod: deliveryMethod as 'delivery' | 'pickup' | 'donation',
                 address,
                 phoneDigits: phone,
                 selectedDonationCenter,
@@ -430,6 +436,36 @@ export const Checkout: React.FC = () => {
                                     <Heart size={18} className={deliveryMethod === 'donation' ? 'fill-white' : ''} />
                                     <span className="text-xs sm:text-sm">{t('checkout_method_donation')}</span>
                                 </button>
+                                <button
+                                    onClick={() => setDeliveryMethod('shipping')}
+                                    className={`flex-1 py-3 px-2 rounded-xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95 ${deliveryMethod === 'shipping'
+                                        ? 'bg-emerald-600 text-white shadow-md'
+                                        : 'text-gray-500 hover:bg-gray-50'
+                                        }`}
+                                >
+                                    <Truck size={18} />
+                                    <span className="text-xs sm:text-sm">{t('checkout_method_shipping', 'Envío')}</span>
+                                </button>
+                                <button
+                                    onClick={() => setDeliveryMethod('digital')}
+                                    className={`flex-1 py-3 px-2 rounded-xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95 ${deliveryMethod === 'digital'
+                                        ? 'bg-emerald-600 text-white shadow-md'
+                                        : 'text-gray-500 hover:bg-gray-50'
+                                        }`}
+                                >
+                                    <Download size={18} />
+                                    <span className="text-xs sm:text-sm">{t('checkout_method_digital', 'Digital')}</span>
+                                </button>
+                                <button
+                                    onClick={() => setDeliveryMethod('inPerson')}
+                                    className={`flex-1 py-3 px-2 rounded-xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95 ${deliveryMethod === 'inPerson'
+                                        ? 'bg-emerald-600 text-white shadow-md'
+                                        : 'text-gray-500 hover:bg-gray-50'
+                                        }`}
+                                >
+                                    <Users size={18} />
+                                    <span className="text-xs sm:text-sm">{t('checkout_method_in_person', 'Presencial')}</span>
+                                </button>
                             </div>
 
                             {/* Eco-Impact Badge (Rappi Style) */}
@@ -453,12 +489,12 @@ export const Checkout: React.FC = () => {
 
                             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
                                 <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                                    {deliveryMethod === 'delivery' ? <MapPin className="text-emerald-600" size={20} /> : deliveryMethod === 'pickup' ? <Store className="text-emerald-600" size={20} /> : <Heart className="text-emerald-600" size={20} />}
-                                    {deliveryMethod === 'delivery' ? t('checkout_info_delivery') : deliveryMethod === 'pickup' ? t('checkout_info_pickup') : t('checkout_info_donation')}
+                                    {deliveryMethod === 'delivery' ? <MapPin className="text-emerald-600" size={20} /> : deliveryMethod === 'pickup' ? <Store className="text-emerald-600" size={20} /> : deliveryMethod === 'donation' ? <Heart className="text-emerald-600" size={20} /> : deliveryMethod === 'shipping' ? <Truck className="text-emerald-600" size={20} /> : deliveryMethod === 'digital' ? <Download className="text-emerald-600" size={20} /> : <Users className="text-emerald-600" size={20} />}
+                                    {deliveryMethod === 'delivery' ? t('checkout_info_delivery') : deliveryMethod === 'pickup' ? t('checkout_info_pickup') : deliveryMethod === 'donation' ? t('checkout_info_donation') : deliveryMethod === 'shipping' ? t('checkout_info_shipping', 'Envío') : deliveryMethod === 'digital' ? t('checkout_info_digital', 'Digital') : t('checkout_info_in_person', 'Presencial')}
                                 </h3>
 
                                 <div className="space-y-4">
-                                    {deliveryMethod === 'delivery' && (
+                                    {(deliveryMethod === 'delivery' || deliveryMethod === 'shipping') && (
                                         <div className="animate-fadeIn">
                                             <label className="block text-sm font-medium text-gray-700 mb-2">
                                                 {t('checkout_address_label')}
@@ -475,6 +511,39 @@ export const Checkout: React.FC = () => {
                                             {addressError && (
                                                 <p className="text-red-500 text-xs mt-1">{addressError}</p>
                                             )}
+                                        </div>
+                                    )}
+
+                                    {deliveryMethod === 'shipping' && (
+                                        <div className="animate-fadeIn">
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                {t('checkout_courier_notes', 'Notas para el mensajero (opcional)')}
+                                            </label>
+                                            <textarea
+                                                value={customerNote}
+                                                onChange={(e) => setCustomerNote(e.target.value)}
+                                                placeholder={t('checkout_courier_notes_placeholder', 'Ej: Tocar el timbre, dejar en portería...')}
+                                                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm transition-all h-20 resize-none bg-gray-50/50"
+                                                maxLength={200}
+                                            />
+                                        </div>
+                                    )}
+
+                                    {deliveryMethod === 'digital' && (
+                                        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 animate-fadeIn">
+                                            <p className="text-purple-800 text-sm flex items-center gap-2">
+                                                <Download size={16} />
+                                                {t('checkout_digital_download', 'Recibirás un enlace de descarga por email')}
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {deliveryMethod === 'inPerson' && (
+                                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 animate-fadeIn">
+                                            <p className="text-amber-800 text-sm flex items-center gap-2">
+                                                <Users size={16} />
+                                                {t('checkout_in_person_location', 'El servicio se realizará en la ubicación del vendedor')}
+                                            </p>
                                         </div>
                                     )}
 
@@ -534,10 +603,10 @@ export const Checkout: React.FC = () => {
                                         <Wallet className={paymentMethod === 'cash' ? 'text-emerald-600' : 'text-gray-400'} size={24} />
                                         <div>
                                             <p className="font-bold text-gray-900">
-                                                {deliveryMethod === 'delivery' ? t('checkout_payment_cash_delivery') : t('checkout_payment_cash_pickup')}
+                                                {(deliveryMethod === 'delivery' || deliveryMethod === 'shipping') ? t('checkout_payment_cash_delivery') : t('checkout_payment_cash_pickup')}
                                             </p>
                                             <p className="text-sm text-gray-500">
-                                                {deliveryMethod === 'delivery' ? t('checkout_payment_cash_desc_delivery') : t('checkout_payment_cash_desc_pickup')}
+                                                {(deliveryMethod === 'delivery' || deliveryMethod === 'shipping') ? t('checkout_payment_cash_desc_delivery') : t('checkout_payment_cash_desc_pickup')}
                                             </p>
                                         </div>
                                     </label>
@@ -627,7 +696,7 @@ export const Checkout: React.FC = () => {
                                     </div>
                                     <div className="flex justify-between text-gray-600">
                                         <span>{t('cart_delivery')} ({venueGroups.size} {venueGroups.size === 1 ? t('checkout_venue_one') : t('checkout_venue_many')})</span>
-                                        {deliveryMethod === 'delivery' ? (
+                                        {(deliveryMethod === 'delivery' || deliveryMethod === 'shipping') ? (
                                             <div className="text-right">
                                                 {user?.rescattoPass?.isActive && user?.rescattoPass?.benefits?.freeDelivery ? (
                                                     <div className="flex flex-col items-end">
@@ -643,6 +712,8 @@ export const Checkout: React.FC = () => {
                                                     <span>{formatCOP(Array.from(venueGroups.keys()).reduce((sum, vid) => sum + (calculateOrderTotals(vid, venueGroups.get(vid) || []).deliveryFee), 0))}</span>
                                                 )}
                                             </div>
+                                        ) : deliveryMethod === 'digital' || deliveryMethod === 'inPerson' ? (
+                                            <span className="text-emerald-600 font-semibold">{t('checkout_free')}</span>
                                         ) : (
                                             <span className="text-emerald-600 font-semibold">{deliveryMethod === 'pickup' ? t('checkout_free_pickup') : t('checkout_free_donation')}</span>
                                         )}
@@ -727,7 +798,7 @@ export const Checkout: React.FC = () => {
                                             <>
                                                 <Wallet size={24} />
                                                 <span>
-                                                    {deliveryMethod === 'delivery' ? t('checkout_btn_confirm') : deliveryMethod === 'pickup' ? t('checkout_btn_reserve') : t('checkout_btn_donate')}
+                                                    {deliveryMethod === 'delivery' ? t('checkout_btn_confirm') : deliveryMethod === 'pickup' ? t('checkout_btn_reserve') : deliveryMethod === 'donation' ? t('checkout_btn_donate') : deliveryMethod === 'shipping' ? t('checkout_btn_shipping', 'Confirmar Envío') : deliveryMethod === 'digital' ? t('checkout_btn_digital', 'Obtener Acceso') : t('checkout_btn_in_person', 'Confirmar Servicio')}
                                                 </span>
                                             </>
                                         )}
@@ -747,7 +818,7 @@ export const Checkout: React.FC = () => {
                                             orderJustPlacedRef.current = true;
                                             await processOrder({
                                                 paymentMethod: 'card',
-                                                deliveryMethod,
+                                                deliveryMethod: deliveryMethod as 'delivery' | 'pickup' | 'donation',
                                                 address,
                                                 phoneDigits: phone,
                                                 selectedDonationCenter,

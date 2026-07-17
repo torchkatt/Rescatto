@@ -1,11 +1,15 @@
 import { collection, query, where, getDocs, getDoc, doc, orderBy, limit, addDoc, updateDoc, setDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
-import { db } from './firebase';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from './firebase';
 import { logger } from '../utils/logger';
 import { isVenueOpen } from '../utils/venueAvailability';
 import { isProductAvailable } from '../utils/productAvailability';
-import { Product, Venue, Order, UserRole, Chat, Message } from '../types';
+import { Product, Venue, Order, UserRole, Chat, Message, Listing, Seller, Category, ListingType, SellerType, Transaction, Booking } from '../types';
 import type { ToolDefinition, VenueSearchResult, ProductSearchResult, OrderSearchResult } from './aiChatTypes';
 import { safetyCheck, sanitizeToolInput, validateProfileField, detectPromptInjection, isAdminRole, checkWriteRateLimit, handleSecurityIncident } from './aiChatSecurity';
+import { listingService } from './listingService';
+import { sellerService } from './sellerService';
+import { categoryService } from './categoryService';
 
 // ─── Knowledge Base for Rescatto Info ───
 
@@ -20,6 +24,8 @@ const RESCATTO_FAQ: Record<string, string> = {
   'puntos': 'Ganas puntos verdes (💎) por cada rescate. Úsalos para canjear descuentos en futuras compras. También tienes una racha (streak) que multiplica tus puntos si pides varios días seguidos.',
   'alergias': 'El Pack Sorpresa varía cada día. Si tienes alergias alimenticias graves, te recomendamos consultar directamente con el restaurante antes de comprar.',
   'rescatto pass': 'Rescatto Pass es nuestra suscripción premium que incluye envíos gratis, ofertas exclusivas y multiplicador de puntos bonus. Pregunta en tu perfil para activarlo.',
+  'marketplace': 'Rescatto Marketplace es la nueva sección de la plataforma donde puedes comprar y vender de todo: productos, servicios, comida y productos digitales. Conecta compradores con negocios y vendedores locales de forma fácil y segura.',
+  'vender': 'Para vender en Rescatto Marketplace: 1. Crea tu cuenta como vendedor desde la app 2. Configura tu perfil de negocio con fotos y descripción 3. Elige tus categorías 4. Publica tus productos o servicios con precio, fotos y descripción 5. ¡Empieza a recibir pedidos! 📦',
 };
 
 function findFaqAnswer(query: string): string | null {
@@ -143,7 +149,7 @@ export const CHAT_TOOLS: ToolDefinition[] = [
       parameters: {
         type: 'object',
         properties: {
-          path: { type: 'string', description: 'Ruta a navegar: /app (home), /app/explore (explorar), /app/orders (mis pedidos), /app/profile (perfil), /app/impact (impacto), /app/favorites (favoritos)' },
+          path: { type: 'string', description: 'Ruta a navegar: /app (home), /app/explore (explorar), /app/orders (mis pedidos), /app/transactions (mis transacciones marketplace), /app/profile (perfil), /app/impact (impacto), /app/favorites (favoritos), /app/seller/ID (detalle vendedor), /app/book/ID (reservar servicio), /seller-dashboard (panel vendedor)' },
         },
         required: ['path'],
       },
@@ -324,6 +330,198 @@ export const CHAT_TOOLS: ToolDefinition[] = [
           city: { type: 'string', description: 'Nueva ciudad (opcional)' },
           phone: { type: 'string', description: 'Nuevo teléfono (opcional)' },
         },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'searchListings',
+      description: 'Buscar listings del marketplace por query, categoría, tipo (producto/servicio/digital) y ciudad.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Término de búsqueda (nombre, descripción)' },
+          categoryId: { type: 'string', description: 'ID de categoría (opcional)' },
+          type: { type: 'string', enum: ['product', 'service', 'digital'], description: 'Tipo de listing (opcional)' },
+          city: { type: 'string', description: 'Ciudad para filtrar (opcional)' },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'searchSellers',
+      description: 'Buscar vendedores/negocios del marketplace por nombre, categoría y tipo.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Término de búsqueda (nombre del vendedor o negocio)' },
+          type: { type: 'string', enum: ['food', 'retail', 'service', 'individual'], description: 'Tipo de vendedor (opcional)' },
+          categoryId: { type: 'string', description: 'ID de categoría (opcional)' },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'filterByCategory',
+      description: 'Listar categorías disponibles del marketplace y sus subcategorías. Si no se especifica parentId, devuelve las categorías raíz.',
+      parameters: {
+        type: 'object',
+        properties: {
+          parentId: { type: 'string', description: 'ID de la categoría padre para ver sus subcategorías. Si no se envía, devuelve las categorías raíz.' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'getSellerDetail',
+      description: 'Obtener información detallada de un vendedor del marketplace incluyendo sus listings activos.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sellerId: { type: 'string', description: 'ID del vendedor' },
+        },
+        required: ['sellerId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'getMyTransactions',
+      description: 'Buscar transacciones del marketplace del usuario actual. Puede filtrar por estado.',
+      parameters: {
+        type: 'object',
+        properties: {
+          statusFilter: {
+            type: 'string',
+            enum: ['pending', 'confirmed', 'completed', 'cancelled'],
+            description: 'Filtro de estado (opcional)',
+          },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'getMyBookings',
+      description: 'Buscar reservas (bookings) del usuario como comprador. Puede filtrar por estado.',
+      parameters: {
+        type: 'object',
+        properties: {
+          status: {
+            type: 'string',
+            enum: ['confirmed', 'attended', 'cancelled'],
+            description: 'Filtro de estado (opcional)',
+          },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'createBooking',
+      description: 'Crear una reserva (booking) para un servicio del marketplace.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sellerId: { type: 'string', description: 'ID del vendedor' },
+          listingId: { type: 'string', description: 'ID del listing/servicio a reservar' },
+          startTime: { type: 'string', description: 'Fecha/hora de inicio (ISO 8601)' },
+          endTime: { type: 'string', description: 'Fecha/hora de fin (ISO 8601)' },
+          notes: { type: 'string', description: 'Notas adicionales (opcional)' },
+        },
+        required: ['sellerId', 'listingId', 'startTime', 'endTime'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'createTransaction',
+      description: 'Crear una transacción de compra en el marketplace.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sellerId: { type: 'string', description: 'ID del vendedor' },
+          listingId: { type: 'string', description: 'ID del listing a comprar' },
+          quantity: { type: 'number', description: 'Cantidad (default 1)' },
+          deliveryMethod: {
+            type: 'string',
+            enum: ['pickup', 'shipping', 'digital', 'inPerson'],
+            description: 'Método de entrega',
+          },
+          deliveryFee: { type: 'number', description: 'Costo de envío (opcional)' },
+        },
+        required: ['sellerId', 'listingId', 'deliveryMethod'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'createListing',
+      description: 'Crear un listing en el marketplace. Solo disponible para dueños de negocio (VENUE_OWNER) y administradores.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sellerId: { type: 'string', description: 'ID del vendedor/negocio' },
+          categoryId: { type: 'string', description: 'ID de la categoría' },
+          type: { type: 'string', enum: ['product', 'service', 'digital'], description: 'Tipo de listing' },
+          title: { type: 'string', description: 'Título del listing' },
+          description: { type: 'string', description: 'Descripción detallada' },
+          price: { type: 'number', description: 'Precio de venta' },
+          originalPrice: { type: 'number', description: 'Precio original (opcional, para mostrar descuento)' },
+          quantity: { type: 'number', description: 'Cantidad disponible (opcional)' },
+          attributes: { type: 'object', description: 'Atributos personalizados según categoría (opcional)' },
+          deliveryMethods: { type: 'array', items: { type: 'string' }, description: 'Métodos de entrega disponibles' },
+          images: { type: 'array', items: { type: 'string' }, description: 'URLs de imágenes (opcional)' },
+        },
+        required: ['sellerId', 'categoryId', 'type', 'title', 'description', 'price', 'deliveryMethods'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'cancelMyBooking',
+      description: 'Cancelar una reserva (booking) propia.',
+      parameters: {
+        type: 'object',
+        properties: {
+          bookingId: { type: 'string', description: 'ID del booking a cancelar' },
+          reason: { type: 'string', description: 'Motivo de cancelación (opcional)' },
+        },
+        required: ['bookingId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'getSellerAnalytics',
+      description: 'Obtener estadísticas de ventas de un seller. Solo el dueño del seller o un administrador puede consultarlas.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sellerId: { type: 'string', description: 'ID del seller' },
+          period: {
+            type: 'string',
+            enum: ['week', 'month', 'year'],
+            description: 'Período de análisis (opcional, por defecto month)',
+          },
+        },
+        required: ['sellerId'],
       },
     },
   },
@@ -1241,6 +1439,535 @@ async function executeGetVenueStats(userId: string, userRole: string, city?: str
   }
 }
 
+// ─── Tool: filterByCategory ───
+
+async function executeFilterByCategory(parentId?: string): Promise<string> {
+  try {
+    if (parentId) {
+      const subCategories = await categoryService.getSubCategories(parentId);
+      if (subCategories.length === 0) return JSON.stringify({ categories: [], message: 'Esta categoría no tiene subcategorías.' });
+      return JSON.stringify({
+        parentId,
+        categories: subCategories.map(c => ({
+          id: c.id,
+          name: c.name,
+          slug: c.slug,
+          icon: c.icon,
+          level: c.level,
+          listingAttributes: c.listingAttributes,
+          listingCount: c.stats?.listingCount || 0,
+        })),
+      });
+    }
+    // Root categories
+    const roots = await categoryService.getRootCategories();
+    if (roots.length === 0) return JSON.stringify({ categories: [], message: 'No hay categorías disponibles.' });
+    return JSON.stringify({
+      categories: roots.map(c => ({
+        id: c.id,
+        name: c.name,
+        slug: c.slug,
+        icon: c.icon,
+        level: c.level,
+        listingAttributes: c.listingAttributes,
+        listingCount: c.stats?.listingCount || 0,
+      })),
+      message: roots.length === 1
+        ? `Hay 1 categoría principal: ${roots[0].name}`
+        : `Hay ${roots.length} categorías principales: ${roots.map(r => r.name).join(', ')}`,
+    });
+  } catch (error) {
+    logger.error('aiChat: filterByCategory error', error);
+    return JSON.stringify({ error: 'Error al consultar categorías. Intenta de nuevo.' });
+  }
+}
+
+// ─── Tool: searchListings ───
+
+async function executeSearchListings(
+  searchTerm: string,
+  categoryId?: string,
+  type?: string,
+  city?: string,
+): Promise<string> {
+  try {
+    const safeTerm = sanitizeToolInput(searchTerm);
+    const listings = await listingService.searchListings(safeTerm, {
+      categoryId,
+      type: type as ListingType,
+      city,
+    });
+
+    if (listings.length === 0) return JSON.stringify({ listings: [], message: 'No encontré listings con esos criterios. Prueba con otros términos.' });
+
+    // Get seller names for context
+    const sellerIds = [...new Set(listings.map(l => l.sellerId))];
+    const sellerDocs = await Promise.all(sellerIds.map(async sid => {
+      const seller = await sellerService.getById(sid);
+      return { id: sid, name: seller?.name || 'Vendedor' };
+    }));
+    const sellerNames = new Map(sellerDocs.map(s => [s.id, s.name]));
+
+    return JSON.stringify({
+      count: listings.length,
+      listings: listings.slice(0, 15).map(l => ({
+        id: l.id,
+        title: l.title,
+        type: l.type,
+        price: l.price,
+        originalPrice: l.originalPrice,
+        discountPct: l.originalPrice ? Math.round(((l.originalPrice - l.price) / l.originalPrice) * 100) : 0,
+        quantity: l.quantity,
+        images: l.images?.slice(0, 1),
+        sellerId: l.sellerId,
+        sellerName: sellerNames.get(l.sellerId) || 'Vendedor',
+        categoryId: l.categoryId,
+        deliveryMethods: l.deliveryMethods,
+        isFeatured: l.isFeatured,
+        stats: l.stats,
+      })),
+    });
+  } catch (error) {
+    logger.error('aiChat: searchListings error', error);
+    return JSON.stringify({ error: 'Error al buscar listings. Intenta de nuevo.' });
+  }
+}
+
+// ─── Tool: searchSellers ───
+
+async function executeSearchSellers(
+  searchTerm: string,
+  type?: string,
+  categoryId?: string,
+): Promise<string> {
+  try {
+    const safeTerm = sanitizeToolInput(searchTerm);
+    let sellers = await sellerService.search(safeTerm);
+
+    // Client-side filter by type
+    if (type) {
+      sellers = sellers.filter(s => s.type === type);
+    }
+
+    // Client-side filter by category
+    if (categoryId) {
+      sellers = sellers.filter(s => s.categoryIds?.includes(categoryId));
+    }
+
+    if (sellers.length === 0) return JSON.stringify({ sellers: [], message: 'No encontré vendedores con esos criterios.' });
+
+    return JSON.stringify({
+      count: sellers.length,
+      sellers: sellers.slice(0, 15).map(s => ({
+        id: s.id,
+        name: s.name,
+        type: s.type,
+        city: s.location?.city,
+        address: s.location?.address,
+        rating: s.rating,
+        logo: s.logo,
+        coverImage: s.coverImage,
+        description: s.description?.slice(0, 150),
+        categoryIds: s.categoryIds,
+        stats: s.stats,
+        subscription: s.subscription,
+        isActive: s.isActive,
+      })),
+    });
+  } catch (error) {
+    logger.error('aiChat: searchSellers error', error);
+    return JSON.stringify({ error: 'Error al buscar vendedores. Intenta de nuevo.' });
+  }
+}
+
+// ─── Tool: getSellerDetail ───
+
+async function executeGetSellerDetail(sellerId: string): Promise<string> {
+  try {
+    const seller = await sellerService.getById(sellerId);
+    if (!seller) return JSON.stringify({ error: 'No encontré ese vendedor.' });
+
+    // Get seller's listings
+    const listings = await listingService.getListingsBySeller(sellerId);
+
+    return JSON.stringify({
+      seller: {
+        id: seller.id,
+        name: seller.name,
+        type: seller.type,
+        description: seller.description,
+        location: seller.location,
+        logo: seller.logo,
+        coverImage: seller.coverImage,
+        contact: seller.contact,
+        rating: seller.rating,
+        stats: seller.stats,
+        categoryIds: seller.categoryIds,
+        deliveryConfig: seller.deliveryConfig,
+        subscription: seller.subscription,
+        isActive: seller.isActive,
+        createdAt: seller.createdAt,
+      },
+      listings: listings.slice(0, 20).map(l => ({
+        id: l.id,
+        title: l.title,
+        type: l.type,
+        price: l.price,
+        originalPrice: l.originalPrice,
+        discountPct: l.originalPrice ? Math.round(((l.originalPrice - l.price) / l.originalPrice) * 100) : 0,
+        quantity: l.quantity,
+        images: l.images?.slice(0, 1),
+        categoryId: l.categoryId,
+        deliveryMethods: l.deliveryMethods,
+        isFeatured: l.isFeatured,
+        stats: l.stats,
+      })),
+      listingCount: listings.length,
+    });
+  } catch (error) {
+    logger.error('aiChat: getSellerDetail error', error);
+    return JSON.stringify({ error: 'Error al obtener información del vendedor.' });
+  }
+}
+
+// ─── Tool: getMyTransactions ───
+
+async function executeGetMyTransactions(userId: string, statusFilter?: string): Promise<string> {
+  try {
+    const transactionsRef = collection(db, 'transactions');
+    const constraints: any[] = [where('buyerId', '==', userId), orderBy('createdAt', 'desc'), limit(30)];
+    const q = query(transactionsRef, ...constraints);
+    const snapshot = await getDocs(q);
+    const transactions = snapshot.docs.map(d => ({ id: d.id, ...d.data() }) as Transaction);
+
+    let filtered = transactions;
+    if (statusFilter) {
+      filtered = transactions.filter(t => t.status === statusFilter);
+    }
+
+    if (filtered.length === 0) {
+      return JSON.stringify({ count: 0, transactions: [], message: 'No tienes transacciones con ese filtro.' });
+    }
+
+    return JSON.stringify({
+      count: filtered.length,
+      transactions: filtered.map(t => ({
+        id: t.id,
+        type: t.transactionType,
+        status: t.status,
+        totalAmount: t.totalAmount,
+        deliveryMethod: t.deliveryMethod,
+        createdAt: t.createdAt,
+        lineItemsCount: t.lineItems?.length || 0,
+      })),
+    });
+  } catch (error) {
+    logger.error('aiChat: getMyTransactions error', error);
+    return JSON.stringify({ error: 'Error al consultar tus transacciones.' });
+  }
+}
+
+// ─── Tool: getMyBookings ───
+
+async function executeGetMyBookings(userId: string, status?: string): Promise<string> {
+  try {
+    const bookingsRef = collection(db, 'bookings');
+    const q = query(bookingsRef, where('buyerId', '==', userId), orderBy('createdAt', 'desc'), limit(30));
+    const snapshot = await getDocs(q);
+    const bookings = snapshot.docs.map(d => ({ id: d.id, ...d.data() }) as Booking);
+
+    let filtered = bookings;
+    if (status) {
+      filtered = bookings.filter(b => b.status === status);
+    }
+
+    if (filtered.length === 0) {
+      return JSON.stringify({ count: 0, bookings: [], message: 'No tienes reservas con ese filtro.' });
+    }
+
+    return JSON.stringify({
+      count: filtered.length,
+      bookings: filtered.map(b => ({
+        id: b.id,
+        listingId: b.listingId,
+        startTime: b.startTime,
+        endTime: b.endTime,
+        status: b.status,
+      })),
+    });
+  } catch (error) {
+    logger.error('aiChat: getMyBookings error', error);
+    return JSON.stringify({ error: 'Error al consultar tus reservas.' });
+  }
+}
+
+// ─── Tool: createBooking ───
+
+async function executeCreateBooking(
+  userId: string,
+  sellerId: string,
+  listingId: string,
+  startTime: string,
+  endTime: string,
+  notes?: string,
+): Promise<string> {
+  try {
+    // L1: Sanitize free-text fields
+    const safeNotes = notes ? sanitizeToolInput(notes) : undefined;
+
+    const createBookingFn = httpsCallable(functions, 'createBooking');
+    const result = await createBookingFn({
+      sellerId,
+      listingId,
+      startTime,
+      endTime,
+      notes: safeNotes,
+    });
+
+    const data = result.data as any;
+    return JSON.stringify({
+      success: true,
+      bookingId: data.bookingId || data.id,
+      message: 'Reserva creada exitosamente ✅',
+    });
+  } catch (error: any) {
+    logger.error('aiChat: createBooking error', error);
+    return JSON.stringify({ error: error?.message || 'Error al crear la reserva.' });
+  }
+}
+
+// ─── Tool: createTransaction ───
+
+async function executeCreateTransaction(
+  userId: string,
+  args: { sellerId: string; listingId: string; quantity?: number; deliveryMethod: string; deliveryFee?: number },
+): Promise<string> {
+  try {
+    // Get listing details to populate lineItems and calculate total
+    const listing = await listingService.getListingById(args.listingId);
+    if (!listing) {
+      return JSON.stringify({ error: 'No encontré ese listing.' });
+    }
+
+    const quantity = args.quantity || 1;
+    const deliveryFee = args.deliveryFee || 0;
+    const lineTotal = listing.price * quantity;
+    const totalAmount = lineTotal + deliveryFee;
+
+    const createTransactionFn = httpsCallable(functions, 'createTransaction');
+    const result = await createTransactionFn({
+      sellerId: args.sellerId,
+      listingId: args.listingId,
+      quantity,
+      lineItems: [{
+        listingId: args.listingId,
+        quantity,
+        price: listing.price,
+        title: listing.title,
+      }],
+      deliveryMethod: args.deliveryMethod,
+      deliveryFee,
+      subtotal: lineTotal,
+      totalAmount,
+    });
+
+    const data = result.data as any;
+    return JSON.stringify({
+      success: true,
+      transactionId: data.transactionId || data.id,
+      totalAmount,
+      formattedTotal: `$${totalAmount.toLocaleString('es-CO')}`,
+      message: `Transacción creada por $${totalAmount.toLocaleString('es-CO')} ✅`,
+    });
+  } catch (error: any) {
+    logger.error('aiChat: createTransaction error', error);
+    return JSON.stringify({ error: error?.message || 'Error al crear la transacción.' });
+  }
+}
+
+// ─── Tool: createListing ───
+
+async function executeCreateListing(
+  userId: string,
+  userRole: string,
+  args: {
+    sellerId: string;
+    categoryId: string;
+    type: string;
+    title: string;
+    description: string;
+    price: number;
+    originalPrice?: number;
+    quantity?: number;
+    attributes?: Record<string, any>;
+    deliveryMethods: string[];
+    images?: string[];
+  },
+): Promise<string> {
+  try {
+    // SAFETY: Role gate — only VENUE_OWNER or admin
+    if (userRole !== 'VENUE_OWNER' && !isAdminRole(userRole)) {
+      return JSON.stringify({ error: 'Solo dueños de negocio y administradores pueden crear listings.' });
+    }
+
+    // SAFETY: Verify seller ownership
+    const seller = await sellerService.getById(args.sellerId);
+    if (!seller) {
+      return JSON.stringify({ error: 'No encontré ese vendedor.' });
+    }
+    if (seller.ownerId !== userId) {
+      return JSON.stringify({ error: 'No eres el dueño de este negocio.' });
+    }
+
+    // L1: Sanitize free-text fields
+    const safeTitle = sanitizeToolInput(args.title);
+    const safeDescription = sanitizeToolInput(args.description);
+
+    const listing = await listingService.createListing({
+      sellerId: args.sellerId,
+      categoryId: args.categoryId,
+      type: args.type as ListingType,
+      title: safeTitle,
+      description: safeDescription,
+      price: args.price,
+      originalPrice: args.originalPrice,
+      quantity: args.quantity,
+      attributes: args.attributes || {},
+      deliveryMethods: args.deliveryMethods as any,
+      images: args.images || [],
+      isActive: true,
+      isFeatured: false,
+      stats: { views: 0, sales: 0, rating: 0 },
+    });
+
+    return JSON.stringify({
+      success: true,
+      listingId: listing.id,
+      title: safeTitle,
+      message: `Listing "${safeTitle}" creado exitosamente ✅`,
+    });
+  } catch (error: any) {
+    logger.error('aiChat: createListing error', error);
+    return JSON.stringify({ error: error?.message || 'Error al crear el listing.' });
+  }
+}
+
+// ─── Tool: cancelMyBooking ───
+
+async function executeCancelMyBooking(userId: string, bookingId: string, reason?: string): Promise<string> {
+  try {
+    // Verify ownership: get booking, check buyerId === userId
+    const bookingRef = doc(db, 'bookings', bookingId);
+    const bookingSnap = await getDoc(bookingRef);
+    if (!bookingSnap.exists()) {
+      return JSON.stringify({ error: 'No encontré esa reserva.' });
+    }
+
+    const booking = { id: bookingSnap.id, ...bookingSnap.data() } as Booking;
+    if (booking.buyerId !== userId) {
+      return JSON.stringify({ error: 'Esta reserva no te pertenece.' });
+    }
+
+    // Cancel the associated transaction if any
+    if (booking.transactionId) {
+      try {
+        const cancelTxFn = httpsCallable(functions, 'cancelTransaction');
+        await cancelTxFn({ transactionId: booking.transactionId });
+      } catch (txError) {
+        logger.warn('aiChat: cancelMyBooking — failed to cancel associated transaction', txError);
+      }
+    }
+
+    // Update booking status directly
+    await updateDoc(bookingRef, {
+      status: 'cancelled',
+      cancelReason: reason || undefined,
+      updatedAt: new Date().toISOString(),
+    });
+
+    return JSON.stringify({
+      success: true,
+      bookingId,
+      message: 'Reserva cancelada exitosamente ✅',
+    });
+  } catch (error: any) {
+    logger.error('aiChat: cancelMyBooking error', error);
+    return JSON.stringify({ error: error?.message || 'Error al cancelar la reserva.' });
+  }
+}
+
+// ─── Tool: getSellerAnalytics ───
+
+async function executeGetSellerAnalytics(
+  userId: string,
+  userRole: string,
+  sellerId: string,
+  period: string = 'month',
+): Promise<string> {
+  try {
+    // SAFETY: Verify ownership or admin
+    const seller = await sellerService.getById(sellerId);
+    if (!seller) {
+      return JSON.stringify({ error: 'No encontré ese vendedor.' });
+    }
+    if (seller.ownerId !== userId && !isAdminRole(userRole)) {
+      return JSON.stringify({ error: 'Solo el dueño del negocio o un administrador puede ver estas estadísticas.' });
+    }
+
+    // Query transactions where sellerId === sellerId
+    const transactionsRef = collection(db, 'transactions');
+    const q = query(
+      transactionsRef,
+      where('sellerId', '==', sellerId),
+      orderBy('createdAt', 'desc'),
+      limit(200),
+    );
+    const snapshot = await getDocs(q);
+    const transactions = snapshot.docs.map(d => ({ id: d.id, ...d.data() }) as Transaction);
+
+    // Filter by period
+    const now = new Date();
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+
+    const filtered = transactions.filter(t => {
+      const d = new Date(t.createdAt);
+      switch (period) {
+        case 'week': return d >= startOfWeek;
+        case 'month': return d >= startOfMonth;
+        case 'year': return d >= startOfYear;
+        default: return true;
+      }
+    });
+
+    const totalRevenue = filtered.reduce((sum, t) => sum + (t.totalAmount || 0), 0);
+    const recentTransactions = filtered.slice(0, 10).map(t => ({
+      id: t.id,
+      type: t.transactionType,
+      totalAmount: t.totalAmount,
+      createdAt: t.createdAt,
+      status: t.status,
+    }));
+
+    return JSON.stringify({
+      sellerId,
+      sellerName: seller.name,
+      period,
+      totalRevenue,
+      formattedRevenue: `$${totalRevenue.toLocaleString('es-CO')}`,
+      totalTransactions: filtered.length,
+      activeListings: filtered.length, // uses filtered transactions as proxy
+      recentTransactions,
+    });
+  } catch (error: any) {
+    logger.error('aiChat: getSellerAnalytics error', error);
+    return JSON.stringify({ error: error?.message || 'Error al consultar estadísticas del seller.' });
+  }
+}
+
 // ─── Main Tool Dispatcher ───
 
 export async function executeToolCall(
@@ -1257,7 +1984,7 @@ export async function executeToolCall(
   }
 
   // ─── L1+L3: Rate limit for write operations ───
-  const writeTools = ['addToCart', 'removeFromCart', 'clearCart', 'sendMessageToVenue', 'sendMessageToDriver', 'toggleFavorite', 'updateProfile'];
+  const writeTools = ['addToCart', 'removeFromCart', 'clearCart', 'sendMessageToVenue', 'sendMessageToDriver', 'toggleFavorite', 'updateProfile', 'createBooking', 'createTransaction', 'createListing', 'cancelMyBooking'];
   if (writeTools.includes(name) && userId && !checkWriteRateLimit(userId)) {
     return JSON.stringify({ error: 'Demasiadas operaciones. Espera un momento antes de continuar.' });
   }
@@ -1336,6 +2063,46 @@ export async function executeToolCall(
     case 'getVenueStats':
       if (!userId) return JSON.stringify({ error: 'Debes iniciar sesión.' });
       return executeGetVenueStats(userId, userRole || 'CUSTOMER', args.city);
+
+    case 'searchListings':
+      return executeSearchListings(args.query, args.categoryId, args.type, args.city);
+
+    case 'searchSellers':
+      return executeSearchSellers(args.query, args.type, args.categoryId);
+
+    case 'filterByCategory':
+      return executeFilterByCategory(args.parentId);
+
+    case 'getSellerDetail':
+      return executeGetSellerDetail(args.sellerId);
+
+    case 'getMyTransactions':
+      if (!userId) return JSON.stringify({ error: 'Debes iniciar sesión.' });
+      return executeGetMyTransactions(userId, args.statusFilter);
+
+    case 'getMyBookings':
+      if (!userId) return JSON.stringify({ error: 'Debes iniciar sesión.' });
+      return executeGetMyBookings(userId, args.status);
+
+    case 'createBooking':
+      if (!userId) return JSON.stringify({ error: 'Debes iniciar sesión.' });
+      return executeCreateBooking(userId, args.sellerId, args.listingId, args.startTime, args.endTime, args.notes);
+
+    case 'createTransaction':
+      if (!userId) return JSON.stringify({ error: 'Debes iniciar sesión.' });
+      return executeCreateTransaction(userId, args as { sellerId: string; listingId: string; quantity?: number; deliveryMethod: string; deliveryFee?: number });
+
+    case 'createListing':
+      if (!userId) return JSON.stringify({ error: 'Debes iniciar sesión.' });
+      return executeCreateListing(userId, userRole || 'CUSTOMER', args as { sellerId: string; categoryId: string; type: string; title: string; description: string; price: number; originalPrice?: number; quantity?: number; attributes?: Record<string, any>; deliveryMethods: string[]; images?: string[]; });
+
+    case 'cancelMyBooking':
+      if (!userId) return JSON.stringify({ error: 'Debes iniciar sesión.' });
+      return executeCancelMyBooking(userId, args.bookingId, args.reason);
+
+    case 'getSellerAnalytics':
+      if (!userId) return JSON.stringify({ error: 'Debes iniciar sesión.' });
+      return executeGetSellerAnalytics(userId, userRole || 'CUSTOMER', args.sellerId, args.period);
 
     default:
       return JSON.stringify({ error: `Tool "${name}" no disponible.` });

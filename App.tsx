@@ -26,6 +26,9 @@ const SuperAdminDashboard = lazyLoad(() => import('./pages/admin/SuperAdminDashb
 const UsersManager = lazyLoad(() => import('./pages/admin/UsersManager'), 'UsersManager');
 const VenuesManager = lazyLoad(() => import('./pages/admin/VenuesManager'), 'VenuesManager');
 const CategoriesManager = lazyLoad(() => import('./pages/admin/CategoriesManager'), 'CategoriesManager');
+const SellersManager = lazyLoad(() => import('./pages/admin/SellersManager'), 'SellersManager');
+const ListingsManager = lazyLoad(() => import('./pages/admin/ListingsManager'), 'ListingsManager');
+const TransactionsManager = lazyLoad(() => import('./pages/admin/TransactionsManager'), 'TransactionsManager');
 const AuditLogs = lazyLoad(() => import('./pages/admin/AuditLogs'), 'AuditLogs');
 const FinanceManager = lazyLoad(() => import('./pages/admin/FinanceManager'), 'FinanceManager');
 const CommissionsManager = lazyLoad(() => import('./pages/admin/CommissionsManager'), 'CommissionsManager');
@@ -56,6 +59,7 @@ import LegalDoc from './pages/LegalDoc';
 // Pages - Business
 const Login = lazyLoad(() => import('./pages/Login'));
 const Dashboard = lazyLoad(() => import('./pages/Dashboard'));
+const SellerDashboard = lazyLoad(() => import('./pages/business/SellerDashboard'));
 const Orders = lazyLoad(() => import('./pages/Orders'));
 const Settings = lazyLoad(() => import('./pages/Settings'));
 const TechDocs = lazyLoad(() => import('./pages/TechDocs'));
@@ -82,9 +86,12 @@ const VenueDetail = lazyLoad(() => import('./pages/customer/VenueDetail'));
 const ProductDetail = lazyLoad(() => import('./pages/customer/ProductDetail'));
 const Checkout = lazyLoad(() => import('./pages/customer/Checkout'));
 const MyOrders = lazyLoad(() => import('./pages/customer/MyOrders'));
+const MyTransactions = lazyLoad(() => import('./pages/customer/MyTransactions'));
+const SellerDetail = lazyLoad(() => import('./pages/customer/SellerDetail'));
 const Favorites = lazyLoad(() => import('./pages/customer/Favorites'));
 const Impact = lazyLoad(() => import('./pages/customer/Impact'));
 const UnifiedProfile = lazyLoad(() => import('./pages/profile/UnifiedProfile'), 'UnifiedProfile');
+const BookingPage = lazyLoad(() => import('./pages/customer/BookingPage'));
 const Explore = lazyLoad(() => import('./pages/customer/Explore'));
 
 import { ReloadPrompt } from './components/ReloadPrompt';
@@ -330,6 +337,9 @@ const AppRoutes: React.FC = () => {
                     <Route path="drivers" element={<DriversManager />} />
                     <Route path="support" element={<SupportManager />} />
                     <Route path="fraud" element={<FraudDashboard />} />
+                    <Route path="sellers" element={<SellersManager />} />
+                    <Route path="listings" element={<ListingsManager />} />
+                    <Route path="transactions" element={<TransactionsManager />} />
                     <Route path="help" element={<HelpCenter />} />
                     <Route path="lab" element={<AdminLab />} />
                 </Route>
@@ -391,6 +401,11 @@ const AppRoutes: React.FC = () => {
                 <Route path="/flash-deals" element={
                     <ProtectedRoute allowedRoles={[UserRole.VENUE_OWNER, UserRole.SUPER_ADMIN]}>
                         <Layout><FlashDealsManager /></Layout>
+                    </ProtectedRoute>
+                } />
+                <Route path="/seller-dashboard" element={
+                    <ProtectedRoute allowedRoles={[UserRole.VENUE_OWNER, UserRole.SUPER_ADMIN]}>
+                        <Layout><SellerDashboard /></Layout>
                     </ProtectedRoute>
                 } />
                 <Route path="/dashboard/profile" element={
@@ -505,6 +520,9 @@ const AppRoutes: React.FC = () => {
                     <Route path="explore" element={
                         <Explore />
                     } />
+                    <Route path="seller/:sellerId" element={
+                        <SellerDetail />
+                    } />
                     <Route path="product/:productId" element={
                         <ProductDetail />
                     } />
@@ -517,6 +535,19 @@ const AppRoutes: React.FC = () => {
                     <Route path="orders" element={
                         <ProtectedRoute allowedRoles={[UserRole.CUSTOMER]} disallowGuests={true} guestRedirect="/app/profile">
                             <MyOrders />
+                        </ProtectedRoute>
+                    } />
+                    <Route path="transactions" element={
+                        <ProtectedRoute allowedRoles={[UserRole.CUSTOMER]} disallowGuests={true} guestRedirect="/app/profile">
+                            <MyTransactions />
+                        </ProtectedRoute>
+                    } />
+                    <Route path="seller/:sellerId" element={
+                        <SellerDetail />
+                    } />
+                    <Route path="book/:listingId" element={
+                        <ProtectedRoute allowedRoles={[UserRole.CUSTOMER]} disallowGuests={true} guestRedirect="/app/profile">
+                            <BookingPage />
                         </ProtectedRoute>
                     } />
                     <Route path="profile" element={

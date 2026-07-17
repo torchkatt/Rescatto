@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { MapPin, Search, ArrowLeft, RefreshCw, Filter } from 'lucide-react';
+import { MapPin, Search, ArrowLeft, RefreshCw, Filter, ChevronDown } from 'lucide-react';
 import { useLocation } from '../../context/LocationContext';
 import { venueService } from '../../services/venueService';
 import { productService } from '../../services/productService';
-import { Venue, Product, ProductType } from '../../types';
+import { categoryService } from '../../services/categoryService';
+import { Venue, Product, ProductType, Category, ListingType } from '../../types';
 import { PackCard } from '../../components/customer/home/PackCard';
 import { isVenueOpen } from '../../utils/venueAvailability';
 import { calculateDistance } from '../../services/locationService';
@@ -45,6 +46,21 @@ const computeExploreScore = (
   return 0.55 * discountScore + 0.45 * expiryScore;
 };
 
+// ── Category helpers ──────────────────────────────────────────────────────────
+
+const CATEGORY_ICONS: Record<string, string> = {
+  comida: '🍽️',
+  tecnologia: '💻',
+  servicios: '🛠️',
+  digital: '📦',
+};
+
+const LISTING_TYPE_ICONS: Record<string, string> = {
+  product: '📦',
+  service: '🛠️',
+  digital: '💾',
+};
+
 const Explore: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -58,6 +74,10 @@ const Explore: React.FC = () => {
   const [productsLastDoc, setProductsLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
   const [hasMoreProducts, setHasMoreProducts] = useState(true);
 
+  // Category tree state
+  const [categoryTree, setCategoryTree] = useState<(Category & { children?: Category[] })[]>([]);
+  const [showSubcategories, setShowSubcategories] = useState(false);
+
   const activeSort = searchParams.get('sort') || 'recommended';
   const activeType = searchParams.get('type') || 'all';
   const activeDiscount = Number(searchParams.get('minDiscount') || 0);
@@ -65,19 +85,29 @@ const Explore: React.FC = () => {
   const activeExpires = Number(searchParams.get('expiresIn') || 0);
   const activeCategory = searchParams.get('category') || 'all';
   const activeIsRescue = searchParams.get('isRescue') === 'true';
+  const activeMarketCategory = searchParams.get('marketCategory') || 'all';
+  const activeListingType = searchParams.get('listingType') || 'all';
+
+  // Selected category object (for showing subcategories)
+  const selectedCategory = useMemo(() => {
+    if (activeMarketCategory === 'all') return null;
+    return categoryTree.find(c => c.id === activeMarketCategory) || null;
+  }, [activeMarketCategory, categoryTree]);
 
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true);
-        const [allVenues, productsPage] = await Promise.all([
+        const [allVenues, productsPage, categories] = await Promise.all([
           venueService.getAllVenues(),
-          productService.getAllActiveProductsPage(undefined, null, PAGE_SIZE)
+          productService.getAllActiveProductsPage(undefined, null, PAGE_SIZE),
+          categoryService.getCategoryTree(),
         ]);
         setVenues(allVenues);
         setProducts(productsPage.products);
         setProductsLastDoc(productsPage.lastDoc);
         setHasMoreProducts(productsPage.hasMore);
+        setCategoryTree(categories);
       } catch (err) {
         logger.error('Explore: Load failed', err);
       } finally {
@@ -115,6 +145,12 @@ const Explore: React.FC = () => {
 
       if (activeType !== 'all' && p.type !== activeType) return false;
 
+      // ListingType filter (solo aplica a productos que son tipo PRODUCT en el marketplace)
+      if (activeListingType !== 'all') {
+        // Legacy products son todos ListingType.PRODUCT por defecto
+        if (activeListingType !== ListingType.PRODUCT) return false;
+      }
+
       const price = p.dynamicDiscountedPrice || p.discountedPrice;
       const discountPct = (p.originalPrice - price) / p.originalPrice;
       if (activeDiscount > 0 && discountPct < activeDiscount / 100) return false;
@@ -132,6 +168,17 @@ const Explore: React.FC = () => {
       if (activeIsRescue && p.isRescue === false) return false;
       
       if (activeCategory !== 'all' && p.category !== activeCategory) return false;
+
+      // Marketplace category filter: match by category name or slug
+      if (activeMarketCategory !== 'all') {
+        const cat = categoryTree.find(c => c.id === activeMarketCategory);
+        if (cat) {
+          const catNames = [cat.name.toLowerCase(), cat.slug.toLowerCase()];
+          if (!catNames.some(n => (p.category || '').toLowerCase().includes(n))) {
+            return false;
+          }
+        }
+      }
 
       return true;
     });
@@ -163,7 +210,7 @@ const Explore: React.FC = () => {
     }
 
     return result;
-  }, [products, venuesById, activeSort, activeType, activeDiscount, activeDistance, activeExpires, activeIsRescue, activeCategory, latitude, longitude]);
+  }, [products, venuesById, activeSort, activeType, activeDiscount, activeDistance, activeExpires, activeIsRescue, activeCategory, activeMarketCategory, activeListingType, categoryTree, latitude, longitude]);
 
   const setFilter = (key: string, value: string | number) => {
     const newParams = new URLSearchParams(searchParams);
@@ -177,7 +224,10 @@ const Explore: React.FC = () => {
 
   const clearFilters = () => {
     setSearchParams(new URLSearchParams());
+    setShowSubcategories(false);
   };
+
+  const hasActiveFilters = activeType !== 'all' || activeDiscount > 0 || activeDistance > 0 || activeExpires > 0 || activeCategory !== 'all' || activeIsRescue || activeMarketCategory !== 'all' || activeListingType !== 'all';
 
   if (loading) {
     return (
@@ -219,17 +269,95 @@ const Explore: React.FC = () => {
             <h1 className="text-2xl font-black text-gray-900 tracking-tight">{t('explore_title')}</h1>
           </div>
 
-          {/* Type Chips */}
+          {/* Category Pills (Marketplace) */}
+          {categoryTree.length > 0 && (
+            <div className="mb-5">
+              <div className="flex gap-2 overflow-x-auto no-scrollbar pb-0.5">
+                <button
+                  onClick={() => { setFilter('marketCategory', 'all'); setShowSubcategories(false); }}
+                  className={`whitespace-nowrap px-4 py-2 rounded-full text-xs font-bold transition-all flex-shrink-0 border ${
+                    activeMarketCategory === 'all'
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                      : 'bg-white border-gray-200 text-gray-600 hover:border-emerald-300 hover:text-emerald-700'
+                  }`}
+                >
+                  📋 {t('cat_all')}
+                </button>
+                {categoryTree.map(cat => (
+                  <button
+                    key={cat.id}
+                    onClick={() => {
+                      setFilter('marketCategory', cat.id);
+                      setShowSubcategories(true);
+                    }}
+                    className={`whitespace-nowrap px-4 py-2 rounded-full text-xs font-bold transition-all flex-shrink-0 border ${
+                      activeMarketCategory === cat.id
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                        : 'bg-white border-gray-200 text-gray-600 hover:border-emerald-300 hover:text-emerald-700'
+                    }`}
+                  >
+                    {cat.icon || CATEGORY_ICONS[cat.slug] || '📌'} {cat.name}
+                  </button>
+                ))}
+              </div>
+
+              {/* Subcategories row */}
+              {selectedCategory && selectedCategory.children && selectedCategory.children.length > 0 && showSubcategories && (
+                <div className="flex gap-2 overflow-x-auto no-scrollbar mt-2 pl-2">
+                  {selectedCategory.children.map(sub => (
+                    <button
+                      key={sub.id}
+                      onClick={() => setFilter('marketCategory', sub.id)}
+                      className={`whitespace-nowrap px-3 py-1.5 rounded-full text-[11px] font-bold transition-all flex-shrink-0 border ${
+                        activeMarketCategory === sub.id
+                          ? 'bg-emerald-500 text-white border-emerald-500'
+                          : 'bg-gray-50 border-gray-100 text-gray-500 hover:border-emerald-200 hover:text-emerald-600'
+                      }`}
+                    >
+                      {sub.icon || '📌'} {sub.name}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setShowSubcategories(false)}
+                    className="whitespace-nowrap px-3 py-1.5 rounded-full text-[11px] font-bold flex-shrink-0 text-gray-400 hover:text-gray-600"
+                  >
+                    <ChevronDown size={12} className="inline mr-1" />
+                    {t('collapse', 'Colapsar')}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Type Chips: ProductType + ListingType */}
           <FilterChip.Group
             value={activeType}
             onChange={(val) => setFilter('type', val as string)}
-            className="mb-6"
+            className="mb-3"
           >
             <FilterChip value="all">{t('type_all')}</FilterChip>
             <FilterChip value={ProductType.SURPRISE_PACK} icon="🎁">{t('type_packs')}</FilterChip>
             <FilterChip value={ProductType.SPECIFIC_DISH} icon="🍽">{t('type_dishes')}</FilterChip>
             <FilterChip value="isRescue" isSelected={activeIsRescue} onClick={() => setFilter('isRescue', activeIsRescue ? 'false' : 'true')} icon="🍃">
               Rescate
+            </FilterChip>
+          </FilterChip.Group>
+
+          {/* Listing Type Chips (Marketplace) */}
+          <FilterChip.Group
+            value={activeListingType}
+            onChange={(val) => setFilter('listingType', val as string)}
+            className="mb-6"
+          >
+            <FilterChip value="all">{t('cat_all')}</FilterChip>
+            <FilterChip value={ListingType.PRODUCT} icon={LISTING_TYPE_ICONS.product}>
+              {t('seller_type_product', 'Productos')}
+            </FilterChip>
+            <FilterChip value={ListingType.SERVICE} icon={LISTING_TYPE_ICONS.service}>
+              {t('seller_type_service', 'Servicios')}
+            </FilterChip>
+            <FilterChip value={ListingType.DIGITAL} icon={LISTING_TYPE_ICONS.digital}>
+              {t('seller_type_digital', 'Digital')}
             </FilterChip>
           </FilterChip.Group>
 
@@ -320,7 +448,7 @@ const Explore: React.FC = () => {
             size="sm"
             className="mb-0"
           />
-          {(activeType !== 'all' || activeDiscount > 0 || activeDistance > 0 || activeExpires > 0 || activeCategory !== 'all' || activeIsRescue) && (
+          {hasActiveFilters && (
             <button
               onClick={clearFilters}
               className="flex items-center gap-1.5 text-xs font-black text-emerald-600 hover:text-emerald-700 transition-colors"

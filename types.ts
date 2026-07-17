@@ -104,6 +104,7 @@ export interface User {
   redemptions?: ActiveRedemption[];
   // [NUEVO] Favoritos
   favoriteVenueIds?: string[];
+  favoriteSellerIds?: string[];   // [MARKETPLACE] Favoritos generalizados
   // [NUEVO] Rescatto Pass (Suscripciones Capa 13)
   rescattoPass?: RescattoPass;
 }
@@ -507,13 +508,47 @@ export enum Permission {
   VIEW_DELIVERIES = 'VIEW_DELIVERIES',
   ACCEPT_DELIVERIES = 'ACCEPT_DELIVERIES',
   MANAGE_DELIVERIES = 'MANAGE_DELIVERIES',
+
+  // ─── Marketplace (Fase 0+) ───────────────────────────────────────────
+  // Sellers
+  VIEW_SELLERS = 'VIEW_SELLERS',
+  CREATE_SELLERS = 'CREATE_SELLERS',
+  EDIT_SELLERS = 'EDIT_SELLERS',
+  DELETE_SELLERS = 'DELETE_SELLERS',
+  EDIT_OWN_SELLER = 'EDIT_OWN_SELLER',
+
+  // Listings
+  CREATE_LISTINGS = 'CREATE_LISTINGS',
+  EDIT_LISTINGS = 'EDIT_LISTINGS',
+  DELETE_LISTINGS = 'DELETE_LISTINGS',
+
+  // Transactions
+  VIEW_TRANSACTIONS = 'VIEW_TRANSACTIONS',
+  MANAGE_TRANSACTIONS = 'MANAGE_TRANSACTIONS',
+
+  // Bookings
+  VIEW_BOOKINGS = 'VIEW_BOOKINGS',
+  MANAGE_BOOKINGS = 'MANAGE_BOOKINGS',
 }
 
 // Mapeo de permisos para cada rol
 export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   [UserRole.SUPER_ADMIN]: [
     // Super Admin tiene TODOS los permisos
-    ...Object.values(Permission)
+    ...Object.values(Permission),
+    // Permisos marketplace (ya incluidos en Object.values, explícitos para claridad)
+    Permission.VIEW_SELLERS,
+    Permission.CREATE_SELLERS,
+    Permission.EDIT_SELLERS,
+    Permission.DELETE_SELLERS,
+    Permission.EDIT_OWN_SELLER,
+    Permission.CREATE_LISTINGS,
+    Permission.EDIT_LISTINGS,
+    Permission.DELETE_LISTINGS,
+    Permission.VIEW_TRANSACTIONS,
+    Permission.MANAGE_TRANSACTIONS,
+    Permission.VIEW_BOOKINGS,
+    Permission.MANAGE_BOOKINGS,
   ],
 
   [UserRole.ADMIN]: [
@@ -535,6 +570,18 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     Permission.VIEW_ORDERS,
     Permission.VIEW_ANALYTICS,
     Permission.EXPORT_REPORTS,
+
+    // ─── Marketplace ───
+    Permission.VIEW_SELLERS,
+    Permission.CREATE_SELLERS,
+    Permission.EDIT_SELLERS,
+    Permission.EDIT_OWN_SELLER,
+    Permission.CREATE_LISTINGS,
+    Permission.EDIT_LISTINGS,
+    Permission.VIEW_TRANSACTIONS,
+    Permission.MANAGE_TRANSACTIONS,
+    Permission.VIEW_BOOKINGS,
+    Permission.MANAGE_BOOKINGS,
   ],
 
   [UserRole.VENUE_OWNER]: [
@@ -558,6 +605,16 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
 
     // Configuración
     Permission.MANAGE_SETTINGS,
+
+    // ─── Marketplace (su propio seller) ───
+    Permission.EDIT_OWN_SELLER,
+    Permission.CREATE_LISTINGS,
+    Permission.EDIT_LISTINGS,
+    Permission.DELETE_LISTINGS,
+    Permission.VIEW_TRANSACTIONS,
+    Permission.MANAGE_TRANSACTIONS,
+    Permission.VIEW_BOOKINGS,
+    Permission.MANAGE_BOOKINGS,
   ],
 
   [UserRole.KITCHEN_STAFF]: [
@@ -628,4 +685,220 @@ export interface DriverLocation {
   speed?: number;
   lastUpdate: string;
   isActive: boolean;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🏗️ RESCATTO MARKETPLACE — Fase 0: Tipos generalizados (conviven con legacy)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── Enums generalizados ──────────────────────────────────────────────────────
+
+export enum ListingType {
+  PRODUCT = 'product',
+  SERVICE = 'service',
+  DIGITAL = 'digital',
+}
+
+export enum SellerType {
+  FOOD = 'food',
+  RETAIL = 'retail',
+  SERVICE = 'service',
+  INDIVIDUAL = 'individual',
+}
+
+export enum TransactionType {
+  PURCHASE = 'purchase',
+  BOOKING = 'booking',
+  DIGITAL = 'digital',
+}
+
+export enum DeliveryMethod {
+  PICKUP = 'pickup',
+  SHIPPING = 'shipping',
+  DIGITAL = 'digital',
+  IN_PERSON = 'inPerson',
+}
+
+export enum TransactionStatus {
+  PENDING = 'PENDING',
+  CONFIRMED = 'CONFIRMED',
+  IN_PROGRESS = 'IN_PROGRESS',
+  READY = 'READY',
+  IN_TRANSIT = 'IN_TRANSIT',
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED',
+  DISPUTED = 'DISPUTED',
+}
+
+export enum BookingStatus {
+  CONFIRMED = 'confirmed',
+  CANCELLED = 'cancelled',
+  ATTENDED = 'attended',
+  NO_SHOW = 'no_show',
+}
+
+// ─── Category Attribute Definition ────────────────────────────────────────────
+
+export interface CategoryAttribute {
+  name: string;          // "brand", "duration", "condition"
+  type: 'text' | 'number' | 'select' | 'boolean';
+  required: boolean;
+  options?: string[];    // for 'select' type
+  label: string;         // "Marca", "Duración"
+}
+
+// ─── Category ─────────────────────────────────────────────────────────────────
+
+export interface Category {
+  id: string;
+  name: string;                    // "Tecnología"
+  slug: string;                    // "tecnologia"
+  parentId?: string;               // null = root category
+  icon?: string;                   // emoji or icon name
+  listingAttributes: CategoryAttribute[];
+  level: number;                   // 0 = root, 1 = sub, 2 = sub-sub
+  order: number;
+  isActive: boolean;
+  stats: {
+    listingCount: number;
+    transactionCount: number;
+  };
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// ─── Seller (antes Venue) ─────────────────────────────────────────────────────
+
+export interface Seller {
+  id: string;
+  name: string;
+  type: SellerType;
+  categoryIds: string[];           // categorías en las que vende
+  ownerId: string;                 // userId del dueño
+  location: {
+    lat: number;
+    lng: number;
+    address: string;
+    city: string;
+    neighborhood?: string;
+  };
+  logo?: string;
+  coverImage?: string;
+  description?: string;
+  contact: {
+    phone?: string;
+    email?: string;
+  };
+  rating: number;
+  stats: {
+    totalTransactions: number;
+    totalRevenue: number;
+  };
+  deliveryConfig?: {
+    isEnabled: boolean;
+    baseFee: number;
+    pricePerKm: number;
+    maxDistance: number;
+    freeDeliveryThreshold?: number;
+    minOrderAmount?: number;
+  };
+  isActive: boolean;
+  subscription: 'free' | 'seller_pass_monthly' | 'seller_pass_annual';
+  createdAt: string;
+  updatedAt?: string;
+}
+
+// ─── Listing (antes Product) ──────────────────────────────────────────────────
+
+export interface Listing {
+  id: string;
+  sellerId: string;
+  categoryId: string;
+  type: ListingType;
+  title: string;
+  description: string;
+  images: string[];
+  price: number;
+  originalPrice?: number;
+  quantity?: number;               // undefined = ilimitado (servicios)
+  attributes: Record<string, any>; // dinámico por categoría
+  isActive: boolean;
+  isFeatured: boolean;
+  deliveryMethods: DeliveryMethod[];
+  stats: {
+    views: number;
+    sales: number;
+    rating: number;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── Transaction (antes Order) ────────────────────────────────────────────────
+
+export interface TransactionLineItem {
+  listingId: string;
+  quantity: number;
+  price: number;
+  title: string;
+}
+
+export interface TransactionPayment {
+  method: 'wompi';
+  id: string;
+  status: 'pending' | 'approved' | 'declined' | 'refunded';
+}
+
+export interface Transaction {
+  id: string;
+  buyerId: string;
+  sellerId: string;
+  transactionType: TransactionType;
+  status: TransactionStatus;
+  lineItems: TransactionLineItem[];
+  subtotal: number;
+  deliveryFee?: number;
+  totalAmount: number;
+  commission: number;          // lo que gana Rescatto
+  sellerEarnings: number;      // lo que recibe el vendedor
+  payment: TransactionPayment;
+  deliveryMethod: DeliveryMethod;
+  // shipping
+  shippingAddress?: string;
+  courierId?: string;
+  trackingNumber?: string;
+  // pickup
+  pickupWindow?: { start: string; end: string };
+  // digital
+  downloadUrl?: string;
+  buyerNotes?: string;
+  sellerNotes?: string;
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+}
+
+// ─── Booking (nuevo) ──────────────────────────────────────────────────────────
+
+export interface Booking {
+  id: string;
+  transactionId: string;
+  sellerId: string;
+  buyerId: string;
+  listingId: string;
+  startTime: string;
+  endTime: string;
+  status: BookingStatus;
+  notes?: string;
+  createdAt: string;
+}
+
+// ─── Payment Settings (Seller) ─────────────────────────────────────────────────
+
+export interface SellerPaymentInfo {
+  bankName: string;
+  accountType: string;
+  accountNumber: string;
+  accountHolder: string;
+  documentId: string;
 }

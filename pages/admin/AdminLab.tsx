@@ -38,6 +38,7 @@ import { useToast } from '../../context/ToastContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import { Button } from '../../components/customer/common/Button';
 import { logger } from '../../utils/logger';
+import { MarketplaceInit } from '../../components/admin/MarketplaceInit';
 
 // --- CONFIGURACIÓN DE SIEMBRA ---
 const CITIES = ['Bucaramanga', 'Bogotá', 'Medellín'];
@@ -440,6 +441,11 @@ const AdminLab: React.FC = () => {
                             </p>
                         </div>
                     </div>
+                </div>
+
+                {/* ─── Marketplace Init ─── */}
+                <div className="bg-neutral-950 rounded-2xl p-6 border border-neutral-800">
+                    <MarketplaceInit />
                 </div>
             </div>
         </div>

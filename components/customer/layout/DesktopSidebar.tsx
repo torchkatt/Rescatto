@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Compass, Heart, ShoppingBag, Leaf, User, LogOut } from 'lucide-react';
+import { Home, Compass, Heart, ShoppingBag, Leaf, User, LogOut, Store } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
@@ -21,6 +21,7 @@ export const DesktopSidebar: React.FC<{ onOpenImpact: () => void }> = ({ onOpenI
   const menuItems = [
     { icon: Home, label: t('nav_home'), path: '/app' },
     { icon: Compass, label: t('nav_explore'), path: '/app/explore' },
+    { icon: Store, label: 'Marketplace', path: '/app/explore?view=marketplace' },
     { icon: Heart, label: t('nav_favorites'), path: '/app/favorites' },
     { icon: ShoppingBag, label: t('nav_orders'), path: '/app/orders' },
     { icon: Leaf, label: t('nav_impact'), path: '/app/impact', isAction: true },

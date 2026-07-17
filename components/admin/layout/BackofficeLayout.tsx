@@ -23,7 +23,10 @@ import {
   ShoppingBag,
   HelpCircle,
   Package,
-  Beaker
+  Beaker,
+  Tags,
+  ReceiptText,
+  LayoutGrid
 } from 'lucide-react';
 
 const BackofficeLayout: React.FC = () => {
@@ -57,6 +60,9 @@ const BackofficeLayout: React.FC = () => {
     { to: '/backoffice/venues', icon: Store, label: 'Restaurantes' },
     { to: '/backoffice/products', icon: ShoppingBag, label: 'Productos' },
     { to: '/backoffice/orders', icon: Package, label: 'Pedidos' },
+    { to: '/backoffice/sellers', icon: Store, label: 'Vendedores' },
+    { to: '/backoffice/listings', icon: Tags, label: 'Listings' },
+    { to: '/backoffice/transactions', icon: ReceiptText, label: 'Transacciones' },
     { to: '/backoffice/finance', icon: DollarSign, label: 'Finanzas' },
     { to: '/backoffice/commissions', icon: Landmark, label: 'Comisiones' },
     { to: '/backoffice/subscriptions', icon: BadgeCheck, label: 'Suscripciones' },
