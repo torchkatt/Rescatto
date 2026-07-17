@@ -141,7 +141,7 @@ export const AIChat: React.FC<AIChatProps> = ({ className = '' }) => {
     // Check usage limits
     const limitCheck = await checkAndIncrementMessage(user.id, user);
     if (!limitCheck.allowed) {
-      showErrorToast(limitCheck.error || 'Has alcanzado el límite de mensajes de hoy.');
+      showErrorToast(limitCheck.error || (t('chat_ai_limit_reached') || 'Has alcanzado el límite de mensajes de hoy.'));
       return;
     }
 
@@ -290,7 +290,7 @@ export const AIChat: React.FC<AIChatProps> = ({ className = '' }) => {
               <button
                 onClick={() => setShowStorageMenu(!showStorageMenu)}
                 className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 hover:text-emerald-600 transition-colors"
-                title={storageMode === 'cloud' ? 'Guardado en la nube' : 'Guardado localmente'}
+                title={storageMode === 'cloud' ? (t('chat_ai_storage_saved_cloud') || 'Guardado en la nube') : (t('chat_ai_storage_saved_local') || 'Guardado localmente')}
               >
                 {storageMode === 'cloud' ? <Cloud size={12} /> : <HardDrive size={12} />}
                 {storageMode === 'cloud' ? t('chat_ai_storage_cloud') || 'Nube' : t('chat_ai_storage_local') || 'Local'}
@@ -307,12 +307,12 @@ export const AIChat: React.FC<AIChatProps> = ({ className = '' }) => {
                       setStorageMode(newMode);
                       if (migrated.length > 0) setMessages(migrated);
                       setShowStorageMenu(false);
-                      showToast('success', `Conversaciones ahora en ${newMode === 'cloud' ? 'la nube ☁️' : 'el dispositivo 💻'}`);
+                      showToast('success', newMode === 'cloud' ? (t('chat_ai_migrated_cloud') || 'Conversaciones ahora en la nube ☁️') : (t('chat_ai_migrated_local') || 'Conversaciones ahora en el dispositivo 💻'));
                     }}
                     className="flex items-center gap-1.5 text-[10px] font-bold text-gray-600 hover:text-emerald-600 px-2 py-1.5 rounded-lg hover:bg-emerald-50 transition-all whitespace-nowrap"
                   >
                     <HardDrive size={12} />
-                    Migrar a {storageMode === 'cloud' ? 'Local' : 'Nube'}
+                    {(t('chat_ai_storage_migrate_to') || 'Migrar a')} {storageMode === 'cloud' ? (t('chat_ai_storage_local') || 'Local') : (t('chat_ai_storage_cloud') || 'Nube')}
                   </button>
                   <div className="w-px h-4 bg-gray-200" />
                   <button
@@ -321,19 +321,19 @@ export const AIChat: React.FC<AIChatProps> = ({ className = '' }) => {
                       setMessages([]);
                       await saveConversation(user.id, storageMode, []);
                       setShowStorageMenu(false);
-                      showToast('success', '🧹 Conversación borrada');
+                      showToast('success', `🧹 ${t('chat_ai_cleared') || 'Conversación borrada'}`);
                     }}
                     className="flex items-center gap-1.5 text-[10px] font-bold text-red-400 hover:text-red-600 px-2 py-1.5 rounded-lg hover:bg-red-50 transition-all"
                   >
                     <Trash2 size={12} />
-                    Borrar
+                    {t('chat_ai_delete') || 'Borrar'}
                   </button>
                 </div>
               )}
 
               <span className="text-[10px] text-gray-300">·</span>
               <span className="text-[10px] text-gray-400">
-                {messages.length} mensaje{messages.length !== 1 ? 's' : ''}
+                {messages.length} {t('chat_ai_messages_count', { count: messages.length }) || `mensaje${messages.length !== 1 ? 's' : ''}`}
               </span>
             </div>
 

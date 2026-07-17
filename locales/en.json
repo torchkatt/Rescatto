@@ -603,10 +603,11 @@
   "chat_ai_cleared": "Conversation cleared",
   "chat_ai_delete": "Delete",
   "chat_ai_messages_count": "{{count}} messages",
-  "chat_ai_limit_reached": "You have reached today's message limit.",
+  "chat_ai_limit_reached": "Daily message limit reached.",
   "chat_ai_migrated_cloud": "Conversations now in the cloud ☁️",
   "chat_ai_migrated_local": "Conversations now on device 💻",
   "chat_ai_type_message": "Type your question...",
   "chat_ai_send": "Send",
-  "chat_ai_listening": "Listening..."
+  "chat_ai_listening": "Listening...",
+  "chat_ai_storage_migrate_to": "Migrate to"
 }

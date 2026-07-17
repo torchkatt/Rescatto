@@ -608,5 +608,6 @@
   "chat_ai_migrated_local": "Conversaciones ahora en el dispositivo 💻",
   "chat_ai_type_message": "Escribe tu pregunta...",
   "chat_ai_send": "Enviar",
-  "chat_ai_listening": "Escuchando..."
+  "chat_ai_listening": "Escuchando...",
+  "chat_ai_storage_migrate_to": "Migrar a"
 }
