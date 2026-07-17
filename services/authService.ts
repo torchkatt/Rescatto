@@ -9,6 +9,8 @@ import {
   OAuthProvider,
   EmailAuthProvider,
   linkWithCredential,
+  linkWithPopup,
+  unlink,
   User as FirebaseUser,
   getAuth,
   signOut,
@@ -313,5 +315,69 @@ export const authService = {
 
   resetPassword: async (email: string): Promise<void> => {
     await sendPasswordResetEmail(auth, email);
+  },
+
+  // ─── Account Linking (cross-device memory sync) ───
+
+  /**
+   * Link a Google account to the current user.
+   * After linking, both login methods share the same UID → same memories.
+   */
+  linkGoogle: async (): Promise<string[]> => {
+    const user = auth.currentUser;
+    if (!user) throw new Error('No autenticado');
+    const provider = new GoogleAuthProvider();
+    const result = await linkWithPopup(user, provider);
+    return result.user.providerData.map(p => p.providerId);
+  },
+
+  /**
+   * Link an Apple account to the current user.
+   */
+  linkApple: async (): Promise<string[]> => {
+    const user = auth.currentUser;
+    if (!user) throw new Error('No autenticado');
+    const provider = new OAuthProvider('apple.com');
+    const result = await linkWithPopup(user, provider);
+    return result.user.providerData.map(p => p.providerId);
+  },
+
+  /**
+   * Link email/password to the current user.
+   * Useful for users who signed up with Google/Apple and want to add email login.
+   */
+  linkEmail: async (email: string, password: string): Promise<string[]> => {
+    const user = auth.currentUser;
+    if (!user) throw new Error('No autenticado');
+    const credential = EmailAuthProvider.credential(email, password);
+    const result = await linkWithCredential(user, credential);
+    return result.user.providerData.map(p => p.providerId);
+  },
+
+  /**
+   * Unlink a provider from the current user.
+   * Provider IDs: 'google.com', 'apple.com', 'password', 'facebook.com'
+   */
+  unlinkProvider: async (providerId: string): Promise<string[]> => {
+    const user = auth.currentUser;
+    if (!user) throw new Error('No autenticado');
+
+    // Cannot unlink the last provider
+    if (user.providerData.length <= 1) {
+      throw new Error('No puedes desvincular el único método de inicio de sesión.');
+    }
+
+    await unlink(user, providerId);
+    return auth.currentUser!.providerData.map(p => p.providerId);
+  },
+
+  /**
+   * Get current linked provider IDs for the active user.
+   * Returns: ['password', 'google.com', 'apple.com', 'facebook.com']
+   */
+  getLinkedProviders: (): string[] => {
+    const user = auth.currentUser;
+    if (!user) return [];
+    return user.providerData.map(p => p.providerId);
   },
 };

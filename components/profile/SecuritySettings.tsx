@@ -1,11 +1,19 @@
-import React, { useState } from 'react';
-import { Lock, LogOut } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Lock, LogOut, Link2, Unlink, Mail, Chrome, Apple, Check } from 'lucide-react';
 import { Button } from '../customer/common/Button';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { authService } from '../../services/authService';
 import { logger } from '../../utils/logger';
 import { useTranslation } from 'react-i18next';
+
+// Provider display names and icons
+const PROVIDERS: Record<string, { name: string; icon: React.ReactNode; color: string }> = {
+  'password':    { name: 'Correo / Contraseña', icon: <Mail size={18} />, color: 'bg-amber-100 text-amber-600' },
+  'google.com':  { name: 'Google',              icon: <Chrome size={18} />, color: 'bg-blue-100 text-blue-600' },
+  'apple.com':   { name: 'Apple',               icon: <Apple size={18} />, color: 'bg-gray-900 text-white' },
+  'facebook.com':{ name: 'Facebook',            icon: <Check size={18} />, color: 'bg-indigo-100 text-indigo-600' },
+};
 
 export const SecuritySettings: React.FC = () => {
     const { t } = useTranslation();
@@ -17,6 +25,18 @@ export const SecuritySettings: React.FC = () => {
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [loading, setLoading] = useState(false);
+
+    // Account Linking State
+    const [linkedProviders, setLinkedProviders] = useState<string[]>([]);
+    const [linkingLoading, setLinkingLoading] = useState<string | null>(null);
+    const [showLinkEmail, setShowLinkEmail] = useState(false);
+    const [linkEmail, setLinkEmail] = useState('');
+    const [linkPassword, setLinkPassword] = useState('');
+
+    // Load current linked providers
+    useEffect(() => {
+        setLinkedProviders(authService.getLinkedProviders());
+    }, []);
 
     const handleChangePassword = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -58,6 +78,79 @@ export const SecuritySettings: React.FC = () => {
             setLoading(false);
         }
     };
+
+    // ─── Account Linking Handlers ───
+
+    const handleLinkGoogle = async () => {
+        setLinkingLoading('google.com');
+        try {
+            const providers = await authService.linkGoogle();
+            setLinkedProviders(providers);
+            showToast('success', '✅ Cuenta de Google vinculada. Ahora ambos métodos de inicio comparten la misma información.');
+        } catch (error: any) {
+            if (error.code === 'auth/credential-already-in-use') {
+                showToast('error', 'Esta cuenta de Google ya está vinculada a otro usuario.');
+            } else if (error.code === 'auth/popup-closed-by-user') {
+                // User closed popup — not an error
+            } else {
+                showToast('error', error.message || 'Error al vincular Google');
+            }
+        } finally {
+            setLinkingLoading(null);
+        }
+    };
+
+    const handleLinkApple = async () => {
+        setLinkingLoading('apple.com');
+        try {
+            const providers = await authService.linkApple();
+            setLinkedProviders(providers);
+            showToast('success', '✅ Cuenta de Apple vinculada.');
+        } catch (error: any) {
+            if (error.code !== 'auth/popup-closed-by-user') {
+                showToast('error', error.message || 'Error al vincular Apple');
+            }
+        } finally {
+            setLinkingLoading(null);
+        }
+    };
+
+    const handleLinkEmail = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!linkEmail || !linkPassword) return;
+        setLinkingLoading('password');
+        try {
+            const providers = await authService.linkEmail(linkEmail, linkPassword);
+            setLinkedProviders(providers);
+            setShowLinkEmail(false);
+            setLinkEmail('');
+            setLinkPassword('');
+            showToast('success', '✅ Correo vinculado. Ahora puedes iniciar sesión con email además de tu método actual.');
+        } catch (error: any) {
+            if (error.code === 'auth/email-already-in-use') {
+                showToast('error', 'Este correo ya está registrado. Usa una cuenta diferente.');
+            } else {
+                showToast('error', error.message || 'Error al vincular correo');
+            }
+        } finally {
+            setLinkingLoading(null);
+        }
+    };
+
+    const handleUnlink = async (providerId: string) => {
+        setLinkingLoading(providerId);
+        try {
+            const providers = await authService.unlinkProvider(providerId);
+            setLinkedProviders(providers);
+            showToast('success', `Método de inicio desvinculado.`);
+        } catch (error: any) {
+            showToast('error', error.message || 'Error al desvincular');
+        } finally {
+            setLinkingLoading(null);
+        }
+    };
+
+    const availableToLink = ['google.com', 'apple.com', 'password'].filter(p => !linkedProviders.includes(p));
 
     return (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8">
@@ -114,6 +207,136 @@ export const SecuritySettings: React.FC = () => {
                         </Button>
                     </div>
                 </form>
+
+                {/* ─── Account Linking ─── */}
+                <div className="mt-8 pt-6 border-t border-gray-100">
+                    <h3 className="text-sm font-bold text-gray-900 mb-1 flex items-center gap-2">
+                        <Link2 size={16} className="text-emerald-600" />
+                        Métodos de inicio de sesión vinculados
+                    </h3>
+                    <p className="text-xs text-gray-500 mb-4">
+                        Vincula varios métodos para acceder desde cualquier dispositivo con la misma cuenta.
+                        Tus datos, pedidos y preferencias se sincronizan automáticamente.
+                    </p>
+
+                    {/* Current providers */}
+                    <div className="space-y-2 mb-4">
+                        {linkedProviders.map(pid => {
+                            const info = PROVIDERS[pid] || { name: pid, icon: <Link2 size={18} />, color: 'bg-gray-100 text-gray-600' };
+                            return (
+                                <div key={pid} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${info.color}`}>
+                                            {info.icon}
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-bold text-gray-900">{info.name}</p>
+                                            <p className="text-[10px] text-gray-400 font-medium">Vinculado ✓</p>
+                                        </div>
+                                    </div>
+                                    {linkedProviders.length > 1 && (
+                                        <button
+                                            onClick={() => handleUnlink(pid)}
+                                            disabled={linkingLoading === pid}
+                                            className="text-xs font-bold text-red-500 hover:text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-all disabled:opacity-30"
+                                        >
+                                            {linkingLoading === pid ? '...' : 'Desvincular'}
+                                        </button>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Available to link */}
+                    {availableToLink.length > 0 && (
+                        <div className="space-y-2">
+                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Agregar método</p>
+
+                            {availableToLink.includes('google.com') && (
+                                <button
+                                    onClick={handleLinkGoogle}
+                                    disabled={linkingLoading === 'google.com'}
+                                    className="w-full flex items-center gap-3 px-4 py-3 border border-gray-200 rounded-xl hover:border-blue-200 hover:bg-blue-50/50 transition-all active:scale-[0.99] disabled:opacity-30"
+                                >
+                                    <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600">
+                                        <Chrome size={18} />
+                                    </div>
+                                    <span className="text-sm font-bold text-gray-700 flex-1 text-left">
+                                        {linkingLoading === 'google.com' ? 'Vinculando...' : 'Vincular Google'}
+                                    </span>
+                                </button>
+                            )}
+
+                            {availableToLink.includes('apple.com') && (
+                                <button
+                                    onClick={handleLinkApple}
+                                    disabled={linkingLoading === 'apple.com'}
+                                    className="w-full flex items-center gap-3 px-4 py-3 border border-gray-200 rounded-xl hover:border-gray-300 hover:bg-gray-50 transition-all active:scale-[0.99] disabled:opacity-30"
+                                >
+                                    <div className="w-9 h-9 rounded-lg bg-gray-900 flex items-center justify-center text-white">
+                                        <Apple size={18} />
+                                    </div>
+                                    <span className="text-sm font-bold text-gray-700 flex-1 text-left">
+                                        {linkingLoading === 'apple.com' ? 'Vinculando...' : 'Vincular Apple'}
+                                    </span>
+                                </button>
+                            )}
+
+                            {availableToLink.includes('password') && !showLinkEmail && (
+                                <button
+                                    onClick={() => setShowLinkEmail(true)}
+                                    className="w-full flex items-center gap-3 px-4 py-3 border border-gray-200 rounded-xl hover:border-amber-200 hover:bg-amber-50/50 transition-all active:scale-[0.99]"
+                                >
+                                    <div className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center text-amber-600">
+                                        <Mail size={18} />
+                                    </div>
+                                    <span className="text-sm font-bold text-gray-700 flex-1 text-left">
+                                        Vincular Correo y Contraseña
+                                    </span>
+                                </button>
+                            )}
+
+                            {showLinkEmail && (
+                                <form onSubmit={handleLinkEmail} className="p-4 bg-amber-50 rounded-xl border border-amber-100 space-y-3">
+                                    <input
+                                        type="email"
+                                        value={linkEmail}
+                                        onChange={e => setLinkEmail(e.target.value)}
+                                        placeholder="tu@correo.com"
+                                        className="w-full px-4 py-2.5 bg-white border border-amber-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-amber-300"
+                                        required
+                                    />
+                                    <input
+                                        type="password"
+                                        value={linkPassword}
+                                        onChange={e => setLinkPassword(e.target.value)}
+                                        placeholder="Contraseña (mín. 6 caracteres)"
+                                        className="w-full px-4 py-2.5 bg-white border border-amber-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-amber-300"
+                                        minLength={6}
+                                        required
+                                    />
+                                    <div className="flex gap-2">
+                                        <button
+                                            type="submit"
+                                            disabled={linkingLoading === 'password'}
+                                            className="flex-1 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold py-2.5 rounded-xl transition-all active:scale-95 disabled:opacity-30"
+                                        >
+                                            {linkingLoading === 'password' ? 'Vinculando...' : 'Vincular'}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => { setShowLinkEmail(false); setLinkEmail(''); setLinkPassword(''); }}
+                                            className="px-4 text-sm font-bold text-gray-500 hover:text-gray-700"
+                                        >
+                                            Cancelar
+                                        </button>
+                                    </div>
+                                </form>
+                            )}
+                        </div>
+                    )}
+                </div>
 
                 <div className="mt-8 pt-6 border-t border-gray-100">
                     <h3 className="text-sm font-bold text-gray-900 mb-2">{t('prof_active_sessions') || 'Sesiones Activas'}</h3>
