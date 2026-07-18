@@ -6,12 +6,10 @@ Este archivo sirve como el **punto de entrada conceptual y técnico** para que m
 
 ## 🌟 ¿Qué es Rescatto y para qué sirve?
 
-**Rescatto** es una plataforma y aplicación web progresiva (PWA) de impacto ambiental y social diseñada para combatir el desperdicio de alimentos en Colombia (**"Alta cocina, cero desperdicio"**).
+**Rescatto** es una plataforma y aplicación web progresiva (PWA) de marketplace generalizado. Originalmente diseñada para combatir el desperdicio de alimentos en Colombia (**"Alta cocina, cero desperdicio"**), evolucionó a un motor de marketplace completo que soporta 4 tipos de transacciones: productos físicos, servicios, digitales y comida.
 
 ### Propósito y Funcionamiento General
-Conecta a **Establecimientos de Alimentos** (hoteles, restaurantes, panaderías, supermercados, cafeterías) que tienen excedentes de comida fresca y de alta calidad, con **Consumidores Finales** dispuestos a comprarlos a un precio reducido (generalmente con descuentos del 40% al 70%).
-
-La plataforma cierra el ciclo de entrega mediante un **Módulo de Repartidores Autónomos** que gestionan la logística de última milla, todo coordinado e inspeccionado a través de un **SuperAdmin Backoffice** central.
+Conecta **Vendedores** (restaurantes, tiendas, profesionales independientes, marcas digitales) que ofrecen productos/servicios, con **Compradores** dispuestos a adquirirlos. La plataforma maneja catálogo, carrito, pagos, logística de entrega, bookings de servicios y un asistente IA con function calling.
 
 ---
 
@@ -21,10 +19,11 @@ La aplicación es un monolito frontend SPA/PWA que implementa un sistema de cont
 
 | Rol | Módulo / Prefijo de Ruta | Funciones Principales |
 |---|---|---|
-| `CUSTOMER` | `/app` | Explorar locales, comprar productos, gestionar carrito expirable, ver huella verde, referir amigos. |
-| `VENUE_OWNER` / `KITCHEN_STAFF` | `/dashboard`, `/order-management` | Gestionar inventario de excedentes, visualizar pedidos en tiempo real (KDS), programar Flash Deals. |
-| `DRIVER` | `/driver` | Visualizar ofertas de entrega a domicilio, aceptar pedidos, chatear con clientes/locales, ver ganancias. |
-| `ADMIN` / `SUPER_ADMIN` | `/backoffice` | Gestionar usuarios, sedes, categorías, resolver disputas, auditar fraudes, sembrar ecosistemas de prueba. |
+| `CUSTOMER` | `/app` | Explorar marketplace, comprar productos/servicios/digital, gestionar carrito, ver transacciones, agenda bookings, chat IA. |
+| `VENUE_OWNER` | `/dashboard`, `/seller-dashboard` | Gestionar seller, listings, ver analytics, pedidos, flash deals. |
+| `KITCHEN_STAFF` | `/dashboard`, `/order-management` | Ver pedidos en tiempo real (KDS). |
+| `DRIVER` | `/driver` | Ver ofertas de entrega, aceptar pedidos, chatear. |
+| `ADMIN` / `SUPER_ADMIN` | `/backoffice` | Gestionar usuarios, sellers, listings, transacciones, bookings, finanzas, auditoría, inicializar marketplace. |
 
 ---
 
@@ -41,13 +40,12 @@ El proyecto está estructurado con tecnologías modernas y desacopladas:
 * **Backend Serverless (Firebase):**
   * **Autenticación:** Firebase Auth con Custom Claims para roles de usuario.
   * **Base de Datos:** Cloud Firestore (base de datos NoSQL documental de tiempo real).
-  * **Backend Lógico:** Firebase Cloud Functions Gen2 (Node.js) con 17 funciones serverless estructuradas en `functions/src/services/`.
+  * **Backend Lógico:** Firebase Cloud Functions Gen2 (Node.js) con 4 funciones marketplace.
   * **Notificaciones:** Firebase Cloud Messaging para alertas Push.
   * **Storage:** Firebase Cloud Storage para imágenes de productos y comprobantes de pago.
 * **Integraciones y APIs:**
   * **Pasarela de Pago:** Wompi (soporte para tarjetas de crédito, débito y PSE con webhooks securizados con firmas HMAC-SHA256).
   * **Geolocalización:** Google Maps API (autocompletado de direcciones, mapas y cálculo de distancias por coordenadas GPS).
-  * **Ruteador de IA:** Enrutador inteligente local (`scripts/ai-router.ts`) para optimizar costos de API (DeepSeek).
 
 ---
 
@@ -77,54 +75,82 @@ Rescatto/
 
 ## 📊 Modelo de Datos (Firestore Schema)
 
-Firestore es NoSQL, pero sigue un esquema lógico estricto definido en `functions/src/schemas/index.js` y `services/initializeFirestore.ts`. A continuación se detallan las colecciones principales:
+Firestore es NoSQL, pero sigue un esquema lógico estricto definido en `types.ts`. A continuación se detallan las colecciones principales:
+
+### Colecciones Legacy (Food Rescue)
 
 ### 1. `users` (Usuarios)
-* `uid` (string): Identificador único del usuario (Firebase Auth UID).
+* `id` (string): Firebase Auth UID.
 * `email` (string): Correo electrónico.
-* `role` (string): Uno de `CUSTOMER`, `VENUE_OWNER`, `DRIVER`, `SUPER_ADMIN`, etc.
-* `name` (string): Nombre completo.
-* `phone` (string): Teléfono en formato E.164.
-* `referralCode` (string): Código único para invitar a otros usuarios.
-* `referredBy` (string): UID del usuario que lo invitó (opcional).
-* `greenPoints` (number): Puntos de gamificación acumulados.
-* `savedCO2` (number): Kilogramos de CO₂ evitados por rescatar comida.
+* `role` (string): `CUSTOMER`, `VENUE_OWNER`, `DRIVER`, `SUPER_ADMIN`, etc.
+* `fullName` (string): Nombre completo.
+* `phone` (string): Teléfono.
+* `favoriteVenueIds` / `favoriteSellerIds` (string[]): Favoritos.
+* `impact` (object): CO₂ saved, money saved, points, level, streak.
+* `rescattoPass` (object): Suscripción premium.
 
-### 2. `venues` (Sedes / Locales)
-* `id` (string): Identificador único de la sede.
+### 2. `venues` (Sedes / Locales — legacy)
+* `id` (string): ID de la sede.
 * `name` (string): Nombre del restaurante/establecimiento.
-* `ownerId` (string): UID del usuario con rol `VENUE_OWNER`.
-* `address` (string): Dirección física.
-* `coordinates` (geopoint): Coordenadas GPS `{ latitude, longitude }`.
-* `isActive` (boolean): Flag de habilitación.
-* `openTime` / `closeTime` (string): Horarios de operación (formato HH:MM).
+* `ownerId` (string): UID del dueño.
+* `latitude` / `longitude` (number): Coordenadas GPS.
+* `city` (string): Ciudad.
+* `deliveryConfig` (object): Config de domicilio.
 
-### 3. `products` (Productos / Excedentes)
+### 3. `products` (Productos / Excedentes — legacy)
 * `id` (string): ID del producto.
-* `venueId` (string): ID de la sede a la que pertenece.
-* `name` (string): Nombre del alimento.
-* `originalPrice` (number): Precio regular en tienda.
-* `salePrice` (number): Precio de rescate con descuento inicial.
-* `currentPrice` (number): Precio calculado dinámicamente en tiempo real.
-* `stock` (number): Cantidades disponibles.
-* `expiryTime` (timestamp): Hora límite en que el producto puede ser comprado.
-* `isFlashDeal` (boolean): Flag de oferta relámpago.
+* `venueId` (string): ID de la sede.
+* `name` (string): Nombre.
+* `type` (enum): `SURPRISE_PACK` | `SPECIFIC_DISH`.
+* `originalPrice` / `discountedPrice` (number): Precios.
+* `quantity` (number): Stock.
+* `availableUntil` (string): Fecha de expiración.
+* `isDynamicPricing` (boolean): Precio dinámico activo.
 
-### 4. `orders` (Pedidos)
-* `id` (string): ID único del pedido.
-* `customerId` (string): UID del comprador.
-* `venueId` (string): ID del local.
-* `driverId` (string): UID del repartidor asignado (opcional).
-* `status` (string): `PENDING_PAYMENT`, `PREPARING`, `READY_FOR_PICKUP`, `IN_TRANSIT`, `DELIVERED`, `CANCELLED`, `DISPUTED`.
-* `items` (array): Lista de productos comprados.
-* `total` (number): Monto total pagado.
-* `paymentMethod` (string): `WOMPI` o `CASH`.
-* `paymentReference` (string): Referencia de transacción de Wompi.
+### 4. `orders` (Pedidos — legacy)
+* `id` (string): ID del pedido.
+* `customerId` / `venueId` / `driverId` (string): Participantes.
+* `status` (enum): `PENDING` → `ACCEPTED` → `READY` → `COMPLETED` + driver flow.
+* `products` (array): Items del pedido.
+* `totalAmount` (number): Total pagado.
+* `deliveryMethod`: `delivery` | `pickup`.
 
-### 5. `chats` (Mensajería de pedidos y soporte)
-* `id` (string): Mismo ID del pedido.
-* `participants` (array): Lista de UIDs con acceso al chat (ej: customer, driver, venue_owner).
-* `messages` (subcolección): Colección de documentos de mensaje (`text`, `senderId`, `timestamp`, `type`).
+### Colecciones Marketplace (nuevas)
+
+### 5. `categories` (Categorías)
+* Árbol jerárquico via `parentId`.
+* `name`, `slug`, `icon`, `level`, `order`.
+* `listingAttributes`: Atributos dinámicos por categoría (ej: brand, condition, duration).
+* Roots: Comida, Tecnología, Servicios, Digital (19 subcategorías).
+
+### 6. `sellers` (Vendedores)
+* `name`, `type`: `food` | `retail` | `service` | `individual`.
+* `ownerId`: Dueño del seller.
+* `location`: `{ lat, lng, address, city }`.
+* `categoryIds`: Categorías donde vende.
+* `deliveryConfig`: Config de envíos.
+* `subscription`: `free` | `seller_pass_monthly` | `seller_pass_annual`.
+
+### 7. `listings` (Listados)
+* `sellerId`, `categoryId`.
+* `type`: `product` | `service` | `digital`.
+* `title`, `description`, `images`, `price`, `quantity`.
+* `attributes`: Record<string, any> (dinámico por categoría).
+* `deliveryMethods`: `pickup` | `shipping` | `digital` | `inPerson`.
+* `searchKeywords`: Para búsqueda prefix-based.
+
+### 8. `transactions` (Transacciones)
+* `buyerId`, `sellerId`.
+* `transactionType`: `purchase` | `booking` | `digital`.
+* `status`: `PENDING` → `CONFIRMED` → `COMPLETED` | `CANCELLED`.
+* `lineItems`: Array con listingId, quantity, price, title.
+* `deliveryMethod`, `totalAmount`, `commission`, `sellerEarnings`.
+* `payment`: `{ method, id, status }`.
+
+### 9. `bookings` (Reservas de servicios)
+* `transactionId`, `sellerId`, `buyerId`, `listingId`.
+* `startTime`, `endTime`: ISO timestamps.
+* `status`: `confirmed` | `cancelled` | `attended` | `no_show`.
 
 ---
 
