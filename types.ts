@@ -380,6 +380,7 @@ export interface Rating {
   // Contexto
   venueId?: string;        // Si se califica una sede/pedido
   driverId?: string;       // Si se califica un conductor
+  sellerId?: string;       // Si se califica un vendedor marketplace
 }
 
 // ----------------------
@@ -902,3 +903,44 @@ export interface SellerPaymentInfo {
   accountHolder: string;
   documentId: string;
 }
+
+// ─── Seller Pass (Planes de suscripción para sellers) ──────────────────────────
+
+export interface SellerPassPlan {
+  id: 'seller_pass_monthly' | 'seller_pass_annual';
+  name: string;
+  price: number;
+  features: string[];
+  period: 'monthly' | 'annual';
+  commissionRate: number; // 0.05 = 5%
+}
+
+export const SELLER_PASS_PLANS: SellerPassPlan[] = [
+  {
+    id: 'seller_pass_monthly',
+    name: 'Seller Pass Mensual',
+    price: 49900,
+    features: [
+      '5% comisión en ventas',
+      'Listings destacados',
+      'Analytics avanzados',
+      'Soporte prioritario',
+    ],
+    period: 'monthly',
+    commissionRate: 0.05,
+  },
+  {
+    id: 'seller_pass_annual',
+    name: 'Seller Pass Anual',
+    price: 499900,
+    features: [
+      '5% comisión en ventas',
+      'Listings destacados',
+      'Analytics avanzados',
+      'Soporte prioritario',
+      'Badge verificado',
+    ],
+    period: 'annual',
+    commissionRate: 0.05,
+  },
+];

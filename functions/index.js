@@ -123,6 +123,12 @@ const {
     seedCategories
 } = require("./src/marketplace");
 
+// ─── Marketplace Notifications ────────────────────────────────────────────────
+const {
+    onTransactionCreated,
+    onBookingCreated
+} = require("./src/marketplace-notifications");
+
 // ─── Fraud Detection Services ─────────────────────────────────────────────────
 const {
     evaluateOrderFraud,
@@ -226,4 +232,6 @@ module.exports = {
     createBooking,
     cancelTransaction,
     seedCategories,
+    onTransactionCreated,
+    onBookingCreated,
 };

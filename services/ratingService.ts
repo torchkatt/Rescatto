@@ -25,6 +25,7 @@ export const createRating = async (data: {
     comment?: string;
     venueId?: string;
     driverId?: string;
+    sellerId?: string;
 }): Promise<Rating> => {
     try {
         // Validate score
@@ -98,22 +99,27 @@ export const hasRated = async (
 };
 
 /**
- * Get all ratings for a specific user or venue
+ * Get all ratings for a specific user, venue, or seller
  */
 export const getRatings = async (
     userId: string,
-    userType: 'user' | 'venue' = 'user'
+    userType: 'user' | 'venue' | 'seller' = 'user'
 ): Promise<Rating[]> => {
     try {
         const ratingsRef = collection(db, 'ratings');
-        const q = userType === 'venue'
-            ? query(ratingsRef, where('venueId', '==', userId))
-            : query(ratingsRef, where('toUserId', '==', userId));
+        let q;
+        if (userType === 'venue') {
+            q = query(ratingsRef, where('venueId', '==', userId));
+        } else if (userType === 'seller') {
+            q = query(ratingsRef, where('sellerId', '==', userId));
+        } else {
+            q = query(ratingsRef, where('toUserId', '==', userId));
+        }
 
         const snapshot = await getDocs(q);
         return snapshot.docs.map(doc => ({
             id: doc.id,
-            ...doc.data(),
+            ...(doc.data() as Record<string, any>),
         })) as Rating[];
     } catch (error) {
         logger.error('Error getting ratings:', error);
@@ -122,14 +128,17 @@ export const getRatings = async (
 };
 
 /**
- * Get rating statistics for a user or venue
+ * Get rating statistics for a user, venue, or seller
  */
 export const getRatingStats = async (
     userId: string,
-    userType: 'user' | 'venue' = 'user'
+    userType: 'user' | 'venue' | 'seller' = 'user'
 ): Promise<RatingStats | null> => {
     try {
-        const statsRef = doc(db, userType === 'venue' ? 'venues' : 'users', userId, 'stats', 'ratings');
+        let statsRef;
+        if (userType === 'venue') statsRef = doc(db, 'venues', userId, 'stats', 'ratings');
+        else if (userType === 'seller') statsRef = doc(db, 'sellers', userId, 'stats', 'ratings');
+        else statsRef = doc(db, 'users', userId, 'stats', 'ratings');
         const statsDoc = await getDoc(statsRef);
 
         if (statsDoc.exists()) {
@@ -149,14 +158,13 @@ export const getRatingStats = async (
  */
 export const updateRatingStats = async (
     userId: string,
-    userType: 'user' | 'venue' = 'user'
+    userType: 'user' | 'venue' | 'seller' = 'user'
 ): Promise<void> => {
     try {
         const stats = await calculateRatingStats(userId, userType);
         if (!stats) return;
 
-        const statsRef = doc(db, userType === 'venue' ? 'venues' : 'users', userId, 'stats', 'ratings');
-        // setDoc with merge:true creates or updates the exact path — no fallback needed
+        const statsRef = getRatingStatsRef(userId, userType);
         await setDoc(statsRef, {
             ...stats,
             lastUpdated: new Date().toISOString(),
@@ -166,12 +174,18 @@ export const updateRatingStats = async (
     }
 };
 
+function getRatingStatsRef(userId: string, userType: 'user' | 'venue' | 'seller') {
+    if (userType === 'venue') return doc(db, 'venues', userId, 'stats', 'ratings');
+    if (userType === 'seller') return doc(db, 'sellers', userId, 'stats', 'ratings');
+    return doc(db, 'users', userId, 'stats', 'ratings');
+}
+
 /**
  * Calculate rating statistics from all ratings
  */
 const calculateRatingStats = async (
     userId: string,
-    userType: 'user' | 'venue' = 'user'
+    userType: 'user' | 'venue' | 'seller' = 'user'
 ): Promise<RatingStats | null> => {
     try {
         const ratings = await getRatings(userId, userType);
@@ -220,7 +234,7 @@ export const getOrderRatings = async (orderId: string): Promise<Rating[]> => {
         const snapshot = await getDocs(q);
         return snapshot.docs.map(doc => ({
             id: doc.id,
-            ...doc.data(),
+            ...(doc.data() as Record<string, any>),
         })) as Rating[];
     } catch (error) {
         logger.error('Error getting order ratings:', error);
