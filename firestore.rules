@@ -171,13 +171,13 @@ service cloud.firestore {
 
       // Allow any authenticated user to create their own profile.
       // Guest users (anonymous) need this to initialize their documents.
-      allow create: if (isOwner(userId) || isAdmin()) && isValidUser();
+      allow create: if (isOwner(userId) && canUserCreateOwnProfile(userId)) || (isAdmin() && isValidUser());
 
       // Allow profile updates and sync verification.
       // Also allow updating activeMembershipId during initial setup.
-      allow update: if (isAdmin()
-        || isOwner(userId)
-        || canUserSyncVerification(userId)) && isValidUser();
+      allow update: if (isAdmin() && isValidUser())
+        || (isOwner(userId) && canUserUpdateOwnProfile(userId))
+        || canUserSyncVerification(userId);
 
       allow delete: if isSuperAdmin() && isLabEmergencyMode();
 
