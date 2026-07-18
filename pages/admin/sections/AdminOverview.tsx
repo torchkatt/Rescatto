@@ -8,11 +8,17 @@ import {
     ShoppingBag,
     TrendingUp,
     Truck,
-    DollarSign
+    DollarSign,
+    UserCheck,
+    Package,
+    BarChart3,
+    Coins
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { logger } from '../../../utils/logger';
 import { formatCOP } from '../../../utils/formatters';
+import { useAuth } from '../../../context/AuthContext';
+import { UserRole } from '../../../types';
 
 interface DashboardStats {
     totalUsers: number;
@@ -21,6 +27,13 @@ interface DashboardStats {
     todaySales: number;
     activeDeliveries: number;
     pendingOrders: number;
+}
+
+interface MarketplaceStats {
+    totalSellers: number;
+    activeListings: number;
+    monthlyTransactions: number;
+    monthlyRevenue: number;
 }
 
 interface Props {
@@ -38,6 +51,15 @@ export const AdminOverview: React.FC<Props> = ({ city }) => {
     });
     const [weeklyData, setWeeklyData] = useState<{ day: string; ventas: number }[]>([]);
     const [loading, setLoading] = useState(true);
+    const [marketplaceStats, setMarketplaceStats] = useState<MarketplaceStats>({
+        totalSellers: 0,
+        activeListings: 0,
+        monthlyTransactions: 0,
+        monthlyRevenue: 0,
+    });
+    const [marketLoading, setMarketLoading] = useState(true);
+
+    const { hasRole } = useAuth();
 
     useEffect(() => {
         let cancelled = false;
@@ -110,6 +132,58 @@ export const AdminOverview: React.FC<Props> = ({ city }) => {
 
         return () => { cancelled = true; };
     }, [city]);
+
+    // Fetch marketplace stats (role-gated in render)
+    useEffect(() => {
+        if (!hasRole([UserRole.SUPER_ADMIN, UserRole.ADMIN])) {
+            setMarketLoading(false);
+            return;
+        }
+
+        let cancelled = false;
+
+        (async () => {
+            setMarketLoading(true);
+            try {
+                const now = new Date();
+                const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+                const monthTxQuery = query(
+                    collection(db, 'transactions'),
+                    where('createdAt', '>=', firstOfMonth.toISOString())
+                );
+
+                const [sellersCount, listingsCount, monthTxSnapshot] = await Promise.all([
+                    getCountFromServer(collection(db, 'sellers')),
+                    getCountFromServer(query(collection(db, 'listings'), where('isActive', '==', true))),
+                    getDocs(monthTxQuery),
+                ]);
+
+                let monthlyRevenue = 0;
+                let monthlyTransactions = 0;
+                monthTxSnapshot.docs.forEach(d => {
+                    const data = d.data();
+                    monthlyTransactions++;
+                    monthlyRevenue += Number(data.totalAmount) || 0;
+                });
+
+                if (!cancelled) {
+                    setMarketplaceStats({
+                        totalSellers: sellersCount.data().count,
+                        activeListings: listingsCount.data().count,
+                        monthlyTransactions,
+                        monthlyRevenue,
+                    });
+                }
+            } catch (error) {
+                logger.error('Failed to load marketplace stats:', error);
+            } finally {
+                if (!cancelled) setMarketLoading(false);
+            }
+        })();
+
+        return () => { cancelled = true; };
+    }, [hasRole]);
 
     const statCards = [
         {
@@ -214,6 +288,78 @@ export const AdminOverview: React.FC<Props> = ({ city }) => {
                     </div>
                 )}
             </div>
+
+            {/* Marketplace Analytics — solo SUPER_ADMIN / ADMIN */}
+            {hasRole([UserRole.SUPER_ADMIN, UserRole.ADMIN]) && (
+                <>
+                    <h3 className="text-xl font-bold text-white mt-8">Marketplace</h3>
+                    {marketLoading ? (
+                        <div className="animate-pulse text-gray-500">Cargando estadísticas del marketplace...</div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            <Link
+                                to="/admin/sellers"
+                                className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 block hover:shadow-md hover:scale-[1.02] transition-all cursor-pointer"
+                            >
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm text-gray-500 mb-1">Total Vendedores</p>
+                                        <p className="text-3xl font-bold text-white">{marketplaceStats.totalSellers}</p>
+                                    </div>
+                                    <div className="bg-blue-500 p-4 rounded-lg">
+                                        <UserCheck className="text-white" size={24} />
+                                    </div>
+                                </div>
+                            </Link>
+
+                            <Link
+                                to="/admin/listings"
+                                className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 block hover:shadow-md hover:scale-[1.02] transition-all cursor-pointer"
+                            >
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm text-gray-500 mb-1">Listings Activos</p>
+                                        <p className="text-3xl font-bold text-white">{marketplaceStats.activeListings}</p>
+                                    </div>
+                                    <div className="bg-purple-500 p-4 rounded-lg">
+                                        <Package className="text-white" size={24} />
+                                    </div>
+                                </div>
+                            </Link>
+
+                            <Link
+                                to="/admin/transactions"
+                                className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 block hover:shadow-md hover:scale-[1.02] transition-all cursor-pointer"
+                            >
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm text-gray-500 mb-1">Transacciones (mes)</p>
+                                        <p className="text-3xl font-bold text-white">{marketplaceStats.monthlyTransactions}</p>
+                                    </div>
+                                    <div className="bg-emerald-500 p-4 rounded-lg">
+                                        <BarChart3 className="text-white" size={24} />
+                                    </div>
+                                </div>
+                            </Link>
+
+                            <Link
+                                to="/admin/finance"
+                                className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 block hover:shadow-md hover:scale-[1.02] transition-all cursor-pointer"
+                            >
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm text-gray-500 mb-1">Ingresos (mes)</p>
+                                        <p className="text-3xl font-bold text-white">{formatCOP(marketplaceStats.monthlyRevenue)}</p>
+                                    </div>
+                                    <div className="bg-green-500 p-4 rounded-lg">
+                                        <Coins className="text-white" size={24} />
+                                    </div>
+                                </div>
+                            </Link>
+                        </div>
+                    )}
+                </>
+            )}
         </div>
     );
 };

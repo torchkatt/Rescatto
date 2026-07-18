@@ -129,6 +129,12 @@ const {
     onBookingCreated
 } = require("./src/marketplace-notifications");
 
+// ─── Seller Pass Functions ─────────────────────────────────────────────────────
+const {
+    createSellerSubscription,
+    handleWompiSellerSubscription
+} = require("./src/seller-pass");
+
 // ─── Fraud Detection Services ─────────────────────────────────────────────────
 const {
     evaluateOrderFraud,
@@ -234,4 +240,8 @@ module.exports = {
     seedCategories,
     onTransactionCreated,
     onBookingCreated,
+
+    // Seller Pass (Wompi Subscription)
+    createSellerSubscription,
+    handleWompiSellerSubscription,
 };

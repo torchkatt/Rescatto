@@ -88,6 +88,7 @@ const Checkout = lazyLoad(() => import('./pages/customer/Checkout'));
 const MyOrders = lazyLoad(() => import('./pages/customer/MyOrders'));
 const MyTransactions = lazyLoad(() => import('./pages/customer/MyTransactions'));
 const SellerDetail = lazyLoad(() => import('./pages/customer/SellerDetail'));
+const SellerOnboarding = lazyLoad(() => import('./pages/customer/SellerOnboarding'));
 const Favorites = lazyLoad(() => import('./pages/customer/Favorites'));
 const Impact = lazyLoad(() => import('./pages/customer/Impact'));
 const UnifiedProfile = lazyLoad(() => import('./pages/profile/UnifiedProfile'), 'UnifiedProfile');
@@ -544,6 +545,11 @@ const AppRoutes: React.FC = () => {
                     } />
                     <Route path="seller/:sellerId" element={
                         <SellerDetail />
+                    } />
+                    <Route path="seller-onboarding" element={
+                        <ProtectedRoute allowedRoles={[UserRole.VENUE_OWNER, UserRole.SUPER_ADMIN]}>
+                            <SellerOnboarding />
+                        </ProtectedRoute>
                     } />
                     <Route path="book/:listingId" element={
                         <ProtectedRoute allowedRoles={[UserRole.CUSTOMER]} disallowGuests={true} guestRedirect="/app/profile">

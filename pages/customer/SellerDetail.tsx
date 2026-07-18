@@ -121,7 +121,7 @@ export const SellerDetail: React.FC = () => {
             () => listingService.getListingsBySeller(id),
             { maxRetries: 2, initialDelay: 800 }
           ),
-          getRatingStats(id, 'venue'),
+          getRatingStats(id, 'seller'),
         ]);
 
         if (listingsResult.status === 'fulfilled') {
