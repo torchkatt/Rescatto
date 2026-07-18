@@ -15,6 +15,7 @@ import { ArrowLeft, Clock, MapPin, Star, Calendar, Wrench, Info } from 'lucide-r
 import { formatCOP } from '../../utils/formatters';
 import { logger } from '../../utils/logger';
 import { withErrorBoundary } from '../../components/ErrorBoundary';
+import { useTranslation } from 'react-i18next';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -57,6 +58,7 @@ const BookingPage: React.FC = () => {
   const { listingId } = useParams<{ listingId: string }>();
   const navigate = useNavigate();
   const { success, error: showError } = useToast();
+  const { t } = useTranslation();
 
   // Data
   const [listing, setListing] = useState<Listing | null>(null);
@@ -170,8 +172,8 @@ const BookingPage: React.FC = () => {
   if (loadError) return (
     <ErrorState
       error={loadError}
-      title="No pudimos cargar la reserva"
-      message="Verifica tu conexión e intenta de nuevo."
+      title={t('booking_load_error_title')}
+      message={t('booking_load_error_msg')}
       resetErrorBoundary={() => { if (listingId) loadData(listingId); }}
     />
   );
@@ -183,12 +185,12 @@ const BookingPage: React.FC = () => {
       <div className="text-center max-w-md">
         <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
           <Info size={48} className="mx-auto mb-4 text-gray-300" />
-          <h2 className="text-xl font-bold text-gray-800 mb-2">Servicio no encontrado</h2>
+          <h2 className="text-xl font-bold text-gray-800 mb-2">{t('booking_not_found')}</h2>
           <p className="text-gray-500 mb-6 text-sm">
-            El servicio que buscas no existe o ha sido eliminado.
+            {t('booking_not_found_desc')}
           </p>
           <Button onClick={() => navigate('/app')} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-            Volver al inicio
+            {t('booking_back_home')}
           </Button>
         </div>
       </div>
@@ -206,8 +208,8 @@ const BookingPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <SEO
-        title={`Reservar: ${listing.title}`}
-        description={listing.description?.slice(0, 160) || `Reserva ${listing.title}`}
+        title={t('booking_seo_title', { title: listing.title })}
+        description={listing.description?.slice(0, 160) || t('booking_seo_desc', { title: listing.title })}
       />
 
       {/* ── Sticky Header ── */}
@@ -221,7 +223,7 @@ const BookingPage: React.FC = () => {
             <ArrowLeft size={20} className="text-gray-700" />
           </button>
           <h1 className="font-black text-gray-900 text-base truncate flex-1 ml-2">
-            Reservar servicio
+            {t('booking_title')}
           </h1>
           <div className="w-10" /> {/* Spacer para centrar */}
         </div>
@@ -296,7 +298,7 @@ const BookingPage: React.FC = () => {
         {seller && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
             <h3 className="font-bold text-gray-500 text-xs uppercase tracking-wider mb-3">
-              Proveedor
+              {t('booking_provider')}
             </h3>
             <div className="flex items-center gap-4">
               {/* Logo / Avatar */}
@@ -346,12 +348,12 @@ const BookingPage: React.FC = () => {
         {selectedSlot && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
             <label className="block text-sm font-bold text-gray-700">
-              Notas adicionales (opcional)
+              {t('booking_notes_label')}
             </label>
             <textarea
               value={notes}
               onChange={e => setNotes(e.target.value)}
-              placeholder="Ej: Prefiero horario de la tarde, tengo mascota..."
+              placeholder={t('booking_notes_ph')}
               rows={3}
               className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none placeholder:text-gray-400"
             />
@@ -372,17 +374,17 @@ const BookingPage: React.FC = () => {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                   </svg>
-                  Confirmando...
+                  {t('booking_confirming')}
                 </>
               ) : (
                 <>
                   <Calendar size={20} />
-                  Confirmar reserva — {formatCOP(listing.price)}
+                  {t('booking_confirm', { price: formatCOP(listing.price) })}
                 </>
               )}
             </button>
             <p className="text-center text-xs text-gray-400 mt-3">
-              No se realizará ningún cobro hasta que el proveedor confirme la reserva.
+              {t('booking_no_charge')}
             </p>
           </div>
         )}

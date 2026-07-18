@@ -146,7 +146,7 @@ export const MyTransactions: React.FC = () => {
 
   return (
     <div className="pb-nav bg-brand-bg min-h-screen">
-      <SEO title="Mis Transacciones" description="Todas tus transacciones en Rescatto — compras, reservas y productos digitales." />
+      <SEO title={t('mytransactions_seo_title')} description={t('mytransactions_seo_desc')} />
 
       {/* Header */}
       <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-gray-100 px-6 py-4 pt-safe-top">
@@ -154,7 +154,7 @@ export const MyTransactions: React.FC = () => {
           <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-50 rounded-full transition-colors">
             <ArrowLeft size={22} />
           </button>
-          <h1 className="text-xl font-black text-gray-900 tracking-tight">Mis Transacciones</h1>
+          <h1 className="text-xl font-black text-gray-900 tracking-tight">{t('mytransactions_title')}</h1>
         </div>
       </header>
 
@@ -162,13 +162,13 @@ export const MyTransactions: React.FC = () => {
         {transactions.length === 0 ? (
           <div className="bg-white rounded-2xl p-12 text-center border border-gray-100 shadow-sm">
             <ShoppingCart size={48} className="mx-auto mb-4 text-gray-200" />
-            <p className="font-bold text-gray-600 mb-2">No tienes transacciones aún</p>
-            <p className="text-sm text-gray-400 mb-6">Explora el marketplace y encuentra lo que necesitas</p>
+            <p className="font-bold text-gray-600 mb-2">{t('mytransactions_empty_title')}</p>
+            <p className="text-sm text-gray-400 mb-6">{t('mytransactions_empty_desc')}</p>
             <button
               onClick={() => navigate('/app/explore')}
               className="bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-emerald-700 transition-colors"
             >
-              Explorar Marketplace
+              {t('mytransactions_explore_btn')}
             </button>
           </div>
         ) : (
@@ -240,7 +240,7 @@ export const MyTransactions: React.FC = () => {
                             onClick={() => handleCancel(tx.id)}
                             className="text-[11px] font-bold text-red-500 hover:text-red-700 px-2 py-1 rounded-lg hover:bg-red-50 transition-colors"
                           >
-                            Cancelar
+                            {t('mytransactions_cancel_btn')}
                           </button>
                         )}
                         {tx.status === TransactionStatus.COMPLETED && tx.downloadUrl && (
@@ -249,7 +249,7 @@ export const MyTransactions: React.FC = () => {
                             className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 px-2 py-1 rounded-lg hover:bg-emerald-50 transition-colors flex items-center gap-1"
                           >
                             <Download size={12} />
-                            Descargar
+                            {t('mytransactions_download_btn')}
                           </button>
                         )}
                       </div>
@@ -266,7 +266,7 @@ export const MyTransactions: React.FC = () => {
                   disabled={loadingMore}
                   className="bg-white border border-gray-200 text-gray-700 font-bold px-8 py-3 rounded-full hover:bg-gray-50 disabled:opacity-50 transition-colors"
                 >
-                  {loadingMore ? 'Cargando...' : 'Cargar más'}
+                  {loadingMore ? t('mytransactions_loading') : t('mytransactions_load_more')}
                 </button>
               </div>
             )}

@@ -204,8 +204,8 @@ export const SellerOnboarding: React.FC = () => {
     return (
       <ErrorState
         error={loadError}
-        title="No pudimos cargar el formulario"
-        message="Verifica tu conexión e intenta de nuevo."
+        title={t('seller_onboarding_load_error_title')}
+        message={t('seller_onboarding_load_error_msg')}
         resetErrorBoundary={() => window.location.reload()}
       />
     );
@@ -215,7 +215,7 @@ export const SellerOnboarding: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <SEO title="Crear Perfil de Vendedor" description="Crea tu perfil de vendedor en Rescatto y empieza a vender tus productos y servicios." />
+      <SEO title={t('seller_onboarding_seo_title')} description={t('seller_onboarding_seo_desc')} />
 
       <div className="max-w-xl mx-auto px-4 py-8 sm:px-6">
         {/* Header */}

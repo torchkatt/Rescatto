@@ -232,7 +232,7 @@ export const SellerDetail: React.FC = () => {
         {/* Cover Image */}
         <div className="h-56 md:h-72 lg:h-80 xl:h-[360px] overflow-hidden relative">
           {seller.coverImage ? (
-            <img
+            <img loading="lazy"
               src={seller.coverImage}
               alt={seller.name}
               className="w-full h-full object-cover"
@@ -297,7 +297,7 @@ export const SellerDetail: React.FC = () => {
                 </div>
               </div>
               {seller.logo && (
-                <img
+                <img loading="lazy"
                   src={seller.logo}
                   alt={seller.name}
                   className="w-20 h-20 rounded-2xl object-cover border-2 border-white/30 shadow-2xl flex-shrink-0"
@@ -312,7 +312,7 @@ export const SellerDetail: React.FC = () => {
           <div className="bg-white rounded-2xl px-4 py-4 shadow-xl border border-gray-100/80">
             <div className="flex items-center gap-3">
               {seller.logo ? (
-                <img
+                <img loading="lazy"
                   src={seller.logo}
                   alt={seller.name}
                   className="w-14 h-14 rounded-xl object-cover border border-gray-100 shadow-sm flex-shrink-0"
@@ -476,7 +476,7 @@ export const SellerDetail: React.FC = () => {
                       {/* Image */}
                       <div className="relative w-28 h-28 flex-shrink-0">
                         {imageUrl ? (
-                          <img src={imageUrl} alt={listing.title} className="w-full h-full object-cover" loading="lazy" />
+                          <img loading="lazy" src={imageUrl} alt={listing.title} className="w-full h-full object-cover" />
                         ) : (
                           <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-3xl">
                             {listing.type === ListingType.PRODUCT ? '📦' : listing.type === ListingType.SERVICE ? '🛠️' : '💾'}
@@ -546,11 +546,10 @@ export const SellerDetail: React.FC = () => {
                   >
                     <div className="relative overflow-hidden">
                       {imageUrl ? (
-                        <img
+                        <img loading="lazy"
                           src={imageUrl}
                           alt={listing.title}
                           className="w-full h-48 object-cover transition-transform duration-500 group-hover:scale-105"
-                          loading="lazy"
                         />
                       ) : (
                         <div className="w-full h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-5xl">

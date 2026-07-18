@@ -36,6 +36,12 @@ interface MarketplaceStats {
     monthlyRevenue: number;
 }
 
+interface RevenueStats {
+    totalRevenue: number;
+    revenueThisMonth: number;
+    pendingCommissions: number;
+}
+
 interface Props {
     city?: string;
 }
@@ -58,6 +64,12 @@ export const AdminOverview: React.FC<Props> = ({ city }) => {
         monthlyRevenue: 0,
     });
     const [marketLoading, setMarketLoading] = useState(true);
+    const [revenueStats, setRevenueStats] = useState<RevenueStats>({
+        totalRevenue: 0,
+        revenueThisMonth: 0,
+        pendingCommissions: 0,
+    });
+    const [revenueLoading, setRevenueLoading] = useState(true);
 
     const { hasRole } = useAuth();
 
@@ -179,6 +191,54 @@ export const AdminOverview: React.FC<Props> = ({ city }) => {
                 logger.error('Failed to load marketplace stats:', error);
             } finally {
                 if (!cancelled) setMarketLoading(false);
+            }
+        })();
+
+        return () => { cancelled = true; };
+    }, [hasRole]);
+
+    // Fetch revenue stats (SUPER_ADMIN only)
+    useEffect(() => {
+        if (!hasRole([UserRole.SUPER_ADMIN])) {
+            setRevenueLoading(false);
+            return;
+        }
+
+        let cancelled = false;
+
+        (async () => {
+            setRevenueLoading(true);
+            try {
+                const now = new Date();
+                const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+                const firstOfMonthISO = firstOfMonth.toISOString();
+
+                const allTxSnapshot = await getDocs(collection(db, 'transactions'));
+
+                let totalRevenue = 0;
+                let revenueThisMonth = 0;
+                let pendingCommissions = 0;
+
+                allTxSnapshot.docs.forEach(d => {
+                    const data = d.data();
+                    const amount = Number(data.totalAmount) || 0;
+                    const commission = Number(data.commission) || 0;
+                    totalRevenue += amount;
+                    if (data.status === 'PENDING') pendingCommissions += commission;
+                    if (data.createdAt >= firstOfMonthISO) revenueThisMonth += amount;
+                });
+
+                if (!cancelled) {
+                    setRevenueStats({
+                        totalRevenue,
+                        revenueThisMonth,
+                        pendingCommissions,
+                    });
+                }
+            } catch (error) {
+                logger.error('Failed to load revenue stats:', error);
+            } finally {
+                if (!cancelled) setRevenueLoading(false);
             }
         })();
 
@@ -357,6 +417,75 @@ export const AdminOverview: React.FC<Props> = ({ city }) => {
                                 </div>
                             </Link>
                         </div>
+                    )}
+                </>
+            )}
+
+            {/* Revenue Dashboard — SUPER_ADMIN only */}
+            {hasRole([UserRole.SUPER_ADMIN]) && (
+                <>
+                    <h3 className="text-xl font-bold text-white mt-8">Revenue</h3>
+                    {revenueLoading ? (
+                        <div className="animate-pulse text-gray-500">Cargando estadísticas de revenue...</div>
+                    ) : (
+                        <>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                <Link
+                                    to="/admin/finance"
+                                    className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 block hover:shadow-md hover:scale-[1.02] transition-all cursor-pointer"
+                                >
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-sm text-gray-500 mb-1">Total Revenue</p>
+                                            <p className="text-3xl font-bold text-white">{formatCOP(revenueStats.totalRevenue)}</p>
+                                        </div>
+                                        <div className="bg-emerald-500 p-4 rounded-lg">
+                                            <DollarSign className="text-white" size={24} />
+                                        </div>
+                                    </div>
+                                </Link>
+
+                                <Link
+                                    to="/admin/transactions"
+                                    className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 block hover:shadow-md hover:scale-[1.02] transition-all cursor-pointer"
+                                >
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-sm text-gray-500 mb-1">Revenue (este mes)</p>
+                                            <p className="text-3xl font-bold text-white">{formatCOP(revenueStats.revenueThisMonth)}</p>
+                                        </div>
+                                        <div className="bg-blue-500 p-4 rounded-lg">
+                                            <TrendingUp className="text-white" size={24} />
+                                        </div>
+                                    </div>
+                                </Link>
+
+                                <Link
+                                    to="/admin/finance"
+                                    className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 block hover:shadow-md hover:scale-[1.02] transition-all cursor-pointer"
+                                >
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-sm text-gray-500 mb-1">Comisiones Pendientes</p>
+                                            <p className="text-3xl font-bold text-white">{formatCOP(revenueStats.pendingCommissions)}</p>
+                                        </div>
+                                        <div className="bg-yellow-500 p-4 rounded-lg">
+                                            <Coins className="text-white" size={24} />
+                                        </div>
+                                    </div>
+                                </Link>
+                            </div>
+
+                            {/* Revenue chart placeholder */}
+                            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                                <h3 className="font-bold text-lg mb-4 text-gray-800">Revenue Overview</h3>
+                                <div className="h-60 flex flex-col items-center justify-center bg-gray-50 rounded-lg">
+                                    <BarChart3 className="text-gray-300 mb-3" size={48} />
+                                    <p className="text-gray-400 text-sm">Revenue chart disponible próximamente</p>
+                                    <p className="text-gray-300 text-xs mt-1">Total revenue histórico: {formatCOP(revenueStats.totalRevenue)}</p>
+                                </div>
+                            </div>
+                        </>
                     )}
                 </>
             )}

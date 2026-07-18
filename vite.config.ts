@@ -61,7 +61,33 @@ export default defineConfig({
         // Skip Firestore/Auth SDK files from pre-cache (too large, not useful offline)
         globIgnores: ['**/firebase/**', '**/node_modules/**'],
 
+        // SPA fallback: serve index.html for navigation requests — enables offline access
+        // to all client-side routes (marketplace, admin, customer, etc.)
+        navigateFallback: '/index.html',
+        navigateFallbackAllowlist: [
+          // Marketplace routes
+          /^\/app\/explore/,
+          /^\/app\/transactions/,
+          /^\/app\/seller-onboarding/,
+          /^\/app\/seller\/.*/,
+          /^\/app\/book\/.*/,
+          /^\/seller-dashboard/,
+          // All customer-facing /app routes (cart, orders, profile, etc.)
+          /^\/app\/.*/,
+        ],
+
         runtimeCaching: [
+          // 0. Navigation requests → NetworkFirst with fast timeout; fallback to precached index.html
+          {
+            urlPattern: ({ request }) => request.mode === 'navigate',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'pages-cache',
+              networkTimeoutSeconds: 3,
+              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 }, // 24 h
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
           // 1. Firebase Firestore & Auth API → NetworkFirst: always fresh when online, fallback to cache
           {
             urlPattern: /^https:\/\/(firestore|identitytoolkit|securetoken)\.googleapis\.com\/.*/i,
