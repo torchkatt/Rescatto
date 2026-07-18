@@ -1,104 +1,76 @@
 {
   "project": {
     "name": "rescatto",
-    "description": "Rescatto app - food rescue & sustainability platform (Customer, Business, Driver, and Admin backoffice)",
-    "tech_stack": ["React 18", "TypeScript", "Firebase (Firestore, Auth, Functions, Messaging)", "Vite", "Tailwind CSS", "Zustand", "Vitest", "Playwright", "PWA"],
-    "architecture": "SPA with Firebase backend, role-based routing (admin, business, customer, driver, backoffice)"
+    "description": "Marketplace generalizado colombiano con pagos Wompi, AI Chat, Seller Pass y analytics",
+    "tech_stack": ["React 18", "TypeScript 5.4", "Firebase (Firestore, Auth, Functions Gen2, Messaging, Storage)", "Vite 5", "Tailwind CSS 3", "Zustand", "Vitest", "PWA (Workbox)"],
+    "architecture": "SPA/PWA con Firebase backend, routing por roles, planes dinámicos desde Firestore"
   },
-  "last_session": "2026-06-09T22:38:00Z",
+  "last_session": "2026-07-17T22:00:00Z",
   "sessions": [
     {
-      "date": "2026-04-24",
-      "features_worked": ["ai-router-setup"],
-      "files_modified": ["scripts/ai-router.ts", "AGENTS.md", ".ai-context/memory.json"]
-    },
-    {
-      "date": "2026-05-09",
-      "features_worked": ["admin-table-standardization", "server-side-pagination", "global-search-utility"],
+      "date": "2026-07-17",
+      "features_worked": [
+        "marketplace-tests", "crud-listings", "error-boundaries", "seo-wrappers",
+        "image-optimizer", "i18n-marketplace", "pwa-offline", "revenue-dashboard",
+        "lazy-loading", "landing-page", "help-center", "seo-sitemap-robots",
+        "search-console-verification", "hybrid-subscription-model",
+        "dynamic-plans-from-firestore", "security-audit",
+        "firestore-rules-fix-admin-escalation", "commissionRate-dynamic",
+        "documentation-update", "graphify-update"
+      ],
       "files_modified": [
-        "hooks/useAdminTable.ts",
-        "services/adminService.ts",
-        "utils/searchUtils.ts",
-        "components/common/DataTable.tsx",
-        "pages/admin/UsersManager.tsx",
-        "pages/admin/DriversManager.tsx",
-        "pages/admin/CommissionsManager.tsx",
-        "pages/admin/CategoriesManager.tsx",
-        "pages/admin/AuditLogs.tsx",
-        "pages/admin/FinanceManager.tsx"
-      ]
-    },
-    {
-      "date": "2026-05-26",
-      "features_worked": ["payment-methods-enablement", "checkout-wompi-integration", "stripe-secret-bugfix"],
-      "files_modified": [
-        "pages/customer/Checkout.tsx",
-        "components/customer/checkout/PaymentForm.tsx",
-        "functions/src/services/stripeService.js",
-        "functions/src/schemas/index.js",
-        "functions/schemas.js",
-        "functions/tests/schemas.test.js"
-      ]
-    },
-    {
-      "date": "2026-06-09",
-      "features_worked": ["ai-documentation-alignment", "graphify-validation", "unit-test-verification", "production-readiness-audit"],
-      "files_modified": [
-        "AI_CONTEXT.md",
-        ".ai-context/memory.json",
-        "pages/customer/Home.tsx",
-        "components/customer/home/ProductsSection.tsx",
-        "tests/flows/CustomerFlows.test.tsx"
+        "tests/marketplace/", "pages/business/SellerDashboard.tsx",
+        "services/planService.ts", "services/sellerPassService.ts",
+        "functions/src/marketplace.js", "functions/src/seller-pass.js",
+        "firestore.rules", "pages/Landing.tsx",
+        "AI_CONTEXT.md", "README.md",
+        "graphify-out/graph.json", "graphify-out/GRAPH_REPORT.md",
+        ".ai-context/memory.json", "types.ts"
       ]
     }
   ],
-  "active_features": [],
+  "active_features": ["marketplace", "seller-pass", "ai-chat", "pwa"],
   "patterns": {
-    "testing": "vitest for unit, playwright for e2e",
-    "state_management": "zustand stores in /stores/",
-    "api_services": "service classes in /services/",
-    "routing": "react-router-dom v6 with role-based ProtectedRoute",
-    "ui": "Tailwind CSS utility-first, custom components in /components/",
-    "i18n": "i18next with /locales/ es/en",
-    "ai": "Gemini API (commented out), DeepSeek API via ai-router.ts",
-    "datatable": "Uso de render prop para celdas personalizadas, border-gray-50 por defecto"
+    "testing": "vitest (883 tests)",
+    "state_management": "React Context + Zustand stores",
+    "api_services": "Firebase SDK directo + service classes en /services/",
+    "routing": "react-router-dom v6 with ProtectedRoute + roles",
+    "ui": "Tailwind CSS utility-first, glassmorphism, purple brand (#7c3aed) → emerald (#059669)",
+    "i18n": "i18next with locale keys",
+    "plans": "Dinámicos desde Firestore subscription_plans collection",
+    "payment": "Wompi widget + webhook",
+    "ai": "DeepSeek v4 Flash/Pro con function calling (21 tools, 5 security layers)",
+    "datatable": "useAdminTable + DataTable con inMemorySearch y paginación server-side"
   },
   "architecture_decisions": [
     {
-      "id": "ADR-001",
-      "date": "2026-04-24",
-      "title": "AI Router PRO→FLASH con DeepSeek",
-      "decision": "Usar deepseek-v4-pro para planificación estratégica y deepseek-v4-flash para implementación",
-      "rationale": "90% ahorro de tokens vs usar pro siempre. Flash suficiente para implementación de tareas atómicas.",
+      "id": "ADR-005",
+      "date": "2026-07-17",
+      "title": "Planes dinámicos desde Firestore",
+      "decision": "Planes de suscripción (Free/Pass/Annual) almacenados en collection subscription_plans. Leídos desde planService.getAll(). Sin valores quemados en código.",
+      "rationale": "Permite cambiar precios, features y comisiones sin deploy. Admin puede editar desde Firebase Console.",
       "status": "implemented"
     },
     {
-      "id": "ADR-002",
-      "date": "2026-05-09",
-      "title": "Estandarización de DataTable con Render Props",
-      "decision": "Añadir propiedad 'render' opcional a las columnas de DataTable para evitar lógica de renderizado fuera del componente.",
-      "rationale": "Mejora la seguridad de tipos y permite componentes de celda complejos sin hackeos de TypeScript.",
+      "id": "ADR-006",
+      "date": "2026-07-17",
+      "title": "Modelo híbrido de monetización",
+      "decision": "Free ($0/mes, 10% comisión) + Seller Pass ($49.900/mes, 5% comisión). CommissionRate se almacena en el documento del seller.",
+      "rationale": "Baja barrera de entrada (Free) + incentivo para upgrade (ahorro en comisión). Ingreso predecible via suscripción más ingresos variables via comisión.",
       "status": "implemented"
     },
     {
-      "id": "ADR-003",
-      "date": "2026-05-09",
-      "title": "Siembra de Ecosistema vía Cloud Functions",
-      "decision": "Migrar la lógica de siembra masiva (Seed) de usuarios, sedes y productos al backend (seedFullEcosystem).",
-      "rationale": "Garantiza atomicidad, evita latencia de red en múltiples peticiones de cliente y permite gestionar Custom Claims de forma segura.",
-      "status": "implemented"
-    },
-    {
-      "id": "ADR-004",
-      "date": "2026-05-09",
-      "title": "Arquitectura Centralizada de Tablas Administrativas",
-      "decision": "Uso obligatorio de useAdminTable y inMemorySearch para todos los módulos administrativos.",
-      "rationale": "Elimina redundancia de código, centraliza la paginación server-side y reduce costos de Firestore al evitar cargas masivas.",
+      "id": "ADR-007",
+      "date": "2026-07-17",
+      "title": "Corrección seguridad Firestore Rules",
+      "decision": "Create de users ahora usa canUserCreateOwnProfile (limita role a CUSTOMER). Update usa canUserUpdateOwnProfile (campos restringidos). Previene auto-asignación de ADMIN.",
+      "rationale": "Vulnerabilidad crítica: usuarios podían crearse con role=ADMIN. La función existía pero no era llamada.",
       "status": "implemented"
     }
   ],
   "notes": {
-    "graphify": "Actualizado manualmente tras cambios en el core administrativo.",
-    "gemini_service": "Comentado para evitar costos. Usar DeepSeek como alternativa."
+    "graphify": "Actualizado tras migración a marketplace generalizado",
+    "seo": "Search Console verificado para rescatto.com y rescatto-c8d2b.web.app",
+    "wompi_webhook": "Pendiente agregar verificación de firma HMAC para producción"
   }
 }

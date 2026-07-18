@@ -1,204 +1,211 @@
-# 🎯 Rescatto: Contexto de IA y Guía de Arquitectura
+# 🎯 Rescatto — Contexto de IA y Guía de Arquitectura
 
-Este archivo sirve como el **punto de entrada conceptual y técnico** para que modelos de Inteligencia Artificial (IA) y desarrolladores comprendan rápidamente qué hace Rescatto, cómo está construido y cómo extender o modificar el sistema sin romper sus patrones de diseño.
-
----
-
-## 🌟 ¿Qué es Rescatto y para qué sirve?
-
-**Rescatto** es una plataforma y aplicación web progresiva (PWA) de marketplace generalizado. Originalmente diseñada para combatir el desperdicio de alimentos en Colombia (**"Alta cocina, cero desperdicio"**), evolucionó a un motor de marketplace completo que soporta 4 tipos de transacciones: productos físicos, servicios, digitales y comida.
-
-### Propósito y Funcionamiento General
-Conecta **Vendedores** (restaurantes, tiendas, profesionales independientes, marcas digitales) que ofrecen productos/servicios, con **Compradores** dispuestos a adquirirlos. La plataforma maneja catálogo, carrito, pagos, logística de entrega, bookings de servicios y un asistente IA con function calling.
+Este archivo es el **punto de entrada conceptual y técnico** para que IAs y desarrolladores comprendan rápidamente el proyecto Rescatto: su arquitectura, reglas de negocio, y cómo extenderlo sin romper patrones.
 
 ---
 
-## 👥 Módulos y Roles de la Aplicación
+## 🌟 ¿Qué es Rescatto?
 
-La aplicación es un monolito frontend SPA/PWA que implementa un sistema de control de acceso y redirección basado en roles definidos en los tokens de autenticación de Firebase (Custom Claims):
+**Rescatto** es un **marketplace generalizado** colombiano donde vendedores (tiendas, restaurantes, profesionales, marcas digitales) publican productos, servicios y contenido digital, y compradores los adquieren mediante pagos seguros con **Wompi**. Incluye un **asistente IA** con function calling, suscripciones **Seller Pass**, y un panel administrativo completo.
 
-| Rol | Módulo / Prefijo de Ruta | Funciones Principales |
-|---|---|---|
-| `CUSTOMER` | `/app` | Explorar marketplace, comprar productos/servicios/digital, gestionar carrito, ver transacciones, agenda bookings, chat IA. |
-| `VENUE_OWNER` | `/dashboard`, `/seller-dashboard` | Gestionar seller, listings, ver analytics, pedidos, flash deals. |
-| `KITCHEN_STAFF` | `/dashboard`, `/order-management` | Ver pedidos en tiempo real (KDS). |
-| `DRIVER` | `/driver` | Ver ofertas de entrega, aceptar pedidos, chatear. |
-| `ADMIN` / `SUPER_ADMIN` | `/backoffice` | Gestionar usuarios, sellers, listings, transacciones, bookings, finanzas, auditoría, inicializar marketplace. |
+---
+
+## 👥 Roles y Módulos
+
+| Rol | Ruta | Funciones |
+|-----|------|-----------|
+| `CUSTOMER` | `/app` | Explorar, comprar, carrito, transacciones, bookings, chat IA |
+| `VENUE_OWNER` | `/dashboard` | Gestionar seller, listings, analytics, pedidos |
+| `ADMIN`/`SUPER_ADMIN` | `/backoffice` | Gestionar usuarios, sellers, listings, transacciones, finanzas, planes |
 
 ---
 
 ## 🛠️ Stack Tecnológico
 
-El proyecto está estructurado con tecnologías modernas y desacopladas:
-
-* **Frontend SPA / PWA:**
-  * **Core:** React 18.2 + TypeScript 5.4.
-  * **Estilos:** Tailwind CSS 3.4.
-  * **Manejador de Estado:** React Contexts para estados de sesión y Zustand para estados globales UI (`stores/`).
-  * **Data Fetching:** React Query v5 (TanStack Query) para caching óptimo y sincronización de datos con Firestore.
-  * **Build Tool:** Vite 5.1 + `vite-plugin-pwa` para soporte Offline (Workbox caching).
-* **Backend Serverless (Firebase):**
-  * **Autenticación:** Firebase Auth con Custom Claims para roles de usuario.
-  * **Base de Datos:** Cloud Firestore (base de datos NoSQL documental de tiempo real).
-  * **Backend Lógico:** Firebase Cloud Functions Gen2 (Node.js) con 4 funciones marketplace.
-  * **Notificaciones:** Firebase Cloud Messaging para alertas Push.
-  * **Storage:** Firebase Cloud Storage para imágenes de productos y comprobantes de pago.
-* **Integraciones y APIs:**
-  * **Pasarela de Pago:** Wompi (soporte para tarjetas de crédito, débito y PSE con webhooks securizados con firmas HMAC-SHA256).
-  * **Geolocalización:** Google Maps API (autocompletado de direcciones, mapas y cálculo de distancias por coordenadas GPS).
+| Capa | Tecnología |
+|------|-----------|
+| **Frontend** | React 18.2 + TypeScript 5.4 + Tailwind CSS 3.4 |
+| **Build** | Vite 5.1 + vite-plugin-pwa (Workbox) |
+| **State** | React Context + Zustand 5.0 |
+| **Data Fetching** | Firebase SDK directo (onSnapshot, getDocs) |
+| **Auth** | Firebase Auth + Custom Claims |
+| **DB** | Cloud Firestore |
+| **Backend** | Firebase Cloud Functions Gen2 (Node.js) |
+| **Pagos** | Wompi (widget checkout + webhooks) |
+| **AI** | DeepSeek v4 Flash/Pro con function calling |
+| **Notificaciones** | Firebase Cloud Messaging |
+| **Storage** | Firebase Cloud Storage |
+| **Tests** | Vitest (883 tests) |
 
 ---
 
-## 📂 Estructura de Directorios Clave
+## 📂 Estructura de Directorios
 
-```bash
+```
 Rescatto/
-├── .ai-context/          # Memoria histórica de decisiones de arquitectura (memory.json)
-├── components/           # Componentes visuales organizados por subcarpetas (chat, customer, admin, common)
-├── context/              # Contextos de React (AuthContext, CartContext, ChatContext, etc.)
-├── docs/                 # Manuales de usuario y flujos detallados
-├── functions/            # Backend Serverless en Firebase Cloud Functions
+├── components/          # Componentes React (seller/, customer/, admin/, common/)
+├── context/             # React Contexts (Auth, Cart, Chat, Toast, Theme)
+├── docs/                # Documentación y guías (SEO_GUIDE.md)
+├── functions/           # Cloud Functions
 │   ├── src/
-│   │   ├── services/     # Lógica centralizada del backend (orderService, cronService, paymentService, etc.)
-│   │   └── utils/        # Logger y gestores de errores globales
-│   └── tests/            # Tests unitarios del backend
-├── graphify-out/         # Grafo de conocimiento del código (GRAPH_REPORT.md)
-├── hooks/                # Custom React Hooks reutilizables (useAdminTable, useOrderFlow)
-├── pages/                # Vistas principales de la aplicación divididas por módulos (admin, business, customer)
-├── services/             # Clases de servicio frontend para API y Firebase (authService, productService, etc.)
-├── stores/               # Almacenes de Zustand para manejo de estado UI ligero
-├── tests/                # Tests unitarios e integración del frontend (Vitest)
-└── types.ts              # Tipos globales de TypeScript
+│   │   ├── marketplace.js           # createTransaction, createBooking, cancelTransaction
+│   │   ├── marketplace-notifications.js  # onTransactionCreated, onBookingCreated
+│   │   ├── seller-pass.js           # createSellerSubscription, handleWompiSubscription
+│   │   └── services/               # adminService, paymentService, etc. (legacy)
+│   └── index.js         # Entry point con exports
+├── hooks/               # Custom hooks (useAdminTable, etc.)
+├── pages/               # Vistas (Landing, customer/, admin/, business/)
+│   ├── Landing.tsx      # Página de marketing con precios dinámicos
+│   ├── Help.tsx         # Centro de ayuda
+│   └── customer/        # SellerOnboarding, SellerDetail, MyTransactions, BookingPage
+├── public/              # Assets estáticos (sitemap.xml, robots.txt)
+├── scripts/             # Utilidades (seedPlans.cjs)
+├── services/            # Servicios frontend
+│   ├── planService.ts            # Planes desde Firestore (dinámico)
+│   ├── sellerPassService.ts      # Gestión de suscripciones
+│   ├── listingService.ts         # CRUD de listings
+│   ├── transactionService.ts     # Transacciones
+│   ├── aiChatService.ts          # DeepSeek IA con tool calling
+│   └── ...
+├── tests/               # Tests Vitest
+├── types.ts             # Tipos globales TypeScript
+├── AI_CONTEXT.md        # Este archivo
+└── README.md
 ```
 
 ---
 
-## 📊 Modelo de Datos (Firestore Schema)
+## 📊 Modelo de Datos (Firestore)
 
-Firestore es NoSQL, pero sigue un esquema lógico estricto definido en `types.ts`. A continuación se detallan las colecciones principales:
+### Colecciones Principales
 
-### Colecciones Legacy (Food Rescue)
+#### `sellers` (Vendedores)
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `name` | string | Nombre del negocio |
+| `type` | enum | `food` \| `retail` \| `service` \| `individual` |
+| `ownerId` | string | UID del dueño |
+| `location` | object | `{ lat, lng, address, city, neighborhood }` |
+| `categoryIds` | string[] | IDs de categorías donde vende |
+| `subscription` | string | `free` \| `seller_pass_monthly` \| `seller_pass_annual` |
+| `commissionRate` | number | 0.10 (free) · 0.05 (pass) |
+| `subscriptionExpiresAt` | string | ISO fecha de expiración |
 
-### 1. `users` (Usuarios)
-* `id` (string): Firebase Auth UID.
-* `email` (string): Correo electrónico.
-* `role` (string): `CUSTOMER`, `VENUE_OWNER`, `DRIVER`, `SUPER_ADMIN`, etc.
-* `fullName` (string): Nombre completo.
-* `phone` (string): Teléfono.
-* `favoriteVenueIds` / `favoriteSellerIds` (string[]): Favoritos.
-* `impact` (object): CO₂ saved, money saved, points, level, streak.
-* `rescattoPass` (object): Suscripción premium.
+#### `listings` (Listados/Productos)
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `sellerId` | string | ID del vendedor |
+| `categoryId` | string | Categoría |
+| `type` | enum | `product` \| `service` \| `digital` |
+| `title`, `description` | string | Nombre y descripción |
+| `price`, `quantity` | number | Precio y stock |
+| `images` | string[] | URLs de imágenes |
+| `deliveryMethods` | array | `pickup` \| `shipping` \| `digital` \| `inPerson` |
+| `attributes` | object | Atributos dinámicos por categoría |
+| `searchKeywords` | string[] | Para búsqueda prefix-based |
 
-### 2. `venues` (Sedes / Locales — legacy)
-* `id` (string): ID de la sede.
-* `name` (string): Nombre del restaurante/establecimiento.
-* `ownerId` (string): UID del dueño.
-* `latitude` / `longitude` (number): Coordenadas GPS.
-* `city` (string): Ciudad.
-* `deliveryConfig` (object): Config de domicilio.
+#### `transactions` (Transacciones)
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `buyerId`, `sellerId` | string | Comprador y vendedor |
+| `transactionType` | enum | `purchase` \| `booking` \| `digital` |
+| `status` | enum | `PENDING` → `CONFIRMED` → `COMPLETED` \| `CANCELLED` |
+| `lineItems` | array | Items con listingId, quantity, price, title |
+| `subtotal`, `commission`, `sellerEarnings` | number | Financiero |
+| `commissionRate` | number | Tasa aplicada (del seller) |
+| `payment` | object | `{ method, id, status }` |
 
-### 3. `products` (Productos / Excedentes — legacy)
-* `id` (string): ID del producto.
-* `venueId` (string): ID de la sede.
-* `name` (string): Nombre.
-* `type` (enum): `SURPRISE_PACK` | `SPECIFIC_DISH`.
-* `originalPrice` / `discountedPrice` (number): Precios.
-* `quantity` (number): Stock.
-* `availableUntil` (string): Fecha de expiración.
-* `isDynamicPricing` (boolean): Precio dinámico activo.
+#### `bookings` (Reservas)
+| Campo | Tipo |
+|-------|------|
+| `transactionId`, `sellerId`, `buyerId` | string |
+| `startTime`, `endTime` | ISO string |
+| `status` | `confirmed` \| `cancelled` \| `attended` \| `no_show` |
 
-### 4. `orders` (Pedidos — legacy)
-* `id` (string): ID del pedido.
-* `customerId` / `venueId` / `driverId` (string): Participantes.
-* `status` (enum): `PENDING` → `ACCEPTED` → `READY` → `COMPLETED` + driver flow.
-* `products` (array): Items del pedido.
-* `totalAmount` (number): Total pagado.
-* `deliveryMethod`: `delivery` | `pickup`.
+#### `categories` (Categorías)
+| Campo | Tipo |
+|-------|------|
+| `name`, `slug`, `icon` | string |
+| `parentId` | string (null para raíces) |
+| `listingAttributes` | array (atributos dinámicos) |
+| Roots | Comida, Tecnología, Servicios, Digital (19 subcategorías) |
 
-### Colecciones Marketplace (nuevas)
-
-### 5. `categories` (Categorías)
-* Árbol jerárquico via `parentId`.
-* `name`, `slug`, `icon`, `level`, `order`.
-* `listingAttributes`: Atributos dinámicos por categoría (ej: brand, condition, duration).
-* Roots: Comida, Tecnología, Servicios, Digital (19 subcategorías).
-
-### 6. `sellers` (Vendedores)
-* `name`, `type`: `food` | `retail` | `service` | `individual`.
-* `ownerId`: Dueño del seller.
-* `location`: `{ lat, lng, address, city }`.
-* `categoryIds`: Categorías donde vende.
-* `deliveryConfig`: Config de envíos.
-* `subscription`: `free` | `seller_pass_monthly` | `seller_pass_annual`.
-
-### 7. `listings` (Listados)
-* `sellerId`, `categoryId`.
-* `type`: `product` | `service` | `digital`.
-* `title`, `description`, `images`, `price`, `quantity`.
-* `attributes`: Record<string, any> (dinámico por categoría).
-* `deliveryMethods`: `pickup` | `shipping` | `digital` | `inPerson`.
-* `searchKeywords`: Para búsqueda prefix-based.
-
-### 8. `transactions` (Transacciones)
-* `buyerId`, `sellerId`.
-* `transactionType`: `purchase` | `booking` | `digital`.
-* `status`: `PENDING` → `CONFIRMED` → `COMPLETED` | `CANCELLED`.
-* `lineItems`: Array con listingId, quantity, price, title.
-* `deliveryMethod`, `totalAmount`, `commission`, `sellerEarnings`.
-* `payment`: `{ method, id, status }`.
-
-### 9. `bookings` (Reservas de servicios)
-* `transactionId`, `sellerId`, `buyerId`, `listingId`.
-* `startTime`, `endTime`: ISO timestamps.
-* `status`: `confirmed` | `cancelled` | `attended` | `no_show`.
+#### `subscription_plans` (Planes de Suscripción)
+| Campo | Tipo | Ejemplo |
+|-------|------|---------|
+| `id` | string | `free` \| `seller_pass_monthly` \| `seller_pass_annual` |
+| `name` | string | Gratuito, Seller Pass Mensual, Anual |
+| `price` | number | 0, 49900, 499900 |
+| `commissionRate` | number | 0.10, 0.05, 0.05 |
+| `period` | string | `monthly` \| `annual` |
+| `features` | string[] | Lista de características |
+| `isActive` | boolean | Plan activo/disponible |
 
 ---
 
-## ⚡ Reglas y Mecanismos de Negocio Críticos
+## ⚡ Reglas de Negocio Clave
 
-### 1. Motor de Precios Dinámicos (Dynamic Pricing Engine)
-Calcula automáticamente el precio de rescate basándose en el tiempo restante hasta la hora de cierre del local. A medida que se acerca la hora de cierre, el valor del producto disminuye de forma lineal o exponencial para forzar su venta.
-* **Ubicación:** `functions/src/services/cronService.js` (ejecutado periódicamente por Cloud Scheduler).
-* **Fórmula base:** $PrecioActual = PrecioOriginal \times (1 - DescuentoProgresivo)$.
+### 1. Modelo Híbrido de Monetización
+| Plan | Comisión | Precio |
+|------|----------|--------|
+| **Free** | 10% por venta | $0/mes |
+| **Seller Pass Mensual** | 5% por venta | $49.900/mes |
+| **Seller Pass Anual** | 5% por venta | $499.900/año |
 
-### 2. Integración de Pasarela de Pagos (Wompi)
-* El cliente selecciona pagar con tarjeta o PSE.
-* El frontend abre el widget de Wompi (`components/customer/checkout/PaymentForm.tsx`).
-* Wompi procesa el cobro y envía un Webhook seguro a la Cloud Function `paymentWebhook` (`functions/src/services/paymentService.js`).
-* El backend valida la firma `SHA-256` utilizando la llave de integridad provista por Wompi para asegurar que la transacción es legítima y actualiza el estado del pedido a `PREPARING`.
+- Los planes se almacenan en `subscription_plans` y se leen dinámicamente
+- La `commissionRate` se guarda en el documento del seller al hacer upgrade
+- `createTransaction` calcula la comisión según `seller.commissionRate` (default 0.10)
 
-### 3. Sincronización de Custom Claims (Roles)
-* Cuando un administrador cambia el rol de un usuario en el Backoffice (`pages/admin/UsersManager.tsx`), se invoca la función `syncUserClaims`.
-* Esto escribe el rol en la metadata de Firebase Auth del usuario.
-* El cliente detecta la actualización y fuerza un refresco del token para reflejar las nuevas rutas de acceso permitidas mediante `ProtectedRoute`.
+### 2. AI Chat (RescattoBot)
+- 21 herramientas de function calling
+- Llamadas a DeepSeek v4 Flash/Pro
+- 5 capas de seguridad: sanitización, role enforcement, rate limiting, destructive guard, prompt injection detection + strike system
+- Memoria persistente por usuario en `ai_chat_memories`
 
----
+### 3. Pagos Wompi
+- Checkout via widget de Wompi en el frontend
+- Webhook `handleWompiSellerSubscription` para activación de Seller Pass
+- Transacciones solo creables via Cloud Function (`create: if false` en rules)
 
-## ⚙️ Directrices de Desarrollo para IAs (Patrones de Código)
-
-Cuando implementes o modifiques código, **DEBES** seguir estas reglas estrictas:
-
-### 1. Módulos Administrativos (DataTable)
-* **Prohibido:** Crear estados locales para paginar o buscar elementos manualmente en tablas administrativas de Firestore.
-* **Patrón Obligatorio:** Usa siempre el hook `useAdminTable` ubicado en [useAdminTable.ts](file:///c:/Users/ALEXANDER%20SANDOVAL/Documents/PERSONAL/DESARROLLO/Rescatto/hooks/useAdminTable.ts) junto con el componente reutilizable `DataTable.tsx`. Esto habilita automáticamente búsqueda local rápida con `inMemorySearch` o paginación server-side basada en cursor de Firestore.
-
-### 2. Manejo de Errores y Logging
-* Todas las llamadas asíncronas deben envolverse en bloques `try/catch`.
-* En frontend: Utiliza `services/loggerService.ts` para capturar errores de forma controlada.
-* En backend (Cloud Functions): Utiliza el logger unificado en `functions/src/utils/logger.js` mediante la función `error()`, `warn()`, y `log()`.
-
-### 3. Mantener el Grafo de Conocimiento al Día
-* Este proyecto cuenta con `graphify`, un extractor automático de dependencias y mapa visual.
-* Cada vez que realices modificaciones en los archivos de código, **debes ejecutar la siguiente instrucción en la terminal** para reconstruir el grafo:
-  ```bash
-  python -c "from graphify.watch import _rebuild_code; from pathlib import Path; _rebuild_code(Path('.'))"
-  ```
-  Esto actualizará automáticamente `graphify-out/GRAPH_REPORT.md` y `graphify-out/graph.json`.
+### 4. Seguridad Firestore
+- `create: if false` en transactions, bookings — solo CF
+- Listings: solo owner del seller o admin pueden crear/editar
+- Users: `canUserCreateOwnProfile` limita role a `CUSTOMER`
+- `canUserUpdateOwnProfile` limita campos editables
+- Helper functions: `isAdmin()`, `isSuperAdmin()`, `isOwner()`, `hasRole()`
 
 ---
 
-## 🔍 Planes de Verificación
+## 🔧 Cloud Functions
 
-* **Tests Unitarios Frontend:** Ejecutar `npm run test:run` para comprobar que la lógica de componentes y hooks esté intacta.
-* **E2E Playwright:** Ejecutar `npx playwright test` para correr las pruebas de integración en flujos críticos (registro, carrito, checkout).
-* **Firestore Rules:** Ejecutar `npm run test:rules` para validar que la seguridad del acceso de Firestore no haya sido vulnerada.
+| Función | Archivo | Tipo | Descripción |
+|---------|---------|------|-------------|
+| `createTransaction` | marketplace.js | callable | Crea transacción PENDING con comisión dinámica |
+| `createBooking` | marketplace.js | callable | Crea reserva |
+| `cancelTransaction` | marketplace.js | callable | Cancela transacción PENDING |
+| `seedCategories` | marketplace.js | callable | Siembra categorías iniciales |
+| `onTransactionCreated` | marketplace-notifications.js | trigger | Notifica al seller |
+| `onBookingCreated` | marketplace-notifications.js | trigger | Notifica al seller |
+| `createSellerSubscription` | seller-pass.js | callable | Upgrade de plan |
+| `handleWompiSellerSubscription` | seller-pass.js | webhook | Procesa pago Wompi |
+
+---
+
+## 🧪 Tests
+
+```bash
+npm run test        # Vitest — 883 tests
+npx tsc --noEmit    # TypeScript check — 0 errores
+npm run build       # Vite build — ~9s, 107 precache
+```
+
+---
+
+## 🔍 SEO
+
+| Recurso | Estado |
+|---------|--------|
+| `public/sitemap.xml` | ✅ 10 URLs |
+| `public/robots.txt` | ✅ Indexa rutas públicas |
+| `index.html` (meta OG + Twitter + JSON-LD) | ✅ |
+| Google Search Console | ✅ `rescatto.com` + `rescatto-c8d2b.web.app` |
