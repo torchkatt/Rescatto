@@ -1,72 +1,57 @@
 ## graphify
 
-This project has a graphify knowledge graph at graphify-out/.
+This project has a graphify knowledge graph at `graphify-out/`.
 
 Rules:
-- Before answering architecture or codebase questions, read graphify-out/GRAPH_REPORT.md for god nodes and community structure
-- If graphify-out/wiki/index.md exists, navigate it instead of reading raw files
-- After modifying code files in this session, run `python3 -c "from graphify.watch import _rebuild_code; from pathlib import Path; _rebuild_code(Path('.'))"` to keep the graph current
+- Before answering architecture or codebase questions, read `graphify-out/GRAPH_REPORT.md`
+- After modifying code files, run `graphify . --backend deepseek` to keep the graph current (requires DEEPSEEK_API_KEY)
 
-## Context Navigation:
+## Context Navigation
 
-When you need to understand the codebase, docs, or any files in this project:
+1. `AI_CONTEXT.md` — full architecture guide
+2. `graphify-out/GRAPH_REPORT.md` — module map
+3. `.ai-context/memory.json` — session history and ADRs
 
-1. ALWAYS query the knowledge graph first: `/graphify query "your question"`
-2. Only read raw files if I explicitly say "read the file", "look at the raw file", "lee el archivo", "revisa el archivo" or similar.
-3. Use `graphify-out/wiki/index.md` as your navigation entrypoint for browsing structure.
+## Architecture Overview
 
----
+**Rescatto** is a general-purpose Colombian marketplace:
 
-## ⚡ AI Router — Smart Model Selection (PRO→FLASH Workflow)
+| Component | Tech |
+|-----------|------|
+| Frontend | React 18 + TypeScript + Tailwind CSS + Vite |
+| Backend | Firebase (Firestore, Auth, Functions Gen2, Messaging, Storage) |
+| Payments | Wompi (widget + webhook) |
+| AI Chat | DeepSeek v4 Flash/Pro (21 tools, 5 security layers) |
+| Subscription | Hybrid: Free 10% / Seller Pass 5% (dynamic from Firestore) |
+| Tests | Vitest (883 tests) |
 
-Este proyecto usa un sistema de routing inteligente para optimizar costos de API.
-Usa `deepseek-v4-pro` ($1.74/M tokens) solo para planificación estratégica,
-y `deepseek-v4-flash` ($0.14/M tokens) para implementación directa.
+## Key Data Collections
 
-### Flujo Automático
+- `sellers` — vendor profiles with `commissionRate` and `subscription`
+- `listings` — products/services/digital with dynamic categories
+- `transactions` — purchases with `sellerEarnings` and `commission`
+- `bookings` — service appointments
+- `categories` — hierarchical tree (4 roots, 19 subcategories)
+- `subscription_plans` — dynamic plans (Free/Pass Monthly/Pass Annual)
 
-Cuando recibas una instrucción:
+## Cloud Functions
 
-1. **CLASIFICA automáticamente** la tarea usando heurísticas (0 tokens):
-   - **COMPLEX** (usa PRO): arquitectura, multi-archivo, seguridad, data model, estrategia, migraciones, refactors grandes, features nuevos
-   - **SIMPLE** (usa FLASH): bug fixes, tests, UI simple, 1-2 archivos, documentación, hotfixes, typos
+| Function | File | Description |
+|----------|------|-------------|
+| `createTransaction` | `marketplace.js` | Creates PENDING transaction with seller's commissionRate |
+| `createBooking` | `marketplace.js` | Creates service booking |
+| `cancelTransaction` | `marketplace.js` | Cancels PENDING transaction |
+| `seedCategories` | `marketplace.js` | Seeds default categories |
+| `createSellerSubscription` | `seller-pass.js` | Upgrades seller subscription plan |
+| `handleWompiSellerSubscription` | `seller-pass.js` | Wompi webhook for subscription payment |
 
-2. **Ejecuta según clasificación:**
-   ```
-   COMPLEX → npx tsx scripts/ai-router.ts --plan "descripción de la tarea"
-   SIMPLE  → implementa directamente con herramientas disponibles (read_file, replace_in_file, etc.)
-   ```
+## Development Rules
 
-3. **Usa memoria de contexto:**
-   - Revisa `.ai-context/memory.json` al inicio de cada sesión
-   - Actualiza `sessions` y `last_session` al finalizar
-   - Usa los `architecture_decisions` y `patterns` para mantener coherencia
-
-### Selección Automática de Skills
-
-Según la clasificación y descripción, aplica el skill adecuado:
-
-| Tipo de Tarea | Skill a Usar |
-|---|---|
-| Bug / test failure (SIMPLE) | `systematic-debugging` |
-| Tests / implementación existente (SIMPLE) | `test-driven-development` |
-| Diseño / arquitectura (COMPLEX) | `brainstorming → writing-plans → subagent-driven-development` |
-| Migraciones / refactors (COMPLEX) | `brainstorming → writing-plans → executing-plans` |
-| Estrategia / trade-offs (COMPLEX) | `brainstorming` |
-| Después de implementar (cualquier tarea) | `verification-before-completion` |
-| Antes de finalizar rama | `finishing-a-development-branch` |
-
-### Reglas de Eficiencia
-
-- **NO** uses "I'll", "Let me", "Great" — solo acción directa
-- **NO** preguntes antes de hacer cosas obvias — solo hazlas
-- **VERIFICA** con tests después de implementar
-- **CORRIGE** fallos inmediatamente sin preguntar
-- **MÍNIMO** contexto en cada respuesta — solo código y comandos
-- **MEMORIA** persiste en `.ai-context/memory.json`
-- **ADMIN** todas las tablas nuevas deben usar `useAdminTable` y `inMemorySearch`. Prohibido usar estado local manual para paginación o búsqueda.
-
-### Recordatorios Post-Implementación
-
-- Si modificaste archivos de código, reconstruye el grafo graphify:
-  `python3 -c "from graphify.watch import _rebuild_code; from pathlib import Path; _rebuild_code(Path('.'))"`
+1. **NO hardcoded data** — everything from Firestore (plans, pricing, features)
+2. **Use `planService`** for subscription plan reads (not direct Firestore)
+3. **Commission is dynamic** — read from `seller.commissionRate` (default 0.10)
+4. **Firestore rules** — `create: if false` on transactions/bookings (only via CF)
+5. **Admin tables** — use `useAdminTable` + `DataTable` (no manual pagination)
+6. **Tests** — run `npm run test` and `npx tsc --noEmit` before finalizing
+7. **Security** — all CFs must have `context.auth` check + input validation
+8. **Plans** — stored in `subscription_plans` collection, editable via Firebase Console
