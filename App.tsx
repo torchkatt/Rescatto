@@ -94,6 +94,7 @@ const Impact = lazyLoad(() => import('./pages/customer/Impact'));
 const UnifiedProfile = lazyLoad(() => import('./pages/profile/UnifiedProfile'), 'UnifiedProfile');
 const BookingPage = lazyLoad(() => import('./pages/customer/BookingPage'));
 const Explore = lazyLoad(() => import('./pages/customer/Explore'));
+const Landing = lazyLoad(() => import('./pages/Landing'));
 
 import { ReloadPrompt } from './components/ReloadPrompt';
 
@@ -109,6 +110,11 @@ import { messagingService } from './services/messagingService';
 import { HelpCenter } from './components/help/HelpCenter';
 import { HelpFloatingButton } from './components/help/HelpFloatingButton';
 import { ManualWelcomeModal } from './components/help/ManualWelcomeModal';
+
+// Pages - Help Center
+const Help = lazyLoad(() => import('./pages/Help'));
+const HelpSeller = lazyLoad(() => import('./pages/HelpSeller'));
+const HelpBuyer = lazyLoad(() => import('./pages/HelpBuyer'));
 
 // Smart Redirect Component
 const RootRedirect: React.FC = () => {
@@ -299,7 +305,7 @@ const AppRoutes: React.FC = () => {
         <React.Suspense fallback={<LoadingSpinner fullPage size="lg" />}>
             <Routes>
                 {/* UNIFIED ROOT: Decides where to go */}
-                <Route path="/" element={<RootRedirect />} />
+                <Route path="/" element={<Landing />} />
 
                 {/* PUBLIC AUTH */}
                 <Route path="/login" element={<Login />} />
@@ -316,6 +322,11 @@ const AppRoutes: React.FC = () => {
                 <Route path="/verify-email" element={<VerifyEmail />} />
                 <Route path="/legal/terms" element={<LegalDoc />} />
                 <Route path="/legal/privacy" element={<LegalDoc />} />
+
+                {/* --- HELP CENTER --- */}
+                <Route path="/help" element={<Help />} />
+                <Route path="/help/seller" element={<HelpSeller />} />
+                <Route path="/help/buyer" element={<HelpBuyer />} />
 
                 {/* --- BACKOFFICE V2 ROUTES --- */}
                 <Route path="/backoffice" element={

@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /
+Allow: /#/app/explore
+Allow: /#/app/marketplace
+Allow: /#/app/impact
+Allow: /#/help
+Disallow: /#/admin
+Disallow: /#/backoffice
+Disallow: /#/dashboard
+Disallow: /#/app/profile
+Disallow: /#/app/cart
+Disallow: /#/app/checkout
+Disallow: /#/app/orders
+
+Sitemap: https://rescatto-c8d2b.web.app/sitemap.xml
