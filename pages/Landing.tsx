@@ -28,9 +28,9 @@ import { useAuth } from '../context/AuthContext';
 import { Logo } from '../components/common/Logo';
 
 // ── Config ───────────────────────────────────────────────────────────────────
-const BRAND = '#7c3aed'; // Primary purple
-const BRAND_LIGHT = '#a78bfa';
-const BRAND_DARK = '#5b21b6';
+const BRAND = '#059669'; // Primary purple
+const BRAND_LIGHT = '#34d399';
+const BRAND_DARK = '#047857';
 
 // ── Section Wrapper ──────────────────────────────────────────────────────────
 const Section: React.FC<{ id?: string; className?: string; children: React.ReactNode }> = ({ 
@@ -48,7 +48,7 @@ const GlassCard: React.FC<{ className?: string; children: React.ReactNode; hover
   className = '', children, hover = true
 }) => (
   <div className={`backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-6 lg:p-8 
-    ${hover ? 'hover:bg-white/10 hover:border-purple-500/30 hover:-translate-y-1 transition-all duration-300' : ''} 
+    ${hover ? 'hover:bg-white/10 hover:border-emerald-500/30 hover:-translate-y-1 transition-all duration-300' : ''} 
     ${className}`}>
     {children}
   </div>
@@ -58,7 +58,7 @@ const GlassCard: React.FC<{ className?: string; children: React.ReactNode; hover
 const GradientText: React.FC<{ className?: string; children: React.ReactNode }> = ({
   className = '', children
 }) => (
-  <span className={`bg-gradient-to-r from-purple-400 via-violet-400 to-fuchsia-400 bg-clip-text text-transparent ${className}`}>
+  <span className={`bg-gradient-to-r from-emerald-400 via-emerald-300 to-green-400 bg-clip-text text-transparent ${className}`}>
     {children}
   </span>
 );
@@ -68,7 +68,7 @@ const Pill: React.FC<{ className?: string; children: React.ReactNode }> = ({
   className = '', children
 }) => (
   <span className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full 
-    bg-purple-500/10 border border-purple-500/20 text-purple-300 text-sm font-medium 
+    bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-sm font-medium 
     backdrop-blur-sm ${className}`}>
     {children}
   </span>
@@ -83,8 +83,8 @@ const PrimaryCTA: React.FC<{ onClick?: () => void; href?: string; className?: st
     <Comp
       {...(onClick ? { onClick } : { href })}
       className={`inline-flex items-center gap-2 px-8 py-4 rounded-xl 
-        bg-gradient-to-r from-purple-500 to-fuchsia-500 text-white font-bold text-base
-        shadow-lg shadow-purple-500/25 hover:shadow-xl hover:shadow-purple-500/40 
+        bg-gradient-to-r from-emerald-600 to-green-600 text-white font-bold text-base
+        shadow-lg shadow-emerald-500/25 hover:shadow-xl hover:shadow-emerald-500/40 
         hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200 ${className}`}
     >
       {children}
@@ -100,7 +100,7 @@ const OutlineCTA: React.FC<{ onClick?: () => void; className?: string; children:
     onClick={onClick}
     className={`inline-flex items-center gap-2 px-8 py-4 rounded-xl 
       border-2 border-white/20 text-white font-bold text-base
-      hover:bg-white/5 hover:border-purple-400/40 
+      hover:bg-white/5 hover:border-emerald-400/40 
       hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200 ${className}`}
   >
     {children}
@@ -118,9 +118,9 @@ const FAQItem: React.FC<{ question: string; children: React.ReactNode }> = ({ qu
       >
         <span className="font-semibold text-white text-lg pr-4">{question}</span>
         {open ? (
-          <ChevronUp size={20} className="text-purple-400 shrink-0" />
+          <ChevronUp size={20} className="text-emerald-400 shrink-0" />
         ) : (
-          <ChevronDown size={20} className="text-purple-400 shrink-0" />
+          <ChevronDown size={20} className="text-emerald-400 shrink-0" />
         )}
       </button>
       {open && (
@@ -138,11 +138,11 @@ const FeatureCard: React.FC<{
 }> = ({ icon, title, description, delay = 0 }) => (
   <GlassCard className="text-center animate-fade-in-up" hover>
     <div 
-      className="w-14 h-14 rounded-2xl bg-purple-500/10 border border-purple-500/20 
+      className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 
         flex items-center justify-center mx-auto mb-5 group-hover:scale-110 transition-transform"
       style={{ animationDelay: `${delay}ms` }}
     >
-      <div className="text-purple-400">
+      <div className="text-emerald-400">
         {icon}
       </div>
     </div>
@@ -156,15 +156,15 @@ const StepCard: React.FC<{
   number: number; title: string; description: string; icon: React.ReactNode;
 }> = ({ number, title, description, icon }) => (
   <div className="flex flex-col items-center text-center group">
-    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500/20 to-fuchsia-500/20 
-      border border-purple-500/30 flex items-center justify-center mb-5 
-      group-hover:scale-110 group-hover:border-purple-400/50 transition-all duration-300">
-      <div className="text-purple-400">
+    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-green-600/20 
+      border border-emerald-500/30 flex items-center justify-center mb-5 
+      group-hover:scale-110 group-hover:border-emerald-400/50 transition-all duration-300">
+      <div className="text-emerald-400">
         {icon}
       </div>
     </div>
-    <div className="mb-3 w-8 h-8 rounded-full bg-purple-500/20 border border-purple-500/30 
-      flex items-center justify-center text-purple-300 font-bold text-sm">
+    <div className="mb-3 w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-500/30 
+      flex items-center justify-center text-emerald-300 font-bold text-sm">
       {number}
     </div>
     <h4 className="text-white font-bold text-lg mb-2">{title}</h4>
@@ -179,20 +179,20 @@ const PricingCard: React.FC<{
 }> = ({ name, price, period, description, features, highlighted, ctaText = 'Empezar', onCta }) => (
   <div className={`relative rounded-2xl p-8 border transition-all duration-300
     ${highlighted 
-      ? 'bg-gradient-to-b from-purple-500/20 to-purple-900/40 border-purple-500/40 scale-105 z-10 shadow-2xl shadow-purple-500/20' 
-      : 'backdrop-blur-xl bg-white/[0.03] border-white/10 hover:border-purple-500/30 hover:-translate-y-1'
+      ? 'bg-gradient-to-b from-emerald-500/20 to-emerald-900/40 border-emerald-500/40 scale-105 z-10 shadow-2xl shadow-emerald-500/20' 
+      : 'backdrop-blur-xl bg-white/[0.03] border-white/10 hover:border-emerald-500/30 hover:-translate-y-1'
     }`}>
     {highlighted && (
       <div className="absolute -top-3 left-1/2 -translate-x-1/2">
         <Pill><Star size={12} fill="currentColor" /> Más Popular</Pill>
       </div>
     )}
-    <h3 className={`text-xl font-bold mb-1 ${highlighted ? 'text-purple-200' : 'text-white'}`}>
+    <h3 className={`text-xl font-bold mb-1 ${highlighted ? 'text-emerald-200' : 'text-white'}`}>
       {name}
     </h3>
     <p className="text-gray-400 text-sm mb-6">{description}</p>
     <div className="mb-6">
-      <span className={`text-5xl font-black ${highlighted ? 'text-white' : 'text-purple-300'}`}>
+      <span className={`text-5xl font-black ${highlighted ? 'text-white' : 'text-emerald-300'}`}>
         {price}
       </span>
       {period && <span className="text-gray-400 text-sm ml-1">/{period}</span>}
@@ -201,7 +201,7 @@ const PricingCard: React.FC<{
       onClick={onCta}
       className={`w-full py-3.5 rounded-xl font-bold text-sm transition-all duration-200 active:scale-[0.98]
         ${highlighted
-          ? 'bg-gradient-to-r from-purple-500 to-fuchsia-500 text-white shadow-lg shadow-purple-500/25 hover:shadow-xl'
+          ? 'bg-gradient-to-r from-emerald-600 to-green-600 text-white shadow-lg shadow-emerald-500/25 hover:shadow-xl'
           : 'border border-white/20 text-white hover:bg-white/5'
         }`}
     >
@@ -210,7 +210,7 @@ const PricingCard: React.FC<{
     <ul className="mt-8 space-y-3">
       {features.map((f, i) => (
         <li key={i} className="flex items-start gap-3 text-sm">
-          <Check size={16} className={`mt-0.5 shrink-0 ${highlighted ? 'text-purple-300' : 'text-purple-400'}`} />
+          <Check size={16} className={`mt-0.5 shrink-0 ${highlighted ? 'text-emerald-300' : 'text-emerald-400'}`} />
           <span className="text-gray-300">{f}</span>
         </li>
       ))}
@@ -229,8 +229,8 @@ const TestimonialCard: React.FC<{
       ))}
     </div>
     <p className="text-gray-300 text-sm leading-relaxed mb-5 italic">"{quote}"</p>
-    <div className="w-12 h-12 rounded-full bg-purple-500/20 border border-purple-500/30 
-      mx-auto mb-3 flex items-center justify-center text-purple-300 font-bold text-lg">
+    <div className="w-12 h-12 rounded-full bg-emerald-500/20 border border-emerald-500/30 
+      mx-auto mb-3 flex items-center justify-center text-emerald-300 font-bold text-lg">
       {avatar}
     </div>
     <p className="text-white font-bold text-sm">{name}</p>
@@ -248,7 +248,7 @@ const Navbar: React.FC<{ onLogin: () => void; onStart: () => void }> = ({ onLogi
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <a href="#" className="flex items-center gap-2.5 group">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-500 to-fuchsia-500 
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-600 to-green-600 
               flex items-center justify-center group-hover:scale-105 transition-transform shadow-lg">
               <Logo size="sm" className="brightness-0 invert" iconColor="#fff" />
             </div>
@@ -273,9 +273,9 @@ const Navbar: React.FC<{ onLogin: () => void; onStart: () => void }> = ({ onLogi
             </button>
             <button
               onClick={onStart}
-              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-fuchsia-500 
-                text-white text-sm font-bold shadow-lg shadow-purple-500/20 
-                hover:shadow-xl hover:shadow-purple-500/40 hover:-translate-y-0.5 
+              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 
+                text-white text-sm font-bold shadow-lg shadow-emerald-500/20 
+                hover:shadow-xl hover:shadow-emerald-500/40 hover:-translate-y-0.5 
                 active:scale-[0.98] transition-all duration-200"
             >
               Comenzar Gratis
@@ -304,7 +304,7 @@ const Navbar: React.FC<{ onLogin: () => void; onStart: () => void }> = ({ onLogi
               <button onClick={onLogin} className="w-full py-3 rounded-xl border border-white/20 text-white font-bold text-sm">
                 Iniciar Sesión
               </button>
-              <button onClick={onStart} className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-500 to-fuchsia-500 text-white font-bold text-sm">
+              <button onClick={onStart} className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 text-white font-bold text-sm">
                 Comenzar Gratis
               </button>
             </div>
@@ -323,7 +323,7 @@ const LandingFooter: React.FC = () => (
         {/* Brand */}
         <div className="col-span-1 md:col-span-2">
           <div className="flex items-center gap-2.5 mb-4">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-500 to-fuchsia-500 flex items-center justify-center shadow-lg">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-600 to-green-600 flex items-center justify-center shadow-lg">
               <Logo size="sm" className="brightness-0 invert" iconColor="#fff" />
             </div>
             <span className="text-white font-bold text-lg tracking-tight">Rescatto</span>
@@ -333,13 +333,13 @@ const LandingFooter: React.FC = () => (
             Reduce desperdicios, aumenta ganancias y construye un futuro sostenible.
           </p>
           <div className="flex items-center gap-4">
-            <a href="#" className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:text-purple-400 hover:border-purple-500/30 transition-all">
+            <a href="#" className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:text-emerald-400 hover:border-emerald-500/30 transition-all">
               <Globe size={18} />
             </a>
-            <a href="#" className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:text-purple-400 hover:border-purple-500/30 transition-all">
+            <a href="#" className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:text-emerald-400 hover:border-emerald-500/30 transition-all">
               <Mail size={18} />
             </a>
-            <a href="#" className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:text-purple-400 hover:border-purple-500/30 transition-all">
+            <a href="#" className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:text-emerald-400 hover:border-emerald-500/30 transition-all">
               <Phone size={18} />
             </a>
           </div>
@@ -396,9 +396,9 @@ const Landing: React.FC = () => {
       <Section className="pt-32 lg:pt-44 pb-16 relative overflow-hidden">
         {/* Background Effects */}
         <div className="absolute inset-0 z-0">
-          <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-purple-600/20 rounded-full blur-[120px]" />
-          <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-fuchsia-600/15 rounded-full blur-[100px]" />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-violet-600/10 rounded-full blur-[150px]" />
+          <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-emerald-600/20 rounded-full blur-[120px]" />
+          <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-emerald-600/15 rounded-full blur-[100px]" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-emerald-600/10 rounded-full blur-[150px]" />
           {/* Grid overlay */}
           <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:60px_60px]" />
         </div>
@@ -407,7 +407,7 @@ const Landing: React.FC = () => {
           {/* Badge */}
           <div className="flex justify-center mb-8 animate-fade-in-up">
             <Pill>
-              <Zap size={14} className="text-purple-400" />
+              <Zap size={14} className="text-emerald-400" />
               Plataforma #1 en Colombia
             </Pill>
           </div>
@@ -461,7 +461,7 @@ const Landing: React.FC = () => {
       {/* ════════════════════════════════════════════════════════════
           ── FEATURES SECTION ──────────────────────────────────────
           ════════════════════════════════════════════════════════════ */}
-      <Section id="features" className="bg-gradient-to-b from-transparent via-purple-950/10 to-transparent">
+      <Section id="features" className="bg-gradient-to-b from-transparent via-emerald-950/10 to-transparent">
         <div className="text-center mb-16">
           <Pill className="mb-4"><Zap size={14} /> Features</Pill>
           <h2 className="text-4xl lg:text-5xl font-black mb-4">
@@ -525,7 +525,7 @@ const Landing: React.FC = () => {
           {/* Sellers */}
           <div>
             <h3 className="text-2xl font-bold text-center mb-10">
-              <span className="bg-gradient-to-r from-purple-400 to-fuchsia-400 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-emerald-400 to-green-400 bg-clip-text text-transparent">
                 Para Vendedores
               </span>
             </h3>
@@ -554,7 +554,7 @@ const Landing: React.FC = () => {
           {/* Buyers */}
           <div>
             <h3 className="text-2xl font-bold text-center mb-10">
-              <span className="bg-gradient-to-r from-purple-400 to-fuchsia-400 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-emerald-400 to-green-400 bg-clip-text text-transparent">
                 Para Compradores
               </span>
             </h3>
@@ -585,7 +585,7 @@ const Landing: React.FC = () => {
       {/* ════════════════════════════════════════════════════════════
           ── PRICING SECTION ───────────────────────────────────────
           ════════════════════════════════════════════════════════════ */}
-      <Section id="pricing" className="bg-gradient-to-b from-transparent via-purple-950/10 to-transparent">
+      <Section id="pricing" className="bg-gradient-to-b from-transparent via-emerald-950/10 to-transparent">
         <div className="text-center mb-16">
           <Pill className="mb-4"><BadgeCheck size={14} /> Seller Pass</Pill>
           <h2 className="text-4xl lg:text-5xl font-black mb-4">
@@ -602,50 +602,49 @@ const Landing: React.FC = () => {
             name="Free"
             price="$0"
             period="mes"
-            description="Perfecto para empezar a vender sin compromiso."
+            description="Empieza a vender hoy, paga solo cuando vendes."
             features={[
-              'Hasta 10 productos activos',
-              '1 foto por producto',
+              'Productos ilimitados',
+              '10% comisión por venta',
+              'Perfil de tienda público',
               'Estadísticas básicas',
               'Soporte por email',
-              'Perfil de tienda público',
+              'Sin suscripción mensual',
             ]}
             ctaText="Comenzar Gratis"
             onCta={goToApp}
           />
           <PricingCard
-            name="Pro"
-            price="$29.900"
+            name="Seller Pass"
+            price="$49.900"
             period="mes"
-            description="Para negocios que quieren crecer en serio."
+            description="Para vendedores que venden consistentemente."
             highlighted
             features={[
-              'Productos ilimitados',
-              'Hasta 10 fotos por producto',
+              'Todo lo de Free',
+              '5% comisión por venta (ahorra 50%)',
+              'Productos destacados en búsqueda',
               'Analytics avanzados',
               'Soporte prioritario 24/7',
-              'Productos destacados en búsqueda',
-              'Precios dinámicos con IA',
-              'Sin comisiones adicionales',
+              'Badge de verificado',
             ]}
-            ctaText="Elegir Pro"
+            ctaText="Elegir Seller Pass"
             onCta={goToApp}
           />
           <PricingCard
-            name="Enterprise"
-            price="$79.900"
-            period="mes"
-            description="Para cadenas y franquicias con alto volumen."
+            name="Seller Pass Anual"
+            price="$499.900"
+            period="año"
+            description="Ahorra 2 meses al pagar el año completo."
             features={[
-              'Todo lo de Pro',
+              'Todo lo de Seller Pass Mensual',
+              '5% comisión por venta',
+              'Equivale a $41.658/mes',
               'Multi-sucursal',
-              'API de integración',
-              'Gerente de cuenta dedicado',
-              'Facturación electrónica',
               'Reportes personalizados',
-              'SLA garantizado',
+              'Facturación electrónica',
             ]}
-            ctaText="Contactar Ventas"
+            ctaText="Elegir Anual"
             onCta={goToApp}
           />
         </div>
@@ -692,7 +691,7 @@ const Landing: React.FC = () => {
           ── CTA BANNER ────────────────────────────────────────────
           ════════════════════════════════════════════════════════════ */}
       <Section>
-        <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-purple-600 via-violet-700 to-fuchsia-700 p-12 lg:p-16 text-center">
+        <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-emerald-600 via-emerald-700 to-green-700 p-12 lg:p-16 text-center">
           {/* Decorative elements */}
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
           <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full blur-2xl translate-y-1/2 -translate-x-1/2" />
@@ -701,13 +700,13 @@ const Landing: React.FC = () => {
             <h2 className="text-3xl lg:text-4xl font-black mb-4">
               ¿Listo para transformar tu negocio?
             </h2>
-            <p className="text-purple-100 max-w-lg mx-auto mb-8 text-lg">
+            <p className="text-emerald-100 max-w-lg mx-auto mb-8 text-lg">
               Únete a más de 500 negocios que ya están reduciendo desperdicios y aumentando sus ganancias con Rescatto.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <button
                 onClick={goToApp}
-                className="px-8 py-4 rounded-xl bg-white text-purple-700 font-bold text-base
+                className="px-8 py-4 rounded-xl bg-white text-emerald-700 font-bold text-base
                   shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:scale-[0.98] 
                   transition-all duration-200 inline-flex items-center gap-2"
               >
@@ -730,7 +729,7 @@ const Landing: React.FC = () => {
       {/* ════════════════════════════════════════════════════════════
           ── FAQ SECTION ───────────────────────────────────────────
           ════════════════════════════════════════════════════════════ */}
-      <Section id="faq" className="bg-gradient-to-b from-transparent via-purple-950/10 to-transparent">
+      <Section id="faq" className="bg-gradient-to-b from-transparent via-emerald-950/10 to-transparent">
         <div className="text-center mb-16">
           <Pill className="mb-4">FAQ</Pill>
           <h2 className="text-4xl lg:text-5xl font-black mb-4">

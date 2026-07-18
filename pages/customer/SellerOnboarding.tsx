@@ -169,7 +169,8 @@ export const SellerOnboarding: React.FC = () => {
         },
         isActive: true,
         subscription: 'free',
-      };
+        commissionRate: 0.10,
+        };
 
       await sellerService.create(sellerData);
       success(t('seller_onboarding_success', '¡Perfil de vendedor creado con éxito!'));

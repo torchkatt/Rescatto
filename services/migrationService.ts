@@ -49,6 +49,7 @@ function venueToSeller(venue: Venue): Omit<Seller, 'id'> {
     },
     isActive: true,
     subscription: 'free',
+    commissionRate: 0.10,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };

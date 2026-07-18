@@ -35,7 +35,10 @@ exports.createTransaction = onCall(async (request) => {
         const now = new Date().toISOString();
         const data = request.data;
         const subtotal = data.lineItems.reduce((s, i) => s + i.price * i.quantity, 0);
-        const commissionRate = 0.10;
+        // Get seller's commission rate from their subscription
+        const sellerDoc = await db.collection("sellers").doc(data.sellerId).get();
+        const sellerData = sellerDoc.data();
+        const commissionRate = sellerData?.commissionRate || 0.10;
         const commission = data.commission || Math.round(subtotal * commissionRate);
         const sellerEarnings = Math.max(0, (data.sellerEarnings || subtotal - commission));
 

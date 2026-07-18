@@ -14,12 +14,11 @@ exports.createSellerSubscription = onCall(async (request) => {
     if (!planId || !transactionId)
         throw new HttpsError("invalid-argument", "planId y transactionId requeridos.");
 
-    const VALID_PLANS = [
-        { id: 'seller_pass_monthly', name: 'Seller Pass Mensual', price: 49900, period: 'monthly', commissionRate: 0.05 },
-        { id: 'seller_pass_annual', name: 'Seller Pass Anual', price: 499900, period: 'annual', commissionRate: 0.05 },
-    ];
-    const plan = VALID_PLANS.find(p => p.id === planId);
-    if (!plan) throw new HttpsError("invalid-argument", "Plan inválido.");
+    // Leer el plan desde Firestore (no hardcoded)
+    const planDoc = await db.collection("subscription_plans").doc(planId).get();
+    if (!planDoc.exists) throw new HttpsError("not-found", "Plan no encontrado.");
+    const plan = planDoc.data();
+    if (!plan || !plan.isActive) throw new HttpsError("failed-precondition", "Plan no disponible.");
 
     const sellerSnap = await db.collection('sellers')
         .where('ownerId', '==', request.auth.uid)
@@ -70,15 +69,13 @@ exports.handleWompiSellerSubscription = onRequest(async (req, res) => {
         const planId = parts[1];
         const sellerId = parts.slice(2).join('_') || '';
 
-        const VALID_PLANS = [
-            { id: 'seller_pass_monthly', period: 'monthly', commissionRate: 0.05 },
-            { id: 'seller_pass_annual', period: 'annual', commissionRate: 0.05 },
-        ];
-        const plan = VALID_PLANS.find(p => p.id === planId);
-        if (!plan || !sellerId) {
+        // Leer plan desde Firestore
+        const planSnap = await db.collection("subscription_plans").doc(planId).get();
+        if (!planSnap.exists || !sellerId) {
             res.status(200).json({ received: true });
             return;
         }
+        const plan = planSnap.data();
 
         const now = new Date();
         const expiresAt = new Date(now);

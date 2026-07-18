@@ -805,6 +805,7 @@ export interface Seller {
   };
   isActive: boolean;
   subscription: 'free' | 'seller_pass_monthly' | 'seller_pass_annual';
+  commissionRate: number;          // 0.10 = 10% (free), 0.05 = 5% (pass)
   createdAt: string;
   updatedAt?: string;
 }
@@ -913,34 +914,4 @@ export interface SellerPassPlan {
   features: string[];
   period: 'monthly' | 'annual';
   commissionRate: number; // 0.05 = 5%
-}
-
-export const SELLER_PASS_PLANS: SellerPassPlan[] = [
-  {
-    id: 'seller_pass_monthly',
-    name: 'Seller Pass Mensual',
-    price: 49900,
-    features: [
-      '5% comisión en ventas',
-      'Listings destacados',
-      'Analytics avanzados',
-      'Soporte prioritario',
-    ],
-    period: 'monthly',
-    commissionRate: 0.05,
-  },
-  {
-    id: 'seller_pass_annual',
-    name: 'Seller Pass Anual',
-    price: 499900,
-    features: [
-      '5% comisión en ventas',
-      'Listings destacados',
-      'Analytics avanzados',
-      'Soporte prioritario',
-      'Badge verificado',
-    ],
-    period: 'annual',
-    commissionRate: 0.05,
-  },
-];
+} 

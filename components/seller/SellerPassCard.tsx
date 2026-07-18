@@ -48,8 +48,7 @@ export const SellerPassCard: React.FC<Props> = ({ sellerId }) => {
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [subscriptionExpiresAt, setSubscriptionExpiresAt] = useState<string | null>(null);
   const [wompiError, setWompiError] = useState<string | null>(null);
-
-  const availablePlans = sellerPassService.getAvailablePlans();
+  const [availablePlans, setAvailablePlans] = useState<SellerPassPlan[]>([]);
 
   useEffect(() => {
     if (!sellerId) return;
@@ -65,7 +64,10 @@ export const SellerPassCard: React.FC<Props> = ({ sellerId }) => {
           const expiresAt = (seller as any).subscriptionExpiresAt;
           setSubscriptionExpiresAt(expiresAt || null);
         }
-      } catch (e) {
+      // Obtener planes disponibles
+      const plans = await sellerPassService.getAvailablePlans();
+      setAvailablePlans(plans);
+    } catch (e) {
         logger.error('SellerPassCard getCurrentPlan error:', e);
       } finally {
         setLoading(false);

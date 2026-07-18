@@ -71,6 +71,7 @@ function venueToSeller(venue: Venue): Seller {
     deliveryConfig: venue.deliveryConfig,
     isActive: true,
     subscription: 'free',
+    commissionRate: 0.10,
     createdAt: new Date().toISOString(),
   };
 }
