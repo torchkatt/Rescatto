@@ -151,5 +151,8 @@ functions/lint_results.txt
 # PWA dev build output (vite-plugin-pwa)
 dev-dist/
 
+# Firebase account tokens (multi-account support)
+.firebase_tokens.json
+
 # Stray backup files
 *.bak
