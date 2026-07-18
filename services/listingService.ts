@@ -272,16 +272,40 @@ export class ListingService {
   ): Promise<Listing[]> {
     try {
       const listingsRef = collection(db, this.newCollection);
+
+      // ─── Strategy: avoid complex composite indexes ───
+      // When searching by keyword, do a simple array-contains query first,
+      // then filter client-side. This avoids needing composite indexes
+      // with array-contains + equality + orderBy.
+      if (searchTerm) {
+        const term = searchTerm.toLowerCase().trim();
+        const q = query(
+          listingsRef,
+          where('searchKeywords', 'array-contains', term),
+          where('isActive', '==', true),
+          limit(50)
+        );
+        const snapshot = await getDocs(q);
+        let listings = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Listing));
+
+        // Client-side filter by type/categoryId
+        if (options.type) {
+          listings = listings.filter(l => l.type === options.type);
+        }
+        if (options.categoryId) {
+          listings = listings.filter(l => l.categoryId === options.categoryId);
+        }
+
+        return listings;
+      }
+
+      // ─── No search term: use composite queries (indexes already exist) ───
       const constraints: any[] = [
         where('isActive', '==', true),
         orderBy('createdAt', 'desc'),
         limit(50),
       ];
 
-      if (searchTerm) {
-        const term = searchTerm.toLowerCase().trim();
-        constraints.unshift(where('searchKeywords', 'array-contains', term));
-      }
       if (options.categoryId) {
         constraints.unshift(where('categoryId', '==', options.categoryId));
       }
