@@ -908,7 +908,7 @@ export interface SellerPaymentInfo {
 // ─── Seller Pass (Planes de suscripción para sellers) ──────────────────────────
 
 export interface SellerPassPlan {
-  id: 'seller_pass_monthly' | 'seller_pass_annual';
+  id: 'free' | 'seller_pass_monthly' | 'seller_pass_annual';
   name: string;
   price: number;
   features: string[];

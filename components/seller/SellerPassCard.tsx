@@ -77,7 +77,7 @@ export const SellerPassCard: React.FC<Props> = ({ sellerId }) => {
 
   /** Abre el widget de pago de Wompi para el plan seleccionado */
   const handleWompiPayment = useCallback(
-    async (planId: 'seller_pass_monthly' | 'seller_pass_annual') => {
+    async (planId: string) => {
       setPaymentLoading(true);
       setWompiError(null);
 

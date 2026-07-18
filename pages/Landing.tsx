@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Store, 
@@ -26,6 +26,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Logo } from '../components/common/Logo';
+import { planService } from '../services/planService';
+import { SellerPassPlan } from '../types';
 
 // ── Config ───────────────────────────────────────────────────────────────────
 const BRAND = '#059669'; // Primary purple
@@ -385,6 +387,15 @@ const Landing: React.FC = () => {
   const goToLogin = () => navigate('/login');
   const goToApp = () => navigate(user && !user.isGuest ? '/app' : '/login?mode=register');
 
+  const [plans, setPlans] = useState<SellerPassPlan[]>([]);
+  const [plansLoading, setPlansLoading] = useState(true);
+  useEffect(() => {
+    planService.getAll().then(data => {
+      setPlans(data);
+      setPlansLoading(false);
+    }).catch(() => setPlansLoading(false));
+  }, []);
+
   return (
     <div className="min-h-screen bg-black text-white font-sans overflow-x-hidden">
       {/* ── Navbar ──────────────────────────────────────────────── */}
@@ -598,55 +609,32 @@ const Landing: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-          <PricingCard
-            name="Free"
-            price="$0"
-            period="mes"
-            description="Empieza a vender hoy, paga solo cuando vendes."
-            features={[
-              'Productos ilimitados',
-              '10% comisión por venta',
-              'Perfil de tienda público',
-              'Estadísticas básicas',
-              'Soporte por email',
-              'Sin suscripción mensual',
-            ]}
-            ctaText="Comenzar Gratis"
-            onCta={goToApp}
-          />
-          <PricingCard
-            name="Seller Pass"
-            price="$49.900"
-            period="mes"
-            description="Para vendedores que venden consistentemente."
-            highlighted
-            features={[
-              'Todo lo de Free',
-              '5% comisión por venta (ahorra 50%)',
-              'Productos destacados en búsqueda',
-              'Analytics avanzados',
-              'Soporte prioritario 24/7',
-              'Badge de verificado',
-            ]}
-            ctaText="Elegir Seller Pass"
-            onCta={goToApp}
-          />
-          <PricingCard
-            name="Seller Pass Anual"
-            price="$499.900"
-            period="año"
-            description="Ahorra 2 meses al pagar el año completo."
-            features={[
-              'Todo lo de Seller Pass Mensual',
-              '5% comisión por venta',
-              'Equivale a $41.658/mes',
-              'Multi-sucursal',
-              'Reportes personalizados',
-              'Facturación electrónica',
-            ]}
-            ctaText="Elegir Anual"
-            onCta={goToApp}
-          />
+          {plansLoading ? (
+            <div className="col-span-3 flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-2 border-emerald-500 border-t-transparent" />
+            </div>
+          ) : plans.length === 0 ? null : plans.map((plan, i) => (
+            <PricingCard
+              key={plan.id}
+              name={plan.name}
+              price={plan.price === 0 ? "$0" : `$${plan.price.toLocaleString('es-CO')}`}
+              period={plan.period === 'annual' ? 'año' : 'mes'}
+              description={plan.id === 'free'
+                ? 'Empieza a vender hoy, paga solo cuando vendes.'
+                : plan.id === 'seller_pass_monthly'
+                  ? 'Para vendedores que venden consistentemente.'
+                  : plan.id === 'seller_pass_annual'
+                    ? 'Ahorra 2 meses al pagar el año completo.'
+                    : ''}
+              highlighted={plan.id === 'seller_pass_monthly'}
+              features={plan.features}
+              ctaText={plan.id === 'free' ? 'Comenzar Gratis'
+                : plan.id === 'seller_pass_monthly' ? 'Elegir Seller Pass'
+                : plan.id === 'seller_pass_annual' ? 'Elegir Anual'
+                : 'Seleccionar'}
+              onCta={goToApp}
+            />
+          ))}
         </div>
       </Section>
 
