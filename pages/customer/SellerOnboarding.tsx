@@ -11,6 +11,8 @@ import { ErrorState } from '../../components/common/ErrorState';
 import { Store, ChevronDown, Phone, MapPin, AlignLeft, Tag } from 'lucide-react';
 import { logger } from '../../utils/logger';
 import { useTranslation } from 'react-i18next';
+import { withErrorBoundary } from '../../components/ErrorBoundary';
+import { SEO } from '../../components/common/SEO';
 
 // ── Seller type options ──────────────────────────────────────────────────────
 
@@ -213,6 +215,8 @@ export const SellerOnboarding: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <SEO title="Crear Perfil de Vendedor" description="Crea tu perfil de vendedor en Rescatto y empieza a vender tus productos y servicios." />
+
       <div className="max-w-xl mx-auto px-4 py-8 sm:px-6">
         {/* Header */}
         <div className="mb-8 text-center sm:text-left">
@@ -434,4 +438,4 @@ export const SellerOnboarding: React.FC = () => {
   );
 };
 
-export default SellerOnboarding;
+export default withErrorBoundary(SellerOnboarding, 'Crear Perfil de Vendedor');

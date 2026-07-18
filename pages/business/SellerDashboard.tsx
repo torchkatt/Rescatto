@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { useConfirm } from '../../context/ConfirmContext';
 import { Link } from 'react-router-dom';
 import {
   DollarSign,
@@ -14,13 +15,31 @@ import {
   TrendingUp,
   AlertCircle,
   PackageOpen,
+  Plus,
+  Edit2,
+  Trash2,
+  Save,
+  X,
 } from 'lucide-react';
 import { LoadingSpinner } from '../../components/customer/common/Loading';
+import { ListingImageUpload } from '../../components/customer/listing/ListingImageUpload';
 import { sellerService } from '../../services/sellerService';
 import { transactionService } from '../../services/transactionService';
 import { bookingService } from '../../services/bookingService';
 import { listingService } from '../../services/listingService';
-import { Seller, Transaction, Booking, Listing, BookingStatus, TransactionStatus } from '../../types';
+import { categoryService } from '../../services/categoryService';
+import {
+  Seller,
+  Transaction,
+  Booking,
+  Listing,
+  ListingType,
+  DeliveryMethod,
+  BookingStatus,
+  TransactionStatus,
+  Category,
+  CategoryAttribute,
+} from '../../types';
 import { formatCOP } from '../../utils/formatters';
 import { getUserVenueId } from '../../utils/getUserVenueId';
 import { logger } from '../../utils/logger';
@@ -148,6 +167,66 @@ const SellerDashboard: React.FC = () => {
 
   const sellerId = seller?.id;
 
+  // ── Listing CRUD modal state ─────────────────────────────────────────────
+
+  const confirm = useConfirm();
+
+  const [isListingModalOpen, setIsListingModalOpen] = useState(false);
+  const [editingListingId, setEditingListingId] = useState<string | null>(null);
+  const [savingListing, setSavingListing] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [listingForm, setListingForm] = useState({
+    title: '',
+    description: '',
+    categoryId: '',
+    type: ListingType.PRODUCT,
+    price: '',
+    quantity: '',
+    deliveryMethods: [] as DeliveryMethod[],
+    attributes: {} as Record<string, string>,
+    images: [] as string[],
+  });
+
+  const resetListingForm = () => {
+    setListingForm({
+      title: '',
+      description: '',
+      categoryId: '',
+      type: ListingType.PRODUCT,
+      price: '',
+      quantity: '',
+      deliveryMethods: [],
+      attributes: {},
+      images: [],
+    });
+    setEditingListingId(null);
+  };
+
+  const reloadListings = useCallback(async () => {
+    if (!sellerId) return;
+    try {
+      const l = await listingService.getListingsBySeller(sellerId);
+      setListings(l);
+    } catch {
+      showToast('error', 'Error al actualizar listados');
+    }
+  }, [sellerId, showToast]);
+
+  // ── Load categories when modal opens ─────────────────────────────────────
+
+  useEffect(() => {
+    if (isListingModalOpen && categories.length === 0) {
+      (async () => {
+        try {
+          const cats = await categoryService.getRootCategories();
+          setCategories(cats);
+        } catch {
+          // categories will be empty — user sees empty dropdown
+        }
+      })();
+    }
+  }, [isListingModalOpen, categories.length]);
+
   // ── Load seller ──────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -257,6 +336,134 @@ const SellerDashboard: React.FC = () => {
     return () => { cancelled = true; };
   }, [sellerId, showToast]);
 
+  // ── Listing CRUD handlers ────────────────────────────────────────────────
+
+  const openCreateListing = () => {
+    resetListingForm();
+    setIsListingModalOpen(true);
+  };
+
+  const openEditListing = (listing: Listing) => {
+    setListingForm({
+      title: listing.title,
+      description: listing.description,
+      categoryId: listing.categoryId,
+      type: listing.type,
+      price: String(listing.price),
+      quantity: listing.quantity != null ? String(listing.quantity) : '',
+      deliveryMethods: [...listing.deliveryMethods],
+      attributes:
+        typeof listing.attributes === 'object' && listing.attributes !== null
+          ? Object.fromEntries(
+              Object.entries(listing.attributes as Record<string, any>)
+                .filter(([, v]) => typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean')
+                .map(([k, v]) => [k, String(v)]),
+            )
+          : {},
+      images: [...listing.images],
+    });
+    setEditingListingId(listing.id);
+    setIsListingModalOpen(true);
+  };
+
+  const handleListingSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!listingForm.title.trim() || !listingForm.description.trim() || !listingForm.categoryId || !listingForm.price) {
+      showToast('warning', 'Completa todos los campos requeridos');
+      return;
+    }
+
+    const priceNum = parseFloat(listingForm.price);
+    if (isNaN(priceNum) || priceNum < 0) {
+      showToast('warning', 'El precio debe ser un número válido');
+      return;
+    }
+
+    const quantityNum = listingForm.quantity ? parseInt(listingForm.quantity) : undefined;
+    if (listingForm.quantity && (isNaN(quantityNum!) || quantityNum! < 1)) {
+      showToast('warning', 'La cantidad debe ser mayor a cero');
+      return;
+    }
+
+    setSavingListing(true);
+
+    try {
+      const baseData = {
+        sellerId: sellerId!,
+        categoryId: listingForm.categoryId,
+        type: listingForm.type,
+        title: listingForm.title.trim(),
+        description: listingForm.description.trim(),
+        images: listingForm.images,
+        price: priceNum,
+        quantity: listingForm.type === ListingType.SERVICE ? undefined : (quantityNum ?? 1),
+        attributes: listingForm.attributes,
+        isActive: true,
+        isFeatured: false,
+        deliveryMethods: listingForm.deliveryMethods.length > 0
+          ? listingForm.deliveryMethods
+          : [DeliveryMethod.PICKUP],
+        stats: { views: 0, sales: 0, rating: 0 },
+      };
+
+      if (editingListingId) {
+        await listingService.updateListing(editingListingId, baseData);
+        showToast('success', 'Listing actualizado exitosamente');
+      } else {
+        await listingService.createListing(baseData);
+        showToast('success', 'Listing creado exitosamente');
+      }
+
+      setIsListingModalOpen(false);
+      resetListingForm();
+      await reloadListings();
+    } catch (err) {
+      logger.error('SellerDashboard: error saving listing', err);
+      showToast('error', editingListingId ? 'Error al actualizar el listing' : 'Error al crear el listing');
+    } finally {
+      setSavingListing(false);
+    }
+  };
+
+  const handleDeleteListing = async (listingId: string) => {
+    const confirmed = await confirm({
+      title: '¿Eliminar listing?',
+      message: 'Esta acción no se puede deshacer. El listing se eliminará permanentemente.',
+      confirmLabel: 'Eliminar',
+      variant: 'danger',
+    });
+
+    if (!confirmed) return;
+
+    try {
+      await listingService.deleteListing(listingId);
+      showToast('success', 'Listing eliminado exitosamente');
+      await reloadListings();
+    } catch (err) {
+      logger.error('SellerDashboard: error deleting listing', err);
+      showToast('error', 'Error al eliminar el listing');
+    }
+  };
+
+  // ── Delivery method toggle helper ───────────────────────────────────────
+
+  const toggleDeliveryMethod = (method: DeliveryMethod) => {
+    setListingForm((prev) => ({
+      ...prev,
+      deliveryMethods: prev.deliveryMethods.includes(method)
+        ? prev.deliveryMethods.filter((m) => m !== method)
+        : [...prev.deliveryMethods, method],
+    }));
+  };
+
+  const deliveryMethodLabels: Record<DeliveryMethod, string> = {
+    [DeliveryMethod.PICKUP]: 'Recogida',
+    [DeliveryMethod.SHIPPING]: 'Envío',
+    [DeliveryMethod.DIGITAL]: 'Digital',
+    [DeliveryMethod.IN_PERSON]: 'En persona',
+  };
+
   // ── Derived metrics ──────────────────────────────────────────────────────
 
   const totalRevenue = seller?.stats?.totalRevenue ?? 0;
@@ -340,6 +547,15 @@ const SellerDashboard: React.FC = () => {
             <ShoppingCart size={18} />
             Pedidos
           </Link>
+          {seller.ownerId === user?.id && (
+            <button
+              onClick={openCreateListing}
+              className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white text-sm font-bold rounded-xl hover:bg-slate-800 transition-all active:scale-95 shadow-sm"
+            >
+              <Plus size={18} />
+              Crear Listing
+            </button>
+          )}
         </div>
       </div>
 
@@ -512,7 +728,7 @@ const SellerDashboard: React.FC = () => {
             {listings.slice(0, 8).map((listing) => (
               <div
                 key={listing.id}
-                className="p-4 rounded-xl border border-slate-100 hover:border-emerald-200 hover:shadow-sm transition-all"
+                className="p-4 rounded-xl border border-slate-100 hover:border-emerald-200 hover:shadow-sm transition-all group"
               >
                 {listing.images?.[0] && (
                   <img
@@ -539,8 +755,281 @@ const SellerDashboard: React.FC = () => {
                 <p className="text-xs text-slate-400 mt-1">
                   {listing.stats?.sales ?? 0} ventas · {listing.stats?.views ?? 0} vistas
                 </p>
+                {seller.ownerId === user?.id && (
+                  <div className="flex items-center gap-1 mt-3 pt-3 border-t border-slate-100 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); openEditListing(listing); }}
+                      className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs font-medium text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    >
+                      <Edit2 size={12} />
+                      Editar
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDeleteListing(listing.id); }}
+                      className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs font-medium text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <Trash2 size={12} />
+                      Eliminar
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Listing CRUD Modal */}
+      {isListingModalOpen && (
+        <div
+          className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 overflow-hidden animate-in fade-in duration-300"
+          onClick={() => { if (!savingListing) { setIsListingModalOpen(false); resetListingForm(); } }}
+        >
+          <div
+            className="bg-white rounded-[2.5rem] shadow-2xl max-w-lg w-full p-8 animate-in zoom-in-95 duration-200 cursor-default max-h-[90vh] overflow-y-auto flex flex-col border border-gray-100"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-emerald-100 rounded-xl">
+                  <Package size={20} className="text-emerald-600" />
+                </div>
+                <h3 className="text-xl font-black text-gray-900 tracking-tight">
+                  {editingListingId ? 'Editar Listing' : 'Nuevo Listing'}
+                </h3>
+              </div>
+              <button
+                onClick={() => { setIsListingModalOpen(false); resetListingForm(); }}
+                disabled={savingListing}
+                className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-50 rounded-full transition-colors disabled:opacity-30"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <form onSubmit={handleListingSubmit} className="space-y-5">
+              {/* Título */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                  Título *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ej: iPhone 15 Pro 256GB"
+                  className="w-full px-5 py-3.5 rounded-2xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all text-gray-900 font-medium"
+                  value={listingForm.title}
+                  onChange={e => setListingForm({ ...listingForm, title: e.target.value })}
+                />
+              </div>
+
+              {/* Descripción */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                  Descripción *
+                </label>
+                <textarea
+                  required
+                  placeholder="Describe tu producto o servicio..."
+                  rows={3}
+                  className="w-full px-5 py-3.5 rounded-2xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all text-gray-900 font-medium resize-none"
+                  value={listingForm.description}
+                  onChange={e => setListingForm({ ...listingForm, description: e.target.value })}
+                />
+              </div>
+
+              {/* Categoría */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                  Categoría *
+                </label>
+                <select
+                  required
+                  className="w-full px-5 py-3.5 rounded-2xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all text-gray-900 font-medium"
+                  value={listingForm.categoryId}
+                  onChange={e => setListingForm({ ...listingForm, categoryId: e.target.value })}
+                >
+                  <option value="">Seleccionar categoría...</option>
+                  {categories.map(cat => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.icon} {cat.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Tipo */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                  Tipo *
+                </label>
+                <select
+                  required
+                  className="w-full px-5 py-3.5 rounded-2xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all text-gray-900 font-medium"
+                  value={listingForm.type}
+                  onChange={e => setListingForm({ ...listingForm, type: e.target.value as ListingType })}
+                >
+                  <option value={ListingType.PRODUCT}>Producto</option>
+                  <option value={ListingType.SERVICE}>Servicio</option>
+                  <option value={ListingType.DIGITAL}>Digital</option>
+                </select>
+              </div>
+
+              {/* Precio */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                  Precio (COP) *
+                </label>
+                <input
+                  type="number"
+                  required
+                  min="0"
+                  step="100"
+                  placeholder="Ej: 50000"
+                  className="w-full px-5 py-3.5 rounded-2xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all text-gray-900 font-medium"
+                  value={listingForm.price}
+                  onChange={e => setListingForm({ ...listingForm, price: e.target.value })}
+                />
+              </div>
+
+              {/* Cantidad */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                  Cantidad {listingForm.type === ListingType.SERVICE ? '(opcional — ilimitado si se deja vacío)' : '*'}
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  placeholder={listingForm.type === ListingType.SERVICE ? 'Vacío = ilimitado' : 'Ej: 10'}
+                  className="w-full px-5 py-3.5 rounded-2xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all text-gray-900 font-medium"
+                  value={listingForm.quantity}
+                  onChange={e => setListingForm({ ...listingForm, quantity: e.target.value })}
+                />
+              </div>
+
+              {/* Métodos de entrega */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                  Métodos de entrega
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {Object.values(DeliveryMethod).map(method => (
+                    <button
+                      key={method}
+                      type="button"
+                      onClick={() => toggleDeliveryMethod(method)}
+                      className={`px-4 py-2 rounded-full text-xs font-bold transition-all active:scale-95 border ${
+                        listingForm.deliveryMethods.includes(method)
+                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                          : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-300'
+                      }`}
+                    >
+                      {deliveryMethodLabels[method]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Atributos dinámicos (key-value) */}
+              <details className="group">
+                <summary className="cursor-pointer text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-2 hover:text-gray-600">
+                  Atributos adicionales
+                  <span className="text-emerald-500 text-xs">(opcional)</span>
+                </summary>
+                <div className="mt-3 space-y-2">
+                  {Object.entries(listingForm.attributes).map(([key, value], i) => (
+                    <div key={i} className="flex gap-2 items-center animate-in fade-in">
+                      <input
+                        type="text"
+                        placeholder="Clave"
+                        className="flex-1 px-3 py-2 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:border-emerald-500 outline-none"
+                        value={key}
+                        onChange={e => {
+                          const newAttrs = { ...listingForm.attributes };
+                          delete newAttrs[key];
+                          const newKey = e.target.value;
+                          newAttrs[newKey || `attr_${Date.now()}`] = value;
+                          setListingForm({ ...listingForm, attributes: newAttrs });
+                        }}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Valor"
+                        className="flex-1 px-3 py-2 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:border-emerald-500 outline-none"
+                        value={value}
+                        onChange={e => {
+                          const newAttrs = { ...listingForm.attributes };
+                          newAttrs[key] = e.target.value;
+                          setListingForm({ ...listingForm, attributes: newAttrs });
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newAttrs = { ...listingForm.attributes };
+                          delete newAttrs[key];
+                          setListingForm({ ...listingForm, attributes: newAttrs });
+                        }}
+                        className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setListingForm({
+                        ...listingForm,
+                        attributes: { ...listingForm.attributes, '': '' },
+                      });
+                    }}
+                    className="w-full py-2 text-xs font-bold text-emerald-600 hover:bg-emerald-50 rounded-xl transition-colors flex items-center justify-center gap-1"
+                  >
+                    <Plus size={14} />
+                    Añadir atributo
+                  </button>
+                </div>
+              </details>
+
+              {/* Imágenes */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                  Imágenes
+                </label>
+                <ListingImageUpload
+                  images={listingForm.images}
+                  onImagesChange={(urls) => setListingForm({ ...listingForm, images: urls })}
+                  maxImages={5}
+                  sellerId={sellerId!}
+                  listingId={editingListingId ?? undefined}
+                />
+              </div>
+
+              {/* Botones */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => { setIsListingModalOpen(false); resetListingForm(); }}
+                  disabled={savingListing}
+                  className="flex-1 py-4 text-gray-500 hover:bg-gray-100 rounded-2xl transition-colors font-black uppercase tracking-widest text-[10px] disabled:opacity-30"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingListing}
+                  className="flex-[2] py-4 bg-emerald-600 text-white rounded-2xl hover:bg-emerald-700 hover:shadow-xl shadow-emerald-900/20 transition-all flex items-center justify-center gap-2 font-black uppercase tracking-widest text-[10px] active:scale-95 disabled:opacity-50"
+                >
+                  {savingListing ? (
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <Save size={18} />
+                  )}
+                  {editingListingId ? 'Guardar Cambios' : 'Crear Listing'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

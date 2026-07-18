@@ -14,6 +14,7 @@ import { Button } from '../../components/customer/common/Button';
 import { ArrowLeft, Clock, MapPin, Star, Calendar, Wrench, Info } from 'lucide-react';
 import { formatCOP } from '../../utils/formatters';
 import { logger } from '../../utils/logger';
+import { withErrorBoundary } from '../../components/ErrorBoundary';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -393,4 +394,4 @@ const BookingPage: React.FC = () => {
   );
 };
 
-export default BookingPage;
+export default withErrorBoundary(BookingPage, 'Reservar Servicio');

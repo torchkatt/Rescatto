@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Upload, X, Loader } from 'lucide-react';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { compressImage } from '../../../utils/imageOptimizer';
 import { logger } from '../../../utils/logger';
 
 interface ListingImageUploadProps {
@@ -35,12 +36,12 @@ export const ListingImageUpload: React.FC<ListingImageUploadProps> = ({
     setUploadProgress(0);
 
     try {
+      const compressed = await compressImage(file);
       const storage = getStorage();
       const timestamp = Date.now();
-      const ext = file.name.split('.').pop() || 'jpg';
-      const path = `listings/${sellerId}/${listingId || 'new'}/image_${timestamp}.${ext}`;
+      const path = `listings/${sellerId}/${listingId || 'new'}/image_${timestamp}.jpg`;
       const storageRef = ref(storage, path);
-      const uploadTask = uploadBytesResumable(storageRef, file);
+      const uploadTask = uploadBytesResumable(storageRef, compressed);
 
       await new Promise<void>((resolve, reject) => {
         uploadTask.on(

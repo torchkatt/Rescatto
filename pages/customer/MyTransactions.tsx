@@ -12,6 +12,7 @@ import { logger } from '../../utils/logger';
 import { GuestConversionBanner } from '../../components/customer/common/GuestConversionBanner';
 import { formatCOP } from '../../utils/formatters';
 import { useTranslation } from 'react-i18next';
+import { SEO } from '../../components/common/SEO';
 
 const PAGE_SIZE = 20;
 
@@ -145,6 +146,8 @@ export const MyTransactions: React.FC = () => {
 
   return (
     <div className="pb-nav bg-brand-bg min-h-screen">
+      <SEO title="Mis Transacciones" description="Todas tus transacciones en Rescatto — compras, reservas y productos digitales." />
+
       {/* Header */}
       <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-gray-100 px-6 py-4 pt-safe-top">
         <div className="max-w-3xl mx-auto flex items-center gap-4">
