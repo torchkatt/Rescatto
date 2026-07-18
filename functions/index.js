@@ -132,8 +132,11 @@ const {
 // ─── Seller Pass Functions ─────────────────────────────────────────────────────
 const {
     createSellerSubscription,
-    handleWompiSellerSubscription
+    handleWompiSellerSubscription,
 } = require("./src/seller-pass");
+const {
+    seedPlans,
+} = require("./src/seedPlans");
 
 // ─── Fraud Detection Services ─────────────────────────────────────────────────
 const {
@@ -244,4 +247,6 @@ module.exports = {
     // Seller Pass (Wompi Subscription)
     createSellerSubscription,
     handleWompiSellerSubscription,
+    // Seed plans
+    seedPlans,
 };
