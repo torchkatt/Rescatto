@@ -25,6 +25,7 @@ export const PackCard: React.FC<PackCardProps> = ({
   loading,
 }) => {
   const navigate = useNavigate();
+if (!product) return null;
   const { t } = useTranslation();
 
   if (loading) {
@@ -36,13 +37,13 @@ export const PackCard: React.FC<PackCardProps> = ({
   };
 
   const discount = Math.round(
-    (( (product.originalPrice || 0) - (product.dynamicDiscountedPrice || product.discountedPrice || 0)) /
+    (( ((product.originalPrice || 0)) - (product.dynamicDiscountedPrice || product.discountedPrice || 0)) /
       (product.originalPrice || 1)) *
       100
   );
 
   const finalPrice = product.dynamicDiscountedPrice || product.discountedPrice || 0;
-  const isLowStock = product.quantity <= 3;
+  const isLowStock = (product.quantity ?? 0) <= 3;
 
   if (variant === 'featured') {
     return (
@@ -55,7 +56,7 @@ export const PackCard: React.FC<PackCardProps> = ({
         <div className="relative h-48 overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent z-10" />
           <img
-            src={product.imageUrl || `https://picsum.photos/seed/${product.id}/600/400`}
+            src={product.imageUrl || '' || `https://picsum.photos/seed/${product.id}/600/400`}
             alt={product.name}
             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
           />
@@ -64,14 +65,14 @@ export const PackCard: React.FC<PackCardProps> = ({
             <Badge intent="discount" size="md">
               -{discount}%
             </Badge>
-            {product.isRescue !== false && (
+            {(product.isRescue ?? true) !== false && (
               <Badge intent="rescue" size="sm" icon="🍃">
                 Rescate
               </Badge>
             )}
           </div>
 
-          {product.isDynamicPricing && (
+          {(product.isDynamicPricing ?? false) && (
             <div className="absolute top-3 right-3 z-20">
               <Badge intent="dynamic-price" size="sm" icon={<Zap size={12} fill="currentColor" />}>
                 Bajando
@@ -101,7 +102,7 @@ export const PackCard: React.FC<PackCardProps> = ({
                 ${finalPrice.toLocaleString('es-CO')}
               </span>
               <span className="text-xs font-bold text-gray-300 line-through">
-                ${product.originalPrice.toLocaleString('es-CO')}
+                ${(product.originalPrice || 0).toLocaleString('es-CO')}
               </span>
             </div>
 
@@ -127,7 +128,7 @@ export const PackCard: React.FC<PackCardProps> = ({
           {isLowStock && (
             <div className="mt-3">
               <Badge intent="low-stock" size="xs" className="w-full justify-center">
-                🔥 {product.quantity === 1 ? t('stock_alert_one') : t('stock_alert_many', { count: product.quantity })}
+                🔥 {(product.quantity ?? 0) === 1 ? t('stock_alert_one') : t('stock_alert_many', { count: product.quantity })}
               </Badge>
             </div>
           )}
@@ -147,7 +148,7 @@ export const PackCard: React.FC<PackCardProps> = ({
       <div className="relative h-32 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent z-10" />
         <img
-          src={product.imageUrl || `https://picsum.photos/seed/${product.id}/400/300`}
+          src={product.imageUrl || '' || `https://picsum.photos/seed/${product.id}/400/300`}
           alt={product.name}
           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
         />
@@ -158,13 +159,13 @@ export const PackCard: React.FC<PackCardProps> = ({
           </Badge>
         </div>
 
-        {product.isDynamicPricing && (
+        {(product.isDynamicPricing ?? false) && (
           <div className="absolute top-2 right-2 z-20">
             <Badge intent="dynamic-price" size="xs" icon={<Zap size={10} fill="currentColor" />} />
           </div>
         )}
 
-        {product.isRescue !== false && (
+        {(product.isRescue ?? true) !== false && (
           <div className="absolute bottom-2 left-2 z-20 scale-90 origin-left">
             <Countdown targetTime={product.availableUntil} compact showIcon={false} />
           </div>
@@ -187,14 +188,14 @@ export const PackCard: React.FC<PackCardProps> = ({
             ${finalPrice.toLocaleString('es-CO')}
           </span>
           <span className="text-[10px] font-bold text-gray-300 line-through">
-            ${product.originalPrice.toLocaleString('es-CO')}
+            ${(product.originalPrice || 0).toLocaleString('es-CO')}
           </span>
         </div>
 
         {isLowStock && (
           <p className="text-[9px] font-black text-red-500 mt-1 flex items-center gap-1">
             <ShoppingBag size={10} />
-            {product.quantity === 1 ? '¡Solo 1!' : `¡Solo ${product.quantity}!`}
+            {(product.quantity ?? 0) === 1 ? '¡Solo 1!' : `¡Solo ${product.quantity}!`}
           </p>
         )}
       </div>

@@ -226,7 +226,7 @@ describe('SellerDashboard', () => {
     });
 
     expect(screen.getByText('Transacciones Recientes')).toBeInTheDocument();
-    expect(screen.getByText(/Producto 1/)).toBeInTheDocument();
+    expect(screen.getByText('Compra 1')).toBeInTheDocument();
   });
 
   it('shows upcoming bookings section', async () => {

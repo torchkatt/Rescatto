@@ -462,7 +462,7 @@ const Explore: React.FC = () => {
         {filteredAndSortedProducts.length > 0 ? (
           <>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-              {filteredAndSortedProducts.map(product => (
+              {filteredAndSortedProducts.filter(Boolean).map(product => (
                 <PackCard
                   key={product.id}
                   product={product}
