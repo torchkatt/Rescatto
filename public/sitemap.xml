@@ -1,52 +1,52 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://rescatto-c8d2b.web.app/</loc>
+    <loc>https://rescatto.com/</loc>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://rescatto-c8d2b.web.app/#/login</loc>
+    <loc>https://rescatto.com/#/login</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://rescatto-c8d2b.web.app/#/app/explore</loc>
+    <loc>https://rescatto.com/#/app/explore</loc>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://rescatto-c8d2b.web.app/#/app/marketplace</loc>
+    <loc>https://rescatto.com/#/app/marketplace</loc>
     <changefreq>daily</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://rescatto-c8d2b.web.app/#/app/impact</loc>
+    <loc>https://rescatto.com/#/app/impact</loc>
     <changefreq>weekly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://rescatto-c8d2b.web.app/#/help</loc>
+    <loc>https://rescatto.com/#/help</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://rescatto-c8d2b.web.app/#/help/seller</loc>
+    <loc>https://rescatto.com/#/help/seller</loc>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://rescatto-c8d2b.web.app/#/help/buyer</loc>
+    <loc>https://rescatto.com/#/help/buyer</loc>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://rescatto-c8d2b.web.app/terms</loc>
+    <loc>https://rescatto.com/terms</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://rescatto-c8d2b.web.app/privacy</loc>
+    <loc>https://rescatto.com/privacy</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
