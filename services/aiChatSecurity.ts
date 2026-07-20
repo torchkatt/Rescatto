@@ -94,7 +94,9 @@ async function getStrikes(userId: string): Promise<StrikeRecord> {
       const data = snap.data();
       if (data[STRIKE_FIELD]) return data[STRIKE_FIELD] as StrikeRecord;
     }
-  } catch {}
+  } catch (err) {
+    console.error('[AI Security] getStrikes error:', err);
+  }
   return { count: 0, lastOffense: '', lastOffenseAt: '', details: [], blocked: false };
 }
 
@@ -102,7 +104,9 @@ async function saveStrikes(userId: string, strikes: StrikeRecord): Promise<void>
   try {
     const userRef = doc(db, 'users', userId);
     await updateDoc(userRef, { [STRIKE_FIELD]: strikes });
-  } catch {}
+  } catch (err) {
+    console.error('[AI Security] saveStrikes error:', err);
+  }
 }
 
 async function blockUser(userId: string): Promise<void> {

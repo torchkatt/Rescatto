@@ -9,6 +9,17 @@ const admin = require("firebase-admin");
 const functions = require("firebase-functions");
 const db = admin.firestore();
 
+// ─── Rate limiting ──────────────────────────────────────────────────────────
+const { checkRateLimit } = require("./utils/rateLimit");
+const RL_WINDOW = 10_000; // 10 seconds
+const RL_MAX = 5; // max 5 calls per user per 10s
+
+async function rateGuard(uid, action) {
+    const allowed = await checkRateLimit(`${uid}:${action}`, RL_MAX, RL_WINDOW);
+    if (!allowed) throw new functions.https.HttpsError(
+        "resource-exhausted", "Demasiadas solicitudes. Espera unos segundos.");
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function validateTransaction(data) {
@@ -27,6 +38,7 @@ function validateTransaction(data) {
 exports.createTransaction = functions.https.onCall(async (data, context) => {
     if (!context.auth)
         throw new functions.https.HttpsError("unauthenticated", "Debes iniciar sesión.");
+    await rateGuard(context.auth.uid, "createTransaction");
 
     if (data.buyerId !== context.auth.uid)
         throw new functions.https.HttpsError("permission-denied", "No puedes crear transacciones para otro usuario.");
@@ -59,12 +71,12 @@ exports.createTransaction = functions.https.onCall(async (data, context) => {
 
         await txRef.set(transaction);
 
-        // Update seller stats (fire-and-forget)
+        // Update seller stats (fire-and-forget con logging)
         db.collection("sellers").doc(data.sellerId).update({
             "stats.totalTransactions": admin.firestore.FieldValue.increment(1),
             "stats.totalRevenue": admin.firestore.FieldValue.increment(subtotal),
             updatedAt: now,
-        }).catch(() => {});
+        }).catch((err) => console.error("createTransaction seller stats error:", err));
 
         // If booking type → create booking
         if (data.transactionType === "booking" && data.pickupWindow) {
@@ -85,7 +97,7 @@ exports.createTransaction = functions.https.onCall(async (data, context) => {
         return { success: true, transactionId: txRef.id };
     } catch (error) {
         console.error("createTransaction error:", error);
-        throw new functions.https.HttpsError("internal", error.message || "Error al crear la transacción.");
+        throw new functions.https.HttpsError("internal", "Error interno al procesar la transacción. Intenta de nuevo.");
     }
 });
 
@@ -95,6 +107,7 @@ exports.createTransaction = functions.https.onCall(async (data, context) => {
 exports.createBooking = functions.https.onCall(async (data, context) => {
     if (!context.auth)
         throw new functions.https.HttpsError("unauthenticated", "Debes iniciar sesión.");
+    await rateGuard(context.auth.uid, "createBooking");
 
     const { sellerId, listingId, startTime, endTime, notes } = data;
     if (!sellerId || !listingId || !startTime || !endTime)
@@ -128,6 +141,7 @@ exports.createBooking = functions.https.onCall(async (data, context) => {
 exports.cancelTransaction = functions.https.onCall(async (data, context) => {
     if (!context.auth)
         throw new functions.https.HttpsError("unauthenticated", "Debes iniciar sesión.");
+    await rateGuard(context.auth.uid, "cancelTransaction");
 
     const { transactionId } = data;
     if (!transactionId)

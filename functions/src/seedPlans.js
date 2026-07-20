@@ -57,6 +57,14 @@ const PLANS = [
 
 exports.seedPlans = functions.https.onCall(async (data, context) => {
   try {
+    if (!context.auth)
+      throw new functions.https.HttpsError("unauthenticated", "Debes iniciar sesión.");
+
+    const callerDoc = await admin.firestore().collection("users").doc(context.auth.uid).get();
+    const callerRole = callerDoc.data()?.role;
+    if (callerRole !== "SUPER_ADMIN" && callerRole !== "ADMIN")
+      throw new functions.https.HttpsError("permission-denied", "Solo administradores.");
+
     const db = admin.firestore();
     const batch = db.batch();
     for (const plan of PLANS) {
@@ -66,6 +74,7 @@ exports.seedPlans = functions.https.onCall(async (data, context) => {
     await batch.commit();
     return { success: true, count: PLANS.length };
   } catch (error) {
-    throw new functions.https.HttpsError("internal", error.message);
+    console.error("seedPlans error:", error);
+    throw new functions.https.HttpsError("internal", "Error interno al sembrar planes.");
   }
 });
