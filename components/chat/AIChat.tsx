@@ -9,7 +9,7 @@ import remarkGfm from 'remark-gfm';
 import { UserRole } from '../../types';
 import { logger } from '../../utils/logger';
 import { sanitizeHtml } from '../../utils/sanitize';
-import { initDeepSeek, isDeepSeekConfigured, sendMessage } from '../../services/aiChatService';
+import { chatWithAI } from '../../services/aiChatService';
 import { checkAndIncrementMessage, getRemainingMessages } from '../../services/aiChatUsageService';
 import { setNavigateHook } from '../../services/aiChatTools';
 import type { ChatMessage } from '../../services/aiChatTypes';
@@ -25,12 +25,6 @@ import {
 
 interface AIChatProps {
   className?: string;
-}
-
-// Initialize DeepSeek API key from environment
-const DEEPSEEK_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY || '';
-if (DEEPSEEK_KEY) {
-  initDeepSeek(DEEPSEEK_KEY);
 }
 
 export const AIChat: React.FC<AIChatProps> = ({ className = '' }) => {
@@ -169,22 +163,14 @@ export const AIChat: React.FC<AIChatProps> = ({ className = '' }) => {
 
     try {
       // Get AI response with DeepSeek + function calling + memory
-      const result = await sendMessage(
-        text,
-        messages,
-        user.id,
-        {
-          name: user.fullName || 'Usuario',
-          role: user.role,
-          city: user.city,
-          tier: limitCheck.tier,
-          remaining: limitCheck.remaining,
-        }
+      const result = await chatWithAI(
+        messages.map(m => ({ role: m.role as 'user'|'assistant'|'system'|'tool', content: m.content })),
+        user.id
       );
 
       const aiMessage: ChatMessage = {
         role: 'assistant',
-        content: result.content,
+        content: result,
       };
 
       setMessages(prev => [...prev, aiMessage]);
