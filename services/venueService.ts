@@ -26,10 +26,12 @@ const CACHE_KEYS = {
 };
 
 // Tiempos de expiración (en minutos)
+// VENUE_PRODUCTS bajo porque incluye stock y precio dinámico: un TTL largo
+// puede mostrar packs agotados como disponibles (riesgo de overselling).
 const TTL = {
     ALL_VENUES: 15,
     VENUE_DETAILS: 15,
-    VENUE_PRODUCTS: 5,
+    VENUE_PRODUCTS: 2,
 };
 
 export const venueService = {

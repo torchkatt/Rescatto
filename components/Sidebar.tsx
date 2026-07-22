@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate, Link } from 'react-router-dom';
 import { LayoutDashboard, FileText, Settings, UtensilsCrossed, ClipboardList, LogOut, Menu, X, Package, BarChart, MessageSquare, Users, Shield, Download, Tag, RefreshCw, MapPin, DollarSign, Zap, Moon, Sun, Truck, TrendingUp, BadgeCheck, Building2, Landmark, UserCircle, HelpCircle, Store } from 'lucide-react';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, getCountFromServer } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../context/AuthContext';
 import { usePWA } from '../hooks/usePWA';
@@ -27,7 +27,10 @@ const Sidebar: React.FC = () => {
   const [showLocationSelector, setShowLocationSelector] = useState(false);
   const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
 
-  // Real-time badge: pedidos PENDING + PAID para la sede actual
+  // Badge de pedidos PENDING + PAID para la sede actual.
+  // Se usa getCountFromServer (agregación, ~1 lectura) en vez de onSnapshot,
+  // que leía TODOS los documentos coincidentes en cada apertura + 1 lectura
+  // por cada cambio, para siempre. Se refresca cada 30s y al recuperar foco.
   const sidebarVenueId = user ? getUserVenueId(user) : null;
   const sidebarUserRole = user?.role;
   const sidebarUserId = user?.id;
@@ -41,8 +44,26 @@ const Sidebar: React.FC = () => {
     if (sidebarVenueId) constraints.push(where('venueId', '==', sidebarVenueId));
 
     const q = query(collection(db, 'orders'), ...constraints);
-    const unsub = onSnapshot(q, snap => setPendingOrdersCount(snap.size), () => { });
-    return () => unsub();
+
+    let cancelled = false;
+    const fetchCount = async () => {
+      try {
+        const snap = await getCountFromServer(q);
+        if (!cancelled) setPendingOrdersCount(snap.data().count);
+      } catch (err) {
+        logger.error('Error obteniendo conteo de pedidos pendientes:', err);
+      }
+    };
+
+    fetchCount();
+    const intervalId = setInterval(fetchCount, 30000);
+    window.addEventListener('focus', fetchCount);
+
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+      window.removeEventListener('focus', fetchCount);
+    };
   }, [sidebarUserId, sidebarVenueId, sidebarUserRole]);
 
   // Bloquear scroll del cuerpo cuando el menú móvil está abierto

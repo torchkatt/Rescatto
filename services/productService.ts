@@ -3,6 +3,10 @@ import { db } from './firebase';
 import { Product } from '../types';
 import { logger } from '../utils/logger';
 import { isProductExpired } from '../utils/productAvailability';
+import { cacheService } from './cacheService';
+
+// TTL corto porque los resultados de búsqueda dependen de stock/precio dinámico.
+const SEARCH_CACHE_TTL_MINUTES = 2;
 
 /**
  * Genera un array de palabras clave para búsqueda prefix-based en Firestore.
@@ -217,8 +221,25 @@ export class ProductService {
      * Búsqueda global de productos usando keywords y filtros
      */
     async searchProducts(searchTerm: string, filters: { city?: string, category?: string, diet?: string } = {}): Promise<Product[]> {
-        const productsRef = collection(db, this.collectionName);
         const term = searchTerm.toLowerCase().trim();
+        const cacheKey = `search_${term}_${filters.city || ''}_${filters.category || ''}_${filters.diet || ''}`;
+
+        const cached = cacheService.get<Product[]>(cacheKey);
+        if (cached) return cached;
+
+        try {
+            const results = await this.performSearch(term, filters);
+            cacheService.set(cacheKey, results, SEARCH_CACHE_TTL_MINUTES);
+            return results;
+        } catch (error) {
+            // No cachear fallos transitorios: cachear [] bloquear\u00eda la b\u00fasqueda hasta por 2 min.
+            logger.error('Error during product search:', error);
+            return [];
+        }
+    }
+
+    private async performSearch(term: string, filters: { city?: string, category?: string, diet?: string }): Promise<Product[]> {
+        const productsRef = collection(db, this.collectionName);
 
         // Build base constraints
         const baseConstraints: any[] = [where('isActive', '==', true), limit(30)];
@@ -226,50 +247,45 @@ export class ProductService {
         if (filters.city) baseConstraints.push(where('city', '==', filters.city));
         if (filters.category) baseConstraints.push(where('category', '==', filters.category));
 
-        try {
-            // Strategy 1: searchKeywords array-contains (exact keyword match)
-            if (term) {
-                const keywordQuery = query(productsRef, ...baseConstraints, where('searchKeywords', 'array-contains', term));
-                const keywordSnap = await getDocs(keywordQuery);
-                const keywordResults = keywordSnap.docs.map(d => ({ id: d.id, ...d.data() })) as Product[];
-                if (keywordResults.length > 0) return keywordResults;
-            }
-
-            // Strategy 2: name prefix fallback (Firestore range trick)
-            if (term) {
-                const nameQuery = query(productsRef, where('isActive', '==', true), where('name', '>=', term), where('name', '<', term + '\uf8ff'), limit(20));
-                const nameSnap = await getDocs(nameQuery);
-                const nameResults = nameSnap.docs.map(d => ({ id: d.id, ...d.data() })) as Product[];
-
-                // Also try description match (client-side filter on recent products)
-                const allQuery = query(productsRef, where('isActive', '==', true), limit(50));
-                const allSnap = await getDocs(allQuery);
-                const descResults = allSnap.docs
-                    .map(d => ({ id: d.id, ...d.data() }) as Product)
-                    .filter(p => {
-                        const name = (p.name || '').toLowerCase();
-                        const desc = (p.description || '').toLowerCase();
-                        return name.includes(term) || desc.includes(term);
-                    })
-                    .filter(p => !nameResults.some(n => n.id === p.id));
-
-                // Apply filters to fallback results
-                let combined = [...nameResults, ...descResults];
-                if (filters.city) combined = combined.filter(p => p.city === filters.city);
-                if (filters.category) combined = combined.filter(p => p.category === filters.category);
-                if (filters.diet) combined = combined.filter(p => p.dietaryTags?.includes(filters.diet));
-
-                return combined.slice(0, 30);
-            }
-
-            // No term: just use base filters
-            const q = query(productsRef, ...baseConstraints);
-            const snapshot = await getDocs(q);
-            return snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as Product[];
-        } catch (error) {
-            logger.error('Error during product search:', error);
-            return [];
+        // Strategy 1: searchKeywords array-contains (exact keyword match)
+        if (term) {
+            const keywordQuery = query(productsRef, ...baseConstraints, where('searchKeywords', 'array-contains', term));
+            const keywordSnap = await getDocs(keywordQuery);
+            const keywordResults = keywordSnap.docs.map(d => ({ id: d.id, ...d.data() })) as Product[];
+            if (keywordResults.length > 0) return keywordResults;
         }
+
+        // Strategy 2: name prefix fallback (Firestore range trick)
+        if (term) {
+            const nameQuery = query(productsRef, where('isActive', '==', true), where('name', '>=', term), where('name', '<', term + '\uf8ff'), limit(20));
+            const nameSnap = await getDocs(nameQuery);
+            const nameResults = nameSnap.docs.map(d => ({ id: d.id, ...d.data() })) as Product[];
+
+            // Also try description match (client-side filter on recent products)
+            const allQuery = query(productsRef, where('isActive', '==', true), limit(50));
+            const allSnap = await getDocs(allQuery);
+            const descResults = allSnap.docs
+                .map(d => ({ id: d.id, ...d.data() }) as Product)
+                .filter(p => {
+                    const name = (p.name || '').toLowerCase();
+                    const desc = (p.description || '').toLowerCase();
+                    return name.includes(term) || desc.includes(term);
+                })
+                .filter(p => !nameResults.some(n => n.id === p.id));
+
+            // Apply filters to fallback results
+            let combined = [...nameResults, ...descResults];
+            if (filters.city) combined = combined.filter(p => p.city === filters.city);
+            if (filters.category) combined = combined.filter(p => p.category === filters.category);
+            if (filters.diet) combined = combined.filter(p => p.dietaryTags?.includes(filters.diet));
+
+            return combined.slice(0, 30);
+        }
+
+        // No term: just use base filters
+        const q = query(productsRef, ...baseConstraints);
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as Product[];
     }
 
     /**

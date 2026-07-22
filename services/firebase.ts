@@ -1,7 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getAnalytics } from 'firebase/analytics';
-import { initializeFirestore } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
 import { getStorage } from 'firebase/storage';
 import { getMessaging } from 'firebase/messaging';
@@ -48,8 +48,14 @@ export const appCheck = typeof window !== 'undefined' && import.meta.env.VITE_RE
 // Initialize Cloud Firestore con WebSocket para evitar el spinner infinito del navegador.
 // experimentalAutoDetectLongPolling: detecta si WebSocket está disponible y lo prefiere
 // sobre HTTP long-polling (que mantiene el tab en estado "cargando" indefinidamente).
+// localCache persistente (IndexedDB): evita re-leer de Firestore documentos ya vistos
+// en recargas de la app. persistentMultipleTabManager permite compartir la caché
+// entre pestañas abiertas simultáneamente sin errores de "failed-precondition".
 export const db = initializeFirestore(app, {
     experimentalAutoDetectLongPolling: true,
+    localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager(),
+    }),
 });
 
 // Initialize Cloud Functions and get a reference to the service
