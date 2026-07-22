@@ -126,12 +126,23 @@ export const ProductDetail: React.FC = () => {
                     {/* LEFT COLUMN: Visuals */}
                     <div className="lg:col-span-7 xl:col-span-8 space-y-6">
                         <div className="relative rounded-[2.5rem] overflow-hidden bg-gray-100 shadow-2xl shadow-emerald-900/5 aspect-video lg:aspect-auto lg:h-[600px]">
+                            {product.imageUrl ? (
                             <img
                                 src={product.imageUrl}
                                 alt={product.name}
                                 className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
                                 loading="lazy"
                             />
+                            ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+                                <div className="text-center">
+                                <div className="w-20 h-20 rounded-2xl bg-white/80 flex items-center justify-center mx-auto mb-3 shadow-sm">
+                                    <ShoppingCart size={40} className="text-gray-300" />
+                                </div>
+                                <p className="text-sm font-bold text-gray-400">Imagen no disponible</p>
+                                </div>
+                            </div>
+                            )}
                             
                             {/* Tags atop image - Unified & Refined */}
                             <div className="absolute top-4 left-4 right-4 flex flex-wrap items-center gap-2">
@@ -174,7 +185,8 @@ export const ProductDetail: React.FC = () => {
                         <div className="hidden lg:block bg-white rounded-[2rem] p-8 border border-gray-100">
                             <h3 className="text-xs font-black text-gray-400 mb-4 uppercase tracking-[0.2em]">{t('prod_description')}</h3>
                             <div 
-                                className="text-gray-600 text-lg leading-relaxed font-medium"
+                                className="text-gray-600 text-lg leading-relaxed font-medium break-words"
+                                style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}
                                 dangerouslySetInnerHTML={{ 
                                     __html: sanitizeHtml(product.description || 'Ayuda a rescatar esta comida de alta calidad antes de que cierre el local.') 
                                 }}

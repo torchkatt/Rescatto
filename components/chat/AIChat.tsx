@@ -339,14 +339,14 @@ export const AIChat: React.FC<AIChatProps> = ({ className = '' }) => {
                   </div>
                 )}
                 <div
-                  className={`max-w-[85%] px-4 py-3 rounded-2xl shadow-sm ${
+                  className={`max-w-[85%] px-4 py-3 rounded-2xl shadow-sm break-words ${
                     message.role === 'user'
                       ? 'bg-gradient-to-br from-emerald-600 to-teal-600 text-white shadow-emerald-100'
                       : 'bg-white border border-emerald-50 text-gray-800'
                   }`}
                 >
                   {message.role === 'assistant' ? (
-                    <div className="markdown-content text-sm font-medium">
+                    <div className="markdown-content text-sm font-medium break-words" style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}>
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
                         components={{
@@ -446,6 +446,7 @@ export const AIChat: React.FC<AIChatProps> = ({ className = '' }) => {
 // ─── Guest mode: local-only suggestions, no DeepSeek API ───
 const AIChatGuestMode: React.FC = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
 
   const guestSuggestions = [
     { icon: '🍽️', text: `${t('chat_ai_what_is') || '¿Qué es Rescatto?'}` },
@@ -461,6 +462,20 @@ const AIChatGuestMode: React.FC = () => {
       </div>
       <h3 className="text-lg font-black text-gray-800 mb-2">{t('chat_ai_welcome_guest') || 'RescattoBot'}</h3>
       <p className="text-sm text-gray-500 mb-6 max-w-xs">{t('chat_ai_login_to_chat') || 'Inicia sesión para usar el asistente IA'}</p>
+      <div className="flex flex-col gap-3 w-full max-w-xs mb-6">
+        <button
+          onClick={() => navigate('/login?mode=register')}
+          className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-emerald-200 hover:shadow-xl hover:-translate-y-0.5 active:scale-[0.98] transition-all"
+        >
+          Crear cuenta gratis
+        </button>
+        <button
+          onClick={() => navigate('/login')}
+          className="w-full py-3.5 border-2 border-emerald-200 text-emerald-700 rounded-2xl font-bold text-sm hover:bg-emerald-50 active:scale-[0.98] transition-all"
+        >
+          Ya tengo cuenta
+        </button>
+      </div>
       <div className="grid grid-cols-1 gap-2 w-full max-w-xs">
         {guestSuggestions.map((s, i) => (
           <div
