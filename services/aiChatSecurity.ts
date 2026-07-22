@@ -68,7 +68,16 @@ const JAILBREAK_PATTERNS = [
   /reveal\s+(prompt|instructions|system)/i,
 ];
 
-// ─── Strike System ───
+// ─── Strike System (UX feedback only) ───
+
+/**
+ * Strike tracking for AI chat misuse.
+ * 
+ * ⚠️ UX-ONLY: La autoridad de strikes está en functions/aiProxy.js
+ * (colección dedicada ai_strikes/{userId} en Firestore). Este código
+ * da feedback inmediato en el cliente mientras el servidor registra
+ * la infracción real. El servidor es quien bloquea la cuenta.
+ */
 
 const MAX_STRIKES = 2;
 const STRIKE_FIELD = 'aiChatStrikes';
@@ -355,10 +364,14 @@ export function isAdminRole(role: string): boolean {
   return role === UserRole.SUPER_ADMIN || role === UserRole.ADMIN;
 }
 
-// ─── L3: Rate Limiting ───
+// ─── L3: Rate Limiting (UX feedback only) ───
 
 /**
- * Simple in-memory rate limiter for write operations
+ * Simple in-memory rate limiter for write operations.
+ * 
+ * ⚠️ UX-ONLY: La autoridad de rate limiting está en functions/aiProxy.js
+ * (Firestore-based, persistente entre sesiones). Este código da feedback
+ * inmediato al usuario mientras el servidor procesa la solicitud.
  */
 const writeOpCounts: Record<string, { count: number; resetAt: number }> = {};
 
