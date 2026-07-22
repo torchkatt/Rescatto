@@ -201,6 +201,18 @@ const Explore: React.FC = () => {
       });
     } else if (activeSort === 'endingSoon') {
       result.sort((a, b) => new Date(a.availableUntil).getTime() - new Date(b.availableUntil).getTime());
+    } else if (activeSort === 'price-asc') {
+      result.sort((a, b) => {
+        const priceA = a.dynamicDiscountedPrice || a.discountedPrice || a.originalPrice || 0;
+        const priceB = b.dynamicDiscountedPrice || b.discountedPrice || b.originalPrice || 0;
+        return priceA - priceB;
+      });
+    } else if (activeSort === 'price-desc') {
+      result.sort((a, b) => {
+        const priceA = a.dynamicDiscountedPrice || a.discountedPrice || a.originalPrice || 0;
+        const priceB = b.dynamicDiscountedPrice || b.discountedPrice || b.originalPrice || 0;
+        return priceB - priceA;
+      });
     } else {
       result.sort((a, b) => {
         const scoreA = computeExploreScore(a, venuesById.get(a.venueId)!, latitude || undefined, longitude || undefined);
@@ -377,6 +389,8 @@ const Explore: React.FC = () => {
                   <option value="distance">{t('sort_distance')}</option>
                   <option value="discount">{t('sort_discount')}</option>
                   <option value="endingSoon">{t('sort_ending_soon')}</option>
+                  <option value="price-asc">Precio: Menor a Mayor</option>
+                  <option value="price-desc">Precio: Mayor a Menor</option>
                 </select>
               </div>
             </div>
