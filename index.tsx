@@ -11,12 +11,28 @@ import { validateEnv } from './utils/envValidation';
 validateEnv();
 
 if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
+  // PII scrubbing: nunca enviar email/teléfono/dirección a Sentry
+  const PII_KEYS = ['email', 'phone', 'address', 'fullName', 'shippingAddress'];
+  function scrubPII(obj: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+    if (!obj) return obj;
+    const clean = { ...obj };
+    for (const key of PII_KEYS) delete clean[key];
+    return clean;
+  }
+
   Sentry.init({
     dsn: import.meta.env.VITE_SENTRY_DSN,
     environment: import.meta.env.MODE,
     tracesSampleRate: 0.1,
     replaysSessionSampleRate: 0,
     replaysOnErrorSampleRate: 0.5,
+    sendDefaultPii: false,
+    beforeSend(event) {
+      if (event.user) event.user = { id: event.user.id };
+      event.breadcrumbs = event.breadcrumbs?.map((b) => ({ ...b, data: scrubPII(b.data) }));
+      if (event.request) delete event.request.cookies;
+      return event;
+    },
   });
 }
 
