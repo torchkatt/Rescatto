@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { 
   Store, 
   Bot, 
@@ -27,7 +27,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { Logo } from '../components/common/Logo';
 import { planService } from '../services/planService';
-import { SellerPassPlan } from '../types';
+import { UserRole, SellerPassPlan } from '../types';
 
 // ── Config ───────────────────────────────────────────────────────────────────
 const BRAND = '#059669'; // Primary purple
@@ -84,8 +84,8 @@ const PrimaryCTA: React.FC<{ onClick?: () => void; href?: string; className?: st
   return (
     <Comp
       {...(onClick ? { onClick } : { href })}
-      className={`inline-flex items-center gap-2 px-8 py-4 rounded-xl 
-        bg-gradient-to-r from-emerald-600 to-green-600 text-white font-bold text-base
+      className={`inline-flex items-center gap-2 px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl 
+        bg-gradient-to-r from-emerald-600 to-green-600 text-white font-bold text-sm sm:text-base
         shadow-lg shadow-emerald-500/25 hover:shadow-xl hover:shadow-emerald-500/40 
         hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200 ${className}`}
     >
@@ -100,8 +100,8 @@ const OutlineCTA: React.FC<{ onClick?: () => void; className?: string; children:
 }) => (
   <button
     onClick={onClick}
-    className={`inline-flex items-center gap-2 px-8 py-4 rounded-xl 
-      border-2 border-white/20 text-white font-bold text-base
+    className={`inline-flex items-center gap-2 px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl 
+      border-2 border-white/20 text-white font-bold text-sm sm:text-base
       hover:bg-white/5 hover:border-emerald-400/40 
       hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200 ${className}`}
   >
@@ -351,17 +351,21 @@ const LandingFooter: React.FC = () => (
         <div>
           <h4 className="text-white font-bold text-sm mb-4">Producto</h4>
           <ul className="space-y-2.5">
-            {['Features', 'Precios', 'Seller Pass', 'Wompi Pagos', 'PWA App'].map((l) => (
-              <li key={l}><a href="#" className="text-gray-400 text-sm hover:text-white transition-colors">{l}</a></li>
-            ))}
+            <li><a href="#features" className="text-gray-400 text-sm hover:text-white transition-colors">Features</a></li>
+            <li><a href="#pricing" className="text-gray-400 text-sm hover:text-white transition-colors">Precios</a></li>
+            <li><a href="#pricing" className="text-gray-400 text-sm hover:text-white transition-colors">Seller Pass</a></li>
+            <li><Link to="/help" className="text-gray-400 text-sm hover:text-white transition-colors">Wompi Pagos</Link></li>
+            <li><Link to="/help" className="text-gray-400 text-sm hover:text-white transition-colors">PWA App</Link></li>
           </ul>
         </div>
         <div>
           <h4 className="text-white font-bold text-sm mb-4">Empresa</h4>
           <ul className="space-y-2.5">
-            {['Sobre Nosotros', 'Blog', 'Contacto', 'Términos', 'Privacidad'].map((l) => (
-              <li key={l}><a href="#" className="text-gray-400 text-sm hover:text-white transition-colors">{l}</a></li>
-            ))}
+            <li><Link to="/help" className="text-gray-400 text-sm hover:text-white transition-colors">Sobre Nosotros</Link></li>
+            <li><Link to="/help" className="text-gray-400 text-sm hover:text-white transition-colors">Blog</Link></li>
+            <li><Link to="/help" className="text-gray-400 text-sm hover:text-white transition-colors">Contacto</Link></li>
+            <li><Link to="/legal/terms" className="text-gray-400 text-sm hover:text-white transition-colors">Términos</Link></li>
+            <li><Link to="/legal/privacy" className="text-gray-400 text-sm hover:text-white transition-colors">Privacidad</Link></li>
           </ul>
         </div>
       </div>
@@ -384,8 +388,36 @@ const Landing: React.FC = () => {
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
 
-  const goToLogin = () => navigate('/login');
-  const goToApp = () => navigate(user && !user.isGuest ? '/app' : '/login?mode=register');
+  // ── Redirigir usuarios autenticados fuera del Landing ──
+  useEffect(() => {
+    if (isAuthenticated && user && !user.isGuest) {
+      const adminRoles: string[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.CITY_ADMIN];
+      let target = '/app';
+      if (adminRoles.includes(user.role)) {
+        target = '/backoffice/dashboard';
+      } else if (user.role === UserRole.DRIVER) {
+        target = '/driver';
+      } else if (user.role === UserRole.VENUE_OWNER || user.role === UserRole.KITCHEN_STAFF) {
+        target = '/dashboard';
+      }
+      navigate(target, { replace: true });
+    }
+  }, [isAuthenticated, user, navigate]);
+
+  // ── Guardar redirect + navegar a login ──
+  const goToLogin = () => {
+    sessionStorage.setItem('rescatto_post_login_redirect', '/app');
+    navigate('/login');
+  };
+
+  const goToApp = () => {
+    if (user && !user.isGuest) {
+      navigate('/app');
+    } else {
+      sessionStorage.setItem('rescatto_post_login_redirect', '/app');
+      navigate('/login?mode=register');
+    }
+  };
 
   const [plans, setPlans] = useState<SellerPassPlan[]>([]);
   const [plansLoading, setPlansLoading] = useState(true);
@@ -404,7 +436,7 @@ const Landing: React.FC = () => {
       {/* ════════════════════════════════════════════════════════════
           ── HERO SECTION ───────────────────────────────────────────
           ════════════════════════════════════════════════════════════ */}
-      <Section className="pt-32 lg:pt-44 pb-16 relative overflow-hidden">
+      <Section className="pt-20 sm:pt-32 lg:pt-44 pb-16 relative overflow-hidden">
         {/* Background Effects */}
         <div className="absolute inset-0 z-0">
           <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-emerald-600/20 rounded-full blur-[120px]" />
@@ -425,7 +457,7 @@ const Landing: React.FC = () => {
 
           {/* Headline */}
           <div className="text-center max-w-4xl mx-auto mb-8 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
-            <h1 className="text-5xl lg:text-7xl font-black tracking-tight leading-[1.1] mb-6">
+            <h1 className="text-4xl sm:text-5xl lg:text-7xl font-black tracking-tight leading-[1.1] mb-6">
               Conectamos tu{' '}
               <GradientText>negocio</GradientText>
               <br />
@@ -449,7 +481,7 @@ const Landing: React.FC = () => {
           </div>
 
           {/* Stats */}
-          <div className="flex flex-wrap items-center justify-center gap-8 lg:gap-16 animate-fade-in-up" style={{ animationDelay: '300ms' }}>
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center justify-center gap-6 sm:gap-8 lg:gap-16 animate-fade-in-up" style={{ animationDelay: '300ms' }}>
             {[
               { value: '500+', label: 'Negocios Activos' },
               { value: '50K+', label: 'Productos Vendidos' },

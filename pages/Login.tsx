@@ -33,12 +33,22 @@ const Login: React.FC = () => {
     i18n.changeLanguage(newLang);
   };
 
+  // Leer redirect guardado en sessionStorage (lo escribe Landing, etc.)
+  const getPostLoginRedirect = () => {
+    const stored = sessionStorage.getItem('rescatto_post_login_redirect');
+    if (stored) {
+      sessionStorage.removeItem('rescatto_post_login_redirect');
+      return stored;
+    }
+    return '/app';
+  };
+
   // Redirigir si el usuario ya está autenticado (y no es invitado, o si lo es pero no estamos en modo registro/login explícito)
   useEffect(() => {
     // Si el usuario es real (no invitado) y está autenticado, redirigir siempre
     if (isAuthenticated && user && !user.isGuest) {
-      logger.log('Login: Usuario real autenticado, redirigiendo a /');
-      navigate('/');
+      logger.log('Login: Usuario real autenticado, redirigiendo a', getPostLoginRedirect());
+      navigate(getPostLoginRedirect());
     }
   }, [isAuthenticated, user, navigate]);
 
@@ -104,11 +114,11 @@ const Login: React.FC = () => {
             invitedBy: referralCode.trim().toUpperCase(),
             tosAcceptedAt: new Date().toISOString(),
         });
-        navigate('/');
+        navigate(getPostLoginRedirect());
       } else {
         await login(email, password);
         // La navegación es manejada por RootRedirect en App.tsx o AuthContext
-        navigate('/');
+        navigate(getPostLoginRedirect());
       }
     } catch (err: any) {
       logger.error('Login error:', err);
@@ -126,12 +136,12 @@ const Login: React.FC = () => {
   const handleGoogleLogin = async () => {
     try {
       await loginWithGoogle();
-      navigate('/');
+      navigate(getPostLoginRedirect());
     } catch (err: any) {
       setError(err.message || 'Error al iniciar sesión con Google');
       auditService.logEvent({
         action: AuditAction.LOGIN_FAILURE,
-        performedBy: user?.id || 'anonymous', // Added performedBy
+        performedBy: user?.id || 'anonymous',
         details: { error: err.code || err.message, method: 'google' },
         path: '/login'
       });
@@ -141,7 +151,7 @@ const Login: React.FC = () => {
   const handleAppleLogin = async () => {
     try {
       await loginWithApple();
-      navigate('/');
+      navigate(getPostLoginRedirect());
     } catch (err: any) {
       setError(err.message || 'Error al iniciar sesión con Apple');
     }
@@ -150,7 +160,7 @@ const Login: React.FC = () => {
   const handleFacebookLogin = async () => {
     try {
       await loginWithFacebook();
-      navigate('/');
+      navigate(getPostLoginRedirect());
     } catch (err: any) {
       setError(err.message || 'Error al iniciar sesión con Facebook');
     }
@@ -452,7 +462,7 @@ const Login: React.FC = () => {
               try {
                 setError('');
                 await loginAsGuest();
-                navigate('/');
+                navigate(getPostLoginRedirect());
               } catch (err: any) {
                 setError('Error al ingresar como invitado. Intenta de nuevo.');
                 auditService.logEvent({
