@@ -142,6 +142,15 @@ lint_output.txt
 test_failures.txt
 functions/lint_results.txt
 
+# Emulator debug logs
+firestore-debug.log
+firebase-debug.log
+ui-debug.log
+storage-debug.log
+
+# Functions output
+functions/lib/
+
 # Browser automation profile (local only, may contain browsing/session data)
 .chrome-profile/
 
@@ -156,3 +165,4 @@ dev-dist/
 
 # Stray backup files
 *.bak
+.loop-worktrees

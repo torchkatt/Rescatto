@@ -15,10 +15,15 @@ service firebase.storage {
         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role in ['SUPER_ADMIN', 'ADMIN'];
     }
 
-    // Avatares: cada usuario puede gestionar solo su carpeta.
+    function isValidImage() {
+      return request.resource.size < 5 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/.*');
+    }
+
+    // Avatares: cada usuario puede gestionar solo su carpeta, con límites de tamaño y tipo.
     match /avatars/{userId}/{allPaths=**} {
       allow read: if isAuthenticated();
-      allow write: if isOwner(userId) || isAdmin();
+      allow write: if (isOwner(userId) || isAdmin()) && isValidImage();
     }
 
     // Uploads operativos restringidos a admins (reservado para backoffice).
