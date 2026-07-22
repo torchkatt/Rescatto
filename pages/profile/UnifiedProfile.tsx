@@ -6,12 +6,13 @@ import { PersonalDetails } from '../../components/profile/PersonalDetails';
 import { SecuritySettings } from '../../components/profile/SecuritySettings';
 import { RoleSpecificStats } from '../../components/profile/RoleSpecificStats';
 import { RescattoPassManagement } from '../../components/profile/RescattoPassManagement';
+import { NotificationPreferences } from '../../components/profile/NotificationPreferences';
 import { User } from '../../types';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db, functions } from '../../services/firebase';
 import { useToast } from '../../context/ToastContext';
 import { UserRole } from '../../types';
-import { ArrowLeft, User as UserIcon, Lock, TrendingUp, Gift, Zap } from 'lucide-react';
+import { ArrowLeft, User as UserIcon, Lock, TrendingUp, Gift, Zap, Bell } from 'lucide-react';
 import { httpsCallable } from 'firebase/functions';
 import { useConfirm } from '../../context/ConfirmContext';
 import { logger } from '../../utils/logger';
@@ -24,7 +25,7 @@ export const UnifiedProfile: React.FC = () => {
     const navigate = useNavigate();
     const { showToast, success } = useToast();
     const confirm = useConfirm();
-    const [activeTab, setActiveTab] = useState<'details' | 'stats' | 'security' | 'referrals' | 'pass'>('details');
+    const [activeTab, setActiveTab] = useState<'details' | 'stats' | 'security' | 'referrals' | 'pass' | 'preferences'>('details');
     const redeemingRef = useRef(false);
 
     if (!user) {
@@ -174,6 +175,17 @@ export const UnifiedProfile: React.FC = () => {
                     )}
 
                     <button
+                        onClick={() => setActiveTab('preferences')}
+                        className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-bold text-sm text-center leading-tight transition-all whitespace-normal sm:whitespace-nowrap active:scale-95 ${activeTab === 'preferences'
+                            ? 'bg-gray-900 text-white shadow-lg shadow-gray-900/20'
+                            : 'bg-white text-gray-600 hover:bg-gray-100'
+                            }`}
+                    >
+                        <Bell size={18} />
+                        {t('prof_notifications') || 'Notificaciones'}
+                    </button>
+
+                    <button
                         onClick={() => setActiveTab('security')}
                         className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-bold text-sm text-center leading-tight transition-all whitespace-normal sm:whitespace-nowrap active:scale-95 ${activeTab === 'security'
                             ? 'bg-gray-900 text-white shadow-lg shadow-gray-900/20'
@@ -201,6 +213,10 @@ export const UnifiedProfile: React.FC = () => {
 
                     {activeTab === 'security' && (
                         <SecuritySettings />
+                    )}
+
+                    {activeTab === 'preferences' && (
+                        <NotificationPreferences />
                     )}
                 </div>
             </div>
