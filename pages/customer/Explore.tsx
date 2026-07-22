@@ -1,7 +1,7 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { MapPin, Search, ArrowLeft, RefreshCw, Filter, ChevronDown } from 'lucide-react';
+import { MapPin, Search, ArrowLeft, RefreshCw, Filter, ChevronDown, X } from 'lucide-react';
 import { useLocation } from '../../context/LocationContext';
 import { venueService } from '../../services/venueService';
 import { productService } from '../../services/productService';
@@ -87,6 +87,32 @@ const Explore: React.FC = () => {
   const activeIsRescue = searchParams.get('isRescue') === 'true';
   const activeMarketCategory = searchParams.get('marketCategory') || 'all';
   const activeListingType = searchParams.get('listingType') || 'all';
+  const activeSearch = searchParams.get('q') || '';
+
+  // Search input state + debounce
+  const [searchInput, setSearchInput] = useState(activeSearch);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+
+  const handleSearchChange = (val: string) => {
+    setSearchInput(val);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      const newParams = new URLSearchParams(searchParams);
+      if (val.trim()) {
+        newParams.set('q', val.trim());
+      } else {
+        newParams.delete('q');
+      }
+      setSearchParams(newParams);
+    }, 400);
+  };
+
+  const clearSearch = () => {
+    setSearchInput('');
+    const newParams = new URLSearchParams(searchParams);
+    newParams.delete('q');
+    setSearchParams(newParams);
+  };
 
   // Selected category object (for showing subcategories)
   const selectedCategory = useMemo(() => {
@@ -98,16 +124,29 @@ const Explore: React.FC = () => {
     const loadData = async () => {
       try {
         setLoading(true);
-        const [allVenues, productsPage, categories] = await Promise.all([
-          venueService.getAllVenues(),
-          productService.getAllActiveProductsPage(undefined, null, PAGE_SIZE),
-          categoryService.getCategoryTree(),
-        ]);
-        setVenues(allVenues);
-        setProducts(productsPage.products);
-        setProductsLastDoc(productsPage.lastDoc);
-        setHasMoreProducts(productsPage.hasMore);
-        setCategoryTree(categories);
+        if (activeSearch) {
+          // Search mode: use searchProducts
+          const filters: any = {};
+          if (activeMarketCategory !== 'all') filters.category = activeMarketCategory;
+          const searchResults = await productService.searchProducts(activeSearch, filters);
+          const allVenues = await venueService.getAllVenues();
+          setVenues(allVenues);
+          setProducts(searchResults);
+          setProductsLastDoc(null);
+          setHasMoreProducts(false);
+        } else {
+          // Browse mode: load all products (existing flow)
+          const [allVenues, productsPage, categories] = await Promise.all([
+            venueService.getAllVenues(),
+            productService.getAllActiveProductsPage(undefined, null, PAGE_SIZE),
+            categoryService.getCategoryTree(),
+          ]);
+          setVenues(allVenues);
+          setProducts(productsPage.products);
+          setProductsLastDoc(productsPage.lastDoc);
+          setHasMoreProducts(productsPage.hasMore);
+          setCategoryTree(categories);
+        }
       } catch (err) {
         logger.error('Explore: Load failed', err);
       } finally {
@@ -115,7 +154,7 @@ const Explore: React.FC = () => {
       }
     };
     loadData();
-  }, []);
+  }, [activeSearch]); // Re-run when search changes
 
   const loadMore = useCallback(async () => {
     if (!hasMoreProducts || loadingMore) return;
@@ -237,9 +276,10 @@ const Explore: React.FC = () => {
   const clearFilters = () => {
     setSearchParams(new URLSearchParams());
     setShowSubcategories(false);
+    setSearchInput('');
   };
 
-  const hasActiveFilters = activeType !== 'all' || activeDiscount > 0 || activeDistance > 0 || activeExpires > 0 || activeCategory !== 'all' || activeIsRescue || activeMarketCategory !== 'all' || activeListingType !== 'all';
+  const hasActiveFilters = activeType !== 'all' || activeDiscount > 0 || activeDistance > 0 || activeExpires > 0 || activeCategory !== 'all' || activeIsRescue || activeMarketCategory !== 'all' || activeListingType !== 'all' || !!activeSearch;
 
   if (loading) {
     return (
@@ -279,6 +319,31 @@ const Explore: React.FC = () => {
               <ArrowLeft size={24} className="group-active:scale-90 transition-transform" />
             </button>
             <h1 className="text-2xl font-black text-gray-900 tracking-tight">{t('explore_title')}</h1>
+          </div>
+
+          {/* Search Bar */}
+          <div className="relative mb-5">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+              <Search size={18} className="text-gray-400" />
+            </div>
+            <input
+              type="text"
+              value={searchInput}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder="Buscar productos, servicios, categorías..."
+              className="w-full pl-11 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-2xl 
+                text-sm font-medium text-gray-900 placeholder:text-gray-400
+                focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 
+                focus:bg-white transition-all"
+            />
+            {searchInput && (
+              <button
+                onClick={clearSearch}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+              >
+                <X size={18} />
+              </button>
+            )}
           </div>
 
           {/* Category Pills (Marketplace) */}
@@ -485,7 +550,7 @@ const Explore: React.FC = () => {
                 />
               ))}
             </div>
-            {hasMoreProducts && (
+            {hasMoreProducts && !activeSearch && (
               <div className="mt-12 flex justify-center pb-12">
                 <Button
                   variant="secondary"
