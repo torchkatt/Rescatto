@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { User, UserRole, Venue } from '../../types';
 import { ImpactStats } from '../customer/profile/ImpactStats';
 import { UserBadges } from '../customer/profile/UserBadges';
 import { UserWallet } from '../customer/profile/UserWallet';
-import { Package, Star, TrendingUp, Clock, AlertCircle } from 'lucide-react';
+import { RecentOrders } from '../customer/profile/RecentOrders';
+import { Package, Star, TrendingUp, Clock, AlertCircle, ShoppingBag } from 'lucide-react';
 import { venueService } from '../../services/venueService';
 import { VenueInfoCard } from './VenueInfoCard';
 import { logger } from '../../utils/logger';
@@ -14,6 +16,7 @@ interface RoleSpecificStatsProps {
 }
 
 export const RoleSpecificStats: React.FC<RoleSpecificStatsProps> = ({ user, onRedeem }) => {
+    const navigate = useNavigate();
     const [venues, setVenues] = useState<Venue[]>([]);
     const [loadingVenues, setLoadingVenues] = useState(false);
 
@@ -60,6 +63,42 @@ export const RoleSpecificStats: React.FC<RoleSpecificStatsProps> = ({ user, onRe
                 <ImpactStats impact={user.impact} />
                 <UserWallet points={user.impact?.points || 0} onRedeem={onRedeem || (async () => { })} />
                 <UserBadges badges={user.impact?.badges} totalRescues={user.impact?.totalRescues || 0} />
+
+                {/* Recent Orders */}
+                <section>
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                            <ShoppingBag size={18} className="text-emerald-500" />
+                            Pedidos Recientes
+                        </h3>
+                    </div>
+                    <RecentOrders buyerId={user.id} />
+                </section>
+
+                {/* Favorites Quick Access */}
+                <section>
+                    <button
+                        onClick={() => navigate('/app/favorites')}
+                        className="w-full bg-white rounded-2xl p-5 border border-gray-100 shadow-sm 
+                            hover:shadow-md hover:border-emerald-200 hover:-translate-y-0.5 
+                            transition-all duration-200 text-left active:scale-[0.99] group"
+                    >
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-xl bg-rose-100 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                <svg className="w-6 h-6 text-rose-500" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                                </svg>
+                            </div>
+                            <div className="flex-1">
+                                <p className="font-bold text-gray-900">Mis Favoritos</p>
+                                <p className="text-sm text-gray-500">Venues y productos que te gustan</p>
+                            </div>
+                            <svg className="w-5 h-5 text-gray-300 group-hover:text-emerald-500 group-hover:translate-x-0.5 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                        </div>
+                    </button>
+                </section>
             </div>
         );
     }

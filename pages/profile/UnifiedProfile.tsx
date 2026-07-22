@@ -42,7 +42,8 @@ export const UnifiedProfile: React.FC = () => {
                 fullName: data.fullName,
                 phone: data.phone,
                 address: data.address,
-                city: data.city || ''
+                city: data.city || '',
+                neighborhood: (data as any).neighborhood || '',
             });
             showToast('success', 'Perfil actualizado exitosamente');
         } catch (error) {

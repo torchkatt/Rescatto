@@ -20,6 +20,7 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ user, onSave }
         phone: user.phone || '',
         address: user.address || '',
         city: user.city || '',
+        neighborhood: (user as any).neighborhood || '',
     });
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -46,6 +47,7 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ user, onSave }
             phone: user.phone || '',
             address: user.address || '',
             city: user.city || '',
+            neighborhood: (user as any).neighborhood || '',
         });
         setIsEditing(false);
     };
@@ -137,6 +139,28 @@ export const PersonalDetails: React.FC<PersonalDetailsProps> = ({ user, onSave }
                         ) : (
                             <div className={`bg-gray-50 px-4 py-2 rounded-lg border border-gray-100 min-h-[42px] flex items-center ${!user.city ? 'text-gray-400 italic' : 'text-gray-800'}`}>
                                 {user.city || t('prof_unspecified')}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Neighborhood */}
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                            <MapPin size={16} className="text-gray-400" />
+                            Barrio
+                        </label>
+                        {isEditing ? (
+                            <input
+                                type="text"
+                                name="neighborhood"
+                                value={formData.neighborhood}
+                                onChange={handleChange}
+                                placeholder="Ej. Chapinero, Usaquén"
+                                className="w-full px-4 py-3 border border-gray-100 bg-gray-50 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all text-base outline-none font-medium"
+                            />
+                        ) : (
+                            <div className={`bg-gray-50 px-4 py-2 rounded-lg border border-gray-100 min-h-[42px] flex items-center ${!formData.neighborhood ? 'text-gray-400 italic' : 'text-gray-800'}`}>
+                                {formData.neighborhood || 'No especificado'}
                             </div>
                         )}
                     </div>
