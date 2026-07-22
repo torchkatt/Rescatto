@@ -8,6 +8,7 @@ const { GenerateWompiSignatureSchema, WompiWebhookSchema } = require("../schemas
 const { log, error: logError, warn: logWarn } = require("../utils/logger");
 const { IS_PROD, ALLOWED_ORIGINS } = require("../utils/config");
 const { writeAuditLog } = require("../utils/audit");
+const { STATUS, canTransition, mapWompiStatus } = require("../orderState");
 const crypto = require("crypto-js");
 const cryptoNode = require("crypto");
 
@@ -154,6 +155,40 @@ const wompiWebhook = onRequest(
 
             if (!q.empty) {
                 const orderDoc = q.docs[0];
+                const orderData = orderDoc.data() || {};
+
+                // ─── Amount validation: el monto del webhook debe coincidir con la orden ───
+                const expectedAmount = orderData.totalAmountCents || orderData.totalAmount;
+                if (transactionData.amount_in_cents && expectedAmount &&
+                    transactionData.amount_in_cents !== expectedAmount) {
+                    logError(`Amount mismatch: webhook=${transactionData.amount_in_cents} order=${expectedAmount}`);
+                    await db.collection("webhook_errors").doc().set({
+                        service: "wompi", eventType, transactionId: transactionData.id,
+                        reason: "amount_mismatch",
+                        expected: expectedAmount, received: transactionData.amount_in_cents,
+                        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                    });
+                    // Mark order as disputed instead of approving
+                    await orderDoc.ref.update({
+                        status: STATUS.DISPUTED,
+                        disputeReason: "Monto de pago no coincide con la orden",
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    });
+                    await writeAuditLog({
+                        action: "payment_amount_mismatch",
+                        performedBy: "wompi_webhook",
+                        targetId: orderDoc.id, targetType: "order",
+                        metadata: { expected: expectedAmount, received: transactionData.amount_in_cents },
+                    });
+                    return res.status(200).send({ received: true, mismatch: true });
+                }
+
+                // ─── State machine: validar transición ───
+                const nextStatus = mapWompiStatus(transactionData.status);
+                if (nextStatus && !canTransition(orderData.status, nextStatus)) {
+                    logWarn(`State machine rejected: ${orderData.status} → ${nextStatus}`);
+                    return res.status(200).send({ received: true, skipped: true, reason: "invalid_transition" });
+                }
                 const txResult = await db.runTransaction(async (t) => {
                     const freshOrderSnap = await t.get(orderDoc.ref);
                     if (!freshOrderSnap.exists) return { updated: false, reason: "missing_order" };

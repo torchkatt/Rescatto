@@ -8,6 +8,8 @@
 const admin = require("firebase-admin");
 const functions = require("firebase-functions");
 const db = admin.firestore();
+const { STATUS, canTransition } = require("../orderState");
+const { log: logInfo, warn: logWarn, error: logError } = require("./utils/logger");
 
 // ─── Rate limiting ──────────────────────────────────────────────────────────
 const { checkRateLimit } = require("./utils/rateLimit");
@@ -57,10 +59,23 @@ exports.createTransaction = functions.https.onCall(async (data, context) => {
         const sellerEarnings = Math.max(0, (data.sellerEarnings || subtotal - commission));
 
         const txRef = db.collection("transactions").doc();
+
+        // ─── Stock reservation: decrementar quantity en listings ───
+        if (data.lineItems && data.lineItems.length) {
+            const listingRefs = data.lineItems
+                .filter(i => i.listingId)
+                .map(i => ({ ref: db.collection("listings").doc(i.listingId), qty: i.quantity || 1 }));
+            await Promise.all(listingRefs.map(({ ref, qty }) =>
+                ref.update({ quantity: admin.firestore.FieldValue.increment(-qty) }).catch(err => {
+                    logWarn(`Stock reservation failed for ${ref.id}: ${err.message}`);
+                })
+            ));
+        }
+
         const transaction = {
             ...data,
             id: txRef.id,
-            status: "PENDING",
+            status: STATUS.PENDING,
             subtotal,
             commission,
             sellerEarnings,
@@ -161,10 +176,22 @@ exports.cancelTransaction = functions.https.onCall(async (data, context) => {
         if (txData.buyerId !== context.auth.uid && !isAdmin)
             throw new functions.https.HttpsError("permission-denied", "No puedes cancelar esta transacción.");
 
-        if (txData.status !== "PENDING")
+        if (txData.status !== STATUS.PENDING && txData.status !== STATUS.PAID)
             throw new functions.https.HttpsError("failed-precondition", "Solo se pueden cancelar transacciones pendientes.");
 
-        await txRef.update({ status: "CANCELLED", updatedAt: new Date().toISOString() });
+        // ─── Stock restitution: restaurar quantity en listings ───
+        if (txData.lineItems && txData.lineItems.length) {
+            const listingRefs = txData.lineItems
+                .filter(i => i.listingId)
+                .map(i => ({ ref: db.collection("listings").doc(i.listingId), qty: i.quantity || 1 }));
+            await Promise.all(listingRefs.map(({ ref, qty }) =>
+                ref.update({ quantity: admin.firestore.FieldValue.increment(qty) }).catch(err => {
+                    console.warn("Stock restitution failed for", ref.id, err.message);
+                })
+            ));
+        }
+
+        await txRef.update({ status: STATUS.CANCELLED, updatedAt: new Date().toISOString() });
 
         // Cancel associated booking
         const bkSnap = await db.collection("bookings").where("transactionId", "==", transactionId).limit(1).get();

@@ -1,0 +1,60 @@
+"use strict";
+
+/**
+ * Máquina de estados de órdenes — fuente única de verdad para transiciones.
+ * Espejo de solo lectura en src/utils/orderState.ts para la UI.
+ */
+
+const STATUS = {
+    // Payment flow
+    PENDING: "PENDING",
+    PENDING_PAYMENT: "PENDING_PAYMENT",
+    PAID: "PAID",
+    PAYMENT_CONFIRMED: "PAYMENT_CONFIRMED",
+    // Order flow (pickup/delivery)
+    ACCEPTED: "ACCEPTED",
+    IN_PREPARATION: "IN_PREPARATION",
+    READY: "READY",
+    AWAITING_DRIVER: "AWAITING_DRIVER",
+    IN_TRANSIT: "IN_TRANSIT",
+    DELIVERED: "DELIVERED",
+    COMPLETED: "COMPLETED",
+    // Terminal / exception
+    CANCELLED: "CANCELLED",
+    DISPUTED: "DISPUTED",
+    REFUNDED: "REFUNDED",
+};
+
+const TRANSITIONS = {
+    [STATUS.PENDING]: [STATUS.PAID, STATUS.CANCELLED],
+    [STATUS.PENDING_PAYMENT]: [STATUS.PAYMENT_CONFIRMED, STATUS.CANCELLED],
+    [STATUS.PAID]: [STATUS.ACCEPTED, STATUS.CANCELLED, STATUS.REFUNDED, STATUS.DISPUTED],
+    [STATUS.PAYMENT_CONFIRMED]: [STATUS.ACCEPTED, STATUS.CANCELLED, STATUS.REFUNDED, STATUS.DISPUTED],
+    [STATUS.ACCEPTED]: [STATUS.IN_PREPARATION, STATUS.READY, STATUS.CANCELLED, STATUS.DISPUTED],
+    [STATUS.IN_PREPARATION]: [STATUS.READY, STATUS.CANCELLED, STATUS.DISPUTED],
+    [STATUS.READY]: [STATUS.AWAITING_DRIVER, STATUS.IN_TRANSIT, STATUS.COMPLETED, STATUS.CANCELLED, STATUS.DISPUTED],
+    [STATUS.AWAITING_DRIVER]: [STATUS.IN_TRANSIT, STATUS.CANCELLED, STATUS.DISPUTED],
+    [STATUS.IN_TRANSIT]: [STATUS.DELIVERED, STATUS.DISPUTED],
+    [STATUS.DELIVERED]: [STATUS.COMPLETED, STATUS.DISPUTED],
+    [STATUS.COMPLETED]: [STATUS.DISPUTED, STATUS.REFUNDED],
+    [STATUS.CANCELLED]: [],
+    [STATUS.DISPUTED]: [STATUS.REFUNDED, STATUS.CANCELLED],
+    [STATUS.REFUNDED]: [],
+};
+
+function canTransition(from, to) {
+    if (from === to) return false;
+    return (TRANSITIONS[from] || []).includes(to);
+}
+
+function mapWompiStatus(wompiStatus) {
+    switch (wompiStatus) {
+        case "APPROVED": return STATUS.PAYMENT_CONFIRMED;
+        case "DECLINED":
+        case "VOIDED":
+        case "ERROR": return STATUS.CANCELLED;
+        default: return null; // PENDING u otro transitorio
+    }
+}
+
+module.exports = { STATUS, TRANSITIONS, canTransition, mapWompiStatus };
