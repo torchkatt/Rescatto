@@ -199,6 +199,26 @@ const GENERAL_FAQ = [
     q: '¿Cómo puedo convertirme en vendedor?',
     a: 'Ve a la sección "Para Vendedores" o visita /help/seller para conocer los requisitos y el proceso de registro como vendedor.',
   },
+  {
+    q: '¿Qué es Rescatto Pass y cómo funciona?',
+    a: 'Rescatto Pass es nuestra suscripción premium que te da acceso a beneficios exclusivos: envíos gratis, descuentos especiales, prioridad en reservas y acceso anticipado a Flash Deals. Puedes adquirirlo desde la sección "Mi Pass" en tu perfil.',
+  },
+  {
+    q: '¿Cómo funcionan los puntos de impacto?',
+    a: 'Ganas puntos de impacto con cada compra que realizas en la plataforma. Puedes canjearlos por recompensas como envíos gratis, descuentos y donaciones a centros sociales. Mientras más compras, más puntos acumulas y subes de nivel (Novato → Héroe → Guardián).',
+  },
+  {
+    q: '¿Qué es RescattoBot?',
+    a: 'RescattoBot es nuestro asistente con inteligencia artificial integrado en la plataforma. Puedes hacerle preguntas sobre productos, tu carrito, pedidos, finanzas y más. Busca el ícono de chat flotante en la esquina inferior derecha de la pantalla.',
+  },
+  {
+    q: '¿Cómo funciona el programa de referidos?',
+    a: 'Comparte tu código de referido único con amigos y familiares. Cuando alguien se registra con tu código y hace su primera compra, ambos reciben puntos de impacto bonus. Puedes encontrar tu código en la sección "Referidos" de tu perfil.',
+  },
+  {
+    q: '¿Puedo cancelar mi pedido después de pagar?',
+    a: 'Sí, puedes cancelar un pedido mientras esté en estado PENDIENTE. Una vez que el vendedor lo confirma, la cancelación depende de la política del vendedor. Los reembolsos se procesan a través de Wompi y pueden tomar 3-5 días hábiles.',
+  },
 ];
 
 // ── Sub-components ──────────────────────────────────────────────────────────
