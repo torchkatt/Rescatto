@@ -80,7 +80,7 @@
     "autoprefixer": "^10.4.18",
     "eslint": "^9.39.4",
     "eslint-plugin-react": "^7.37.5",
-    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-security": "^4.0.0",
     "eslint-plugin-unused-imports": "^4.4.1",
     "firebase-tools": "^15.8.0",
