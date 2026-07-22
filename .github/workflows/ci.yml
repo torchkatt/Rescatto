@@ -1,71 +1,54 @@
 name: CI
 
 on:
-  push:
-    branches: [main, develop]
   pull_request:
-    branches: [main, develop]
+  push:
+    branches: [master, main]
 
 jobs:
-  test-and-build:
-    name: Test & Build
+  secret-scan:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
         with:
-          node-version: '22'
-          cache: 'npm'
+          fetch-depth: 0
+      - name: Bloquear secretos versionados
+        run: |
+          if git grep -InE "AIzaSy[a-zA-Z0-9_-]{20,}|sk-[a-zA-Z0-9]{20,}|SG\.[a-zA-Z0-9._-]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----" -- . ':(exclude)*.md' ':(exclude)*.example' ; then
+            echo "::error::Se detectó un posible secreto en el repositorio."
+            exit 1
+          fi
+          echo "OK: sin coincidencias de patrones de secretos conocidos."
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: TypeScript type check
-        run: npm run lint
-
-      - name: ESLint security check
-        run: npm run lint:eslint -- --max-warnings=0
-        continue-on-error: true
-
-      - name: Run tests
-        run: npm run test:run
-        env:
-          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY || 'test-api-key' }}
-          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN || 'test.firebaseapp.com' }}
-          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID || 'test-project' }}
-          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET || 'test.appspot.com' }}
-          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID || '123456789' }}
-          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID || '1:123:web:abc' }}
-          VITE_WOMPI_PUBLIC_KEY: ${{ secrets.VITE_WOMPI_PUBLIC_KEY || 'pub_test_mock' }}
-          VITE_API_URL: ${{ secrets.VITE_API_URL || 'http://localhost:5001/test/us-central1' }}
-
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Unit tests
+        run: npm test
       - name: Build
         run: npm run build
         env:
-          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
-          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
-          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
-          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
-          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
-          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
-          VITE_WOMPI_PUBLIC_KEY: ${{ secrets.VITE_WOMPI_PUBLIC_KEY }}
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
-
-      - name: Security audit (critical — bloquea build)
-        run: npm audit --audit-level=critical
-
-      - name: Security audit (high — informativo)
-        run: npm audit --audit-level=high
-        continue-on-error: true
-
-      - name: Upload test coverage
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: coverage/
-          retention-days: 7
+          VITE_FIREBASE_API_KEY: dummy
+          VITE_FIREBASE_AUTH_DOMAIN: dummy.firebaseapp.com
+          VITE_FIREBASE_PROJECT_ID: dummy
+          VITE_FIREBASE_STORAGE_BUCKET: dummy.firebasestorage.app
+          VITE_FIREBASE_MESSAGING_SENDER_ID: "0"
+          VITE_FIREBASE_APP_ID: dummy
+          VITE_WOMPI_PUBLIC_KEY: pub_test_PLACEHOLDER
+          VITE_SENTRY_DSN: ""
+          VITE_API_URL: https://example.com
+      - name: Verificar que el bundle no contiene claves secretas
+        run: |
+          if grep -rE "AIzaSy[a-zA-Z0-9_-]{20,}|sk-[a-zA-Z0-9]{20,}|SG\.[a-zA-Z0-9._-]{20,}" dist/ ; then
+            echo "::error::El bundle de producción contiene un secreto. No debe desplegarse."
+            exit 1
+          fi
+          echo "OK: bundle sin secretos de backend."

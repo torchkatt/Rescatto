@@ -22,7 +22,18 @@ interface WompiSignatureResponse {
 }
 
 const WOMPI_PUBLIC_KEY = import.meta.env.VITE_WOMPI_PUBLIC_KEY;
-const generateSignature = httpsCallable<{ reference: string; amount: number; currency: string }, WompiSignatureResponse>(functions, 'generateWompiSignature');
+
+// Inicialización lazy para poder mockear en tests
+type GenerateSignatureFn = (data: { reference: string; amount: number; currency: string }) => Promise<{ data: WompiSignatureResponse }>;
+let _generateSignature: GenerateSignatureFn | null = null;
+function getGenerateSignature(): GenerateSignatureFn {
+    if (!_generateSignature) {
+        _generateSignature = httpsCallable<{ reference: string; amount: number; currency: string }, WompiSignatureResponse>(
+            functions, 'generateWompiSignature'
+        ) as GenerateSignatureFn;
+    }
+    return _generateSignature;
+}
 
 /**
  * Fetch Wompi Integrity Signature from Backend
@@ -30,13 +41,12 @@ const generateSignature = httpsCallable<{ reference: string; amount: number; cur
  */
 export const getWompiSignature = async (reference: string, amount: number, currency: string = 'COP'): Promise<WompiSignatureResponse> => {
     try {
-        const result = await generateSignature({ reference, amount, currency });
+        const result = await getGenerateSignature()({ reference, amount, currency });
         return { ...result.data, publicKey: result.data.publicKey || WOMPI_PUBLIC_KEY || 'pub_test_PLACEHOLDER' };
     } catch (error: any) {
         logger.error('Wompi Signature API Error:', error);
 
         if (import.meta.env.DEV) {
-            // En desarrollo, mostrar un error claro en vez de devolver firma mock
             throw new Error(
                 'El backend de pagos no está disponible. Asegúrate de que los emuladores de Firebase Functions estén corriendo.\n' +
                 'Ejecuta: firebase emulators:start --only functions'

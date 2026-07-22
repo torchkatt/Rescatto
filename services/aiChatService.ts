@@ -29,7 +29,17 @@ interface AiChatResponse {
   quotaExceeded?: boolean;
 }
 
-const aiChatCallable = httpsCallable<{ messages: Message[]; continuation?: boolean }, AiChatResponse>(functions, 'aiChat');
+// Inicialización lazy para poder mockear en tests
+type AiChatCallable = (data: { messages: Message[]; continuation?: boolean }) => Promise<{ data: AiChatResponse }>;
+let _aiChatCallable: AiChatCallable | null = null;
+function getAiChatCallable(): AiChatCallable {
+  if (!_aiChatCallable) {
+    _aiChatCallable = httpsCallable<{ messages: Message[]; continuation?: boolean }, AiChatResponse>(
+      functions, 'aiChat'
+    ) as AiChatCallable;
+  }
+  return _aiChatCallable;
+}
 
 export async function chatWithAI(
   messages: Message[],
@@ -38,7 +48,7 @@ export async function chatWithAI(
   if (!userId) return 'Inicia sesión para usar el asistente.';
 
   try {
-    const first = await aiChatCallable({ messages });
+    const first = await getAiChatCallable()({ messages });
     let { content, toolCalls } = first.data;
 
     // Si el backend detectó bloqueo, mostrar el mensaje directamente
@@ -62,7 +72,7 @@ export async function chatWithAI(
       }
 
       // Enviar tool results al backend como continuación
-      const second = await aiChatCallable({ messages: withToolCalls, continuation: true });
+      const second = await getAiChatCallable()({ messages: withToolCalls, continuation: true });
       content = second.data.content || content;
     }
 
