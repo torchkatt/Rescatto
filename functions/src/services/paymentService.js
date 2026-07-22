@@ -264,19 +264,50 @@ const wompiWebhook = onRequest(
                 .get();
 
             if (!q.empty) {
+                const orderDoc = q.docs[0];
+                const orderData = orderDoc.data() || {};
+
+                // ─── State machine: validar transición ───
+                const nextStatus = mapWompiStatus(transactionData.status);
+                if (nextStatus && !canTransition(orderData.status, nextStatus)) {
+                    logWarn(`State machine rejected DECLINED: ${orderData.status} → ${nextStatus}`);
+                    return res.status(200).send({ received: true, skipped: true, reason: "invalid_transition" });
+                }
+
                 const txResult = await db.runTransaction(async (t) => {
-                    const orderSnap = await t.get(q.docs[0].ref);
+                    const orderSnap = await t.get(orderDoc.ref);
                     if (!orderSnap.exists) return { updated: false, reason: "missing_order" };
-                    const orderData = orderSnap.data() || {};
-                    if (orderData.paymentStatus === "paid") return { updated: false, reason: "already_paid" };
-                    t.update(q.docs[0].ref, {
+                    const freshData = orderSnap.data() || {};
+                    if (freshData.paymentStatus === "paid") return { updated: false, reason: "already_paid" };
+
+                    // ─── Stock restitution ───
+                    if (freshData.lineItems && freshData.lineItems.length) {
+                        for (const item of freshData.lineItems) {
+                            if (item.listingId) {
+                                t.update(db.collection("listings").doc(item.listingId), {
+                                    quantity: admin.firestore.FieldValue.increment(item.quantity || 1),
+                                });
+                            }
+                        }
+                    }
+
+                    t.update(orderDoc.ref, {
                         paymentStatus: "failed",
-                        status: "CANCELLED",
+                        status: STATUS.CANCELLED,
                         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                     });
                     return { updated: true, reason: "ok" };
                 });
-                log(`Order ${q.docs[0].id} FAILED webhook → ${txResult.updated ? "CANCELLED" : "skipped (" + txResult.reason + ")"}`);
+
+                log(`Order ${orderDoc.id} FAILED webhook → ${txResult.updated ? "CANCELLED" : "skipped (" + txResult.reason + ")"}`);
+                if (txResult.updated) {
+                    await writeAuditLog({
+                        action: "payment_declined",
+                        performedBy: "wompi_webhook",
+                        targetId: orderDoc.id, targetType: "order",
+                        metadata: { transactionId: transactionData.id, status: transactionData.status },
+                    });
+                }
             }
         }
 

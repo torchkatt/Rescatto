@@ -8,7 +8,7 @@
 const admin = require("firebase-admin");
 const functions = require("firebase-functions");
 const db = admin.firestore();
-const { STATUS, canTransition } = require("../orderState");
+const { STATUS, canTransition, mapWompiStatus } = require("../orderState");
 const { log: logInfo, warn: logWarn, error: logError } = require("./utils/logger");
 
 // ─── Rate limiting ──────────────────────────────────────────────────────────
@@ -202,6 +202,78 @@ exports.cancelTransaction = functions.https.onCall(async (data, context) => {
         if (error instanceof functions.https.HttpsError) throw error;
         console.error("cancelTransaction error:", error);
         throw new functions.https.HttpsError("internal", error.message);
+    }
+});
+
+/**
+ * verifyTransaction — Reconciliación: consulta Wompi server-to-server y actualiza estado.
+ */
+exports.verifyTransaction = functions.https.onCall(async (data, context) => {
+    if (!context.auth)
+        throw new functions.https.HttpsError("unauthenticated", "Debes iniciar sesión.");
+
+    const { transactionId } = data;
+    if (!transactionId)
+        throw new functions.https.HttpsError("invalid-argument", "transactionId requerido.");
+
+    const txRef = db.collection("transactions").doc(transactionId);
+    const tx = await txRef.get();
+    if (!tx.exists)
+        throw new functions.https.HttpsError("not-found", "Transacción no encontrada.");
+
+    const txData = tx.data();
+    if (txData.buyerId !== context.auth.uid && txData.sellerId !== context.auth.uid) {
+        const userDoc = await db.collection("users").doc(context.auth.uid).get();
+        const role = userDoc.data()?.role;
+        if (role !== "SUPER_ADMIN" && role !== "ADMIN")
+            throw new functions.https.HttpsError("permission-denied", "No tienes acceso a esta transacción.");
+    }
+
+    const wompiTxId = txData.payment?.wompiId || txData.payment?.id;
+    if (!wompiTxId)
+        return { verified: false, reason: "no_wompi_id", status: txData.status };
+
+    // Llamar al endpoint de Wompi para verificar el estado real
+    const integritySecret = process.env.WOMPI_INTEGRITY_SECRET;
+    if (!integritySecret)
+        return { verified: false, reason: "wompi_not_configured", status: txData.status };
+
+    try {
+        const https = require("https");
+        const wompiEnv = process.env.WOMPI_ENV === "prod" ? "production" : "sandbox";
+        const url = `https://${wompiEnv}.wompi.co/v1/transactions/${wompiTxId}`;
+
+        const wompiRes = await new Promise((resolve, reject) => {
+            https.get(url, { headers: { Authorization: `Bearer ${integritySecret}` } }, (res) => {
+                let data = "";
+                res.on("data", (chunk) => data += chunk);
+                res.on("end", () => resolve({ status: res.statusCode, body: data }));
+            }).on("error", reject);
+        });
+
+        if (wompiRes.status !== 200)
+            return { verified: false, reason: "wompi_error", status: wompiRes.status };
+
+        const wompiData = JSON.parse(wompiRes.body)?.data;
+        if (!wompiData)
+            return { verified: false, reason: "wompi_empty", status: txData.status };
+
+        // Aplicar el estado vía state machine
+        const nextStatus = mapWompiStatus(wompiData.status);
+        if (!nextStatus || !canTransition(txData.status, nextStatus))
+            return { verified: true, noChange: true, status: txData.status };
+
+        await txRef.update({
+            status: nextStatus,
+            "payment.status": wompiData.status.toLowerCase(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        logInfo(`verifyTransaction: ${transactionId} → ${nextStatus}`);
+        return { verified: true, updated: true, from: txData.status, to: nextStatus };
+    } catch (error) {
+        logError("verifyTransaction error:", error);
+        return { verified: false, reason: "network_error", status: txData.status };
     }
 });
 

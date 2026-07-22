@@ -125,6 +125,7 @@ const {
     createTransaction,
     createBooking,
     cancelTransaction,
+    verifyTransaction,
     seedCategories
 } = require("./src/marketplace");
 
@@ -245,6 +246,7 @@ module.exports = {
     createTransaction,
     createBooking,
     cancelTransaction,
+    verifyTransaction,
     seedCategories,
     onTransactionCreated,
     onBookingCreated,
