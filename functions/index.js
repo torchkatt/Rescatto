@@ -115,6 +115,11 @@ const {
     getMyLeaderboardRank
 } = require("./src/services/leaderboardService");
 
+// ─── AI Proxy Functions ───────────────────────────────────────────────────────
+const {
+    handleAiChat
+} = require("./aiProxy");
+
 // ─── Marketplace Functions ───────────────────────────────────────────────────
 const {
     createTransaction,
@@ -249,4 +254,7 @@ module.exports = {
     handleWompiSellerSubscription,
     // Seed plans
     seedPlans,
+
+    // AI Chat
+    aiChat: handleAiChat,
 };
