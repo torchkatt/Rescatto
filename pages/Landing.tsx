@@ -22,7 +22,11 @@ import {
   Phone,
   MapPin,
   Menu,
-  X
+  X,
+  Sparkles,
+  HeartHandshake,
+  Search,
+  Users
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Logo } from '../components/common/Logo';
@@ -241,7 +245,7 @@ const TestimonialCard: React.FC<{
 );
 
 // ── Navbar ───────────────────────────────────────────────────────────────────
-const Navbar: React.FC<{ onLogin: () => void; onStart: () => void }> = ({ onLogin, onStart }) => {
+const Navbar: React.FC<{ onLogin: () => void; onNavigate: (path: string) => void }> = ({ onLogin, onNavigate }) => {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -259,28 +263,37 @@ const Navbar: React.FC<{ onLogin: () => void; onStart: () => void }> = ({ onLogi
 
           {/* Desktop Links */}
           <div className="hidden lg:flex items-center gap-8">
-            <a href="#features" className="text-sm text-gray-400 hover:text-white transition-colors font-medium">Features</a>
-            <a href="#how-it-works" className="text-sm text-gray-400 hover:text-white transition-colors font-medium">Cómo Funciona</a>
-            <a href="#pricing" className="text-sm text-gray-400 hover:text-white transition-colors font-medium">Precios</a>
+            <a href="#buyer-benefits" className="text-sm text-gray-400 hover:text-white transition-colors font-medium">Comprar</a>
+            <a href="#features" className="text-sm text-gray-400 hover:text-white transition-colors font-medium">Vender</a>
+            <a href="#pricing" className="text-sm text-gray-400 hover:text-white transition-colors font-medium">Planes</a>
             <a href="#faq" className="text-sm text-gray-400 hover:text-white transition-colors font-medium">FAQ</a>
           </div>
 
           {/* Desktop CTAs */}
           <div className="hidden lg:flex items-center gap-3">
-            <button 
+            <button
               onClick={onLogin}
               className="text-sm font-semibold text-gray-400 hover:text-white transition-colors px-4 py-2"
             >
               Iniciar Sesión
             </button>
             <button
-              onClick={onStart}
+              onClick={() => onNavigate('/app')}
+              className="px-4 py-2 rounded-xl border border-emerald-500/30 text-emerald-400 text-sm font-bold 
+                hover:bg-emerald-500/10 hover:border-emerald-400/60 transition-all"
+            >
+              <ShoppingBag size={14} className="inline mr-1.5 -mt-0.5" />
+              Comprar
+            </button>
+            <button
+              onClick={() => onNavigate('/login?mode=register&role=business')}
               className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 
                 text-white text-sm font-bold shadow-lg shadow-emerald-500/20 
                 hover:shadow-xl hover:shadow-emerald-500/40 hover:-translate-y-0.5 
                 active:scale-[0.98] transition-all duration-200"
             >
-              Comenzar Gratis
+              <Store size={14} className="inline mr-1.5 -mt-0.5" />
+              Vender
             </button>
           </div>
 
@@ -298,16 +311,16 @@ const Navbar: React.FC<{ onLogin: () => void; onStart: () => void }> = ({ onLogi
       {menuOpen && (
         <div className="lg:hidden border-t border-white/5 bg-black/90 backdrop-blur-xl animate-fade-in-up">
           <div className="px-6 py-4 space-y-3">
-            <a href="#features" onClick={() => setMenuOpen(false)} className="block py-2 text-gray-400 hover:text-white">Features</a>
-            <a href="#how-it-works" onClick={() => setMenuOpen(false)} className="block py-2 text-gray-400 hover:text-white">Cómo Funciona</a>
-            <a href="#pricing" onClick={() => setMenuOpen(false)} className="block py-2 text-gray-400 hover:text-white">Precios</a>
+            <a href="#buyer-benefits" onClick={() => setMenuOpen(false)} className="block py-2 text-gray-400 hover:text-white">Comprar</a>
+            <a href="#features" onClick={() => setMenuOpen(false)} className="block py-2 text-gray-400 hover:text-white">Vender</a>
+            <a href="#pricing" onClick={() => setMenuOpen(false)} className="block py-2 text-gray-400 hover:text-white">Planes</a>
             <a href="#faq" onClick={() => setMenuOpen(false)} className="block py-2 text-gray-400 hover:text-white">FAQ</a>
             <div className="pt-3 space-y-2 border-t border-white/5">
-              <button onClick={onLogin} className="w-full py-3 rounded-xl border border-white/20 text-white font-bold text-sm">
-                Iniciar Sesión
+              <button onClick={() => { onNavigate('/app'); setMenuOpen(false); }} className="w-full py-3 rounded-xl border border-emerald-500/30 text-emerald-400 font-bold text-sm hover:bg-emerald-500/10 transition-all">
+                🛍️ Comprar
               </button>
-              <button onClick={onStart} className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 text-white font-bold text-sm">
-                Comenzar Gratis
+              <button onClick={() => { onNavigate('/login?mode=register&role=business'); setMenuOpen(false); }} className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 text-white font-bold text-sm">
+                🏪 Vender
               </button>
             </div>
           </div>
@@ -431,7 +444,7 @@ const Landing: React.FC = () => {
   return (
     <div className="min-h-screen bg-black text-white font-sans overflow-x-hidden">
       {/* ── Navbar ──────────────────────────────────────────────── */}
-      <Navbar onLogin={goToLogin} onStart={goToApp} />
+      <Navbar onLogin={goToLogin} onNavigate={(path) => navigate(path)} />
 
       {/* ════════════════════════════════════════════════════════════
           ── HERO SECTION ───────────────────────────────────────────
@@ -450,34 +463,78 @@ const Landing: React.FC = () => {
           {/* Badge */}
           <div className="flex justify-center mb-8 animate-fade-in-up">
             <Pill>
-              <Zap size={14} className="text-emerald-400" />
-              Plataforma #1 en Colombia
+              <Sparkles size={14} className="text-emerald-400" />
+              Bienvenido a Rescatto
             </Pill>
           </div>
 
           {/* Headline */}
-          <div className="text-center max-w-4xl mx-auto mb-8 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
-            <h1 className="text-4xl sm:text-5xl lg:text-7xl font-black tracking-tight leading-[1.1] mb-6">
-              Conectamos tu{' '}
-              <GradientText>negocio</GradientText>
-              <br />
-              con compradores{' '}
-              <GradientText>inteligentes</GradientText>
+          <div className="text-center max-w-4xl mx-auto mb-10 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.1] mb-6">
+              La{' '}
+              <GradientText>plataforma</GradientText>
+              {' '}que conecta{' '}
+              <GradientText>compradores</GradientText>
+              {' '}y{' '}
+              <GradientText>negocios</GradientText>
             </h1>
-            <p className="text-lg lg:text-xl text-gray-400 max-w-2xl mx-auto font-light leading-relaxed">
-              La plataforma marketplace que transforma excedentes en ganancias. 
-              Paga con Wompi, vende con Seller Pass, y crece con IA — todo en un solo lugar.
+            <p className="text-base sm:text-lg text-gray-400 max-w-xl mx-auto font-light leading-relaxed">
+              Compra productos locales, descubre ofertas increíbles, 
+              o vende tus productos y haz crecer tu negocio — todo en un solo lugar.
             </p>
           </div>
 
-          {/* CTAs */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12 animate-fade-in-up" style={{ animationDelay: '200ms' }}>
-            <PrimaryCTA onClick={goToApp}>
-              Comenzar Gratis
-            </PrimaryCTA>
-            <OutlineCTA onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}>
-              Ver Features
-            </OutlineCTA>
+          {/* Dual Path Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto mb-12 animate-fade-in-up" style={{ animationDelay: '200ms' }}>
+            {/* Buyer Path */}
+            <button
+              onClick={() => navigate('/app')}
+              className="group relative overflow-hidden rounded-2xl border border-emerald-500/30 
+                bg-gradient-to-br from-emerald-500/10 to-emerald-900/20 p-6 sm:p-8 text-left
+                hover:border-emerald-400/60 hover:-translate-y-1 hover:shadow-xl hover:shadow-emerald-500/10
+                transition-all duration-300 active:scale-[0.98]"
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2" />
+              <div className="relative z-10">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 
+                  flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
+                  <ShoppingBag size={28} className="text-emerald-400" />
+                </div>
+                <h3 className="text-white font-bold text-xl mb-2">Quiero Comprar</h3>
+                <p className="text-gray-400 text-sm leading-relaxed mb-6">
+                  Explora productos locales, encuentra ofertas increíbles, 
+                  ahorra dinero y ayuda a reducir el desperdicio.
+                </p>
+                <span className="inline-flex items-center gap-1.5 text-emerald-400 font-bold text-sm group-hover:gap-2.5 transition-all">
+                  Explorar Ahora <ArrowRight size={16} />
+                </span>
+              </div>
+            </button>
+
+            {/* Seller Path */}
+            <button
+              onClick={() => navigate('/login?mode=register&role=business')}
+              className="group relative overflow-hidden rounded-2xl border border-blue-500/30 
+                bg-gradient-to-br from-blue-500/10 to-blue-900/20 p-6 sm:p-8 text-left
+                hover:border-blue-400/60 hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-500/10
+                transition-all duration-300 active:scale-[0.98]"
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2" />
+              <div className="relative z-10">
+                <div className="w-14 h-14 rounded-2xl bg-blue-500/20 border border-blue-500/30 
+                  flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
+                  <Store size={28} className="text-blue-400" />
+                </div>
+                <h3 className="text-white font-bold text-xl mb-2">Quiero Vender</h3>
+                <p className="text-gray-400 text-sm leading-relaxed mb-6">
+                  Crea tu tienda, publica productos, llega a miles de compradores 
+                  y haz crecer tu negocio con herramientas inteligentes.
+                </p>
+                <span className="inline-flex items-center gap-1.5 text-blue-400 font-bold text-sm group-hover:gap-2.5 transition-all">
+                  Crear Tienda <ArrowRight size={16} />
+                </span>
+              </div>
+            </button>
           </div>
 
           {/* Stats */}
@@ -502,14 +559,53 @@ const Landing: React.FC = () => {
       </Section>
 
       {/* ════════════════════════════════════════════════════════════
-          ── FEATURES SECTION ──────────────────────────────────────
+          ── BUYER BENEFITS ────────────────────────────────────────
+          ════════════════════════════════════════════════════════════ */}
+      <Section id="buyer-benefits">
+        <div className="text-center mb-16">
+          <Pill className="mb-4"><HeartHandshake size={14} /> Para Compradores</Pill>
+          <h2 className="text-4xl lg:text-5xl font-black mb-4">
+            Compra inteligente,{' '}
+            <GradientText>ahorra más</GradientText>
+          </h2>
+          <p className="text-gray-400 max-w-xl mx-auto">
+            Descubre productos cerca de ti, ahorra en cada compra y ayuda al planeta.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <FeatureCard
+            icon={<Search size={26} />}
+            title="Descubre Local"
+            description="Encuentra productos, servicios y ofertas de negocios cerca de ti. Filtra por categoría, precio y distancia."
+          />
+          <FeatureCard
+            icon={<ShoppingBag size={26} />}
+            title="Ofertas Exclusivas"
+            description="Accede a descuentos dinámicos que mejoran mientras más te acercas al cierre. Precios que no encontrarás en otro lado."
+          />
+          <FeatureCard
+            icon={<Zap size={26} />}
+            title="Pago Seguro"
+            description="Paga con Wompi: tarjetas, PSE, Nequi y más. Tu pago está protegido de principio a fin."
+          />
+          <FeatureCard
+            icon={<Sparkles size={26} />}
+            title="Gana Puntos"
+            description="Acumula puntos de impacto con cada compra. Canjea por descuentos, envíos gratis y donaciones."
+          />
+        </div>
+      </Section>
+
+      {/* ════════════════════════════════════════════════════════════
+          ── FEATURES SECTION — PARA NEGOCIOS ──────────────────────
           ════════════════════════════════════════════════════════════ */}
       <Section id="features" className="bg-gradient-to-b from-transparent via-emerald-950/10 to-transparent">
         <div className="text-center mb-16">
-          <Pill className="mb-4"><Zap size={14} /> Features</Pill>
+          <Pill className="mb-4"><Store size={14} /> Para Negocios</Pill>
           <h2 className="text-4xl lg:text-5xl font-black mb-4">
             Todo lo que necesitas para{' '}
-            <GradientText>vender y comprar</GradientText>
+            <GradientText>vender y crecer</GradientText>
           </h2>
           <p className="text-gray-400 max-w-xl mx-auto">
             Una plataforma completa con las herramientas que tu negocio merece.

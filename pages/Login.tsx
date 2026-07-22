@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Mail, Lock, ArrowRight, Eye, EyeOff, User, Gift, Globe } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Eye, EyeOff, User, Gift, Globe, Store, ShoppingBag, Sparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Logo } from '../components/common/Logo';
 import { logger } from '../utils/logger';
@@ -23,10 +23,33 @@ const Login: React.FC = () => {
   const [legalError, setLegalError] = useState('');
   const [emailTouched, setEmailTouched] = useState(false);
   const [confirmTouched, setConfirmTouched] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<'CUSTOMER' | 'BUSINESS'>('BUSINESS');
+  const [selectedRole, setSelectedRole] = useState<'CUSTOMER' | 'BUSINESS'>('CUSTOMER');
+  const [showRoleSelection, setShowRoleSelection] = useState(true);
   const { user, isAuthenticated, login, loginWithGoogle, loginWithApple, loginWithFacebook, loginAsGuest } = useAuth();
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Leer ?role= y ?mode= de la URL
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const roleParam = params.get('role');
+    const modeParam = params.get('mode');
+
+    if (roleParam === 'business') {
+      setSelectedRole('BUSINESS');
+      setShowRoleSelection(false);
+    } else if (roleParam === 'customer') {
+      setSelectedRole('CUSTOMER');
+      setShowRoleSelection(false);
+    }
+
+    if (modeParam === 'register') {
+      setIsRegistering(true);
+    }
+  }, []);
+
+  // Si no hay role param, mostrar roleParam como null para la selección inicial
 
   const toggleLanguage = () => {
     const newLang = i18n.language.startsWith('es') ? 'en' : 'es';
@@ -51,14 +74,6 @@ const Login: React.FC = () => {
       navigate(getPostLoginRedirect());
     }
   }, [isAuthenticated, user, navigate]);
-
-  // Manejar parámetros de URL (?mode=register)
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('mode') === 'register') {
-      setIsRegistering(true);
-    }
-  }, []);
 
   // Auto-dismiss error after 5 seconds
   useEffect(() => {
@@ -247,6 +262,68 @@ const Login: React.FC = () => {
             </p>
           </div>
 
+          {showRoleSelection ? (
+            /* ── Role Selection Cards ── */
+            <div className="space-y-4">
+              <button
+                onClick={() => { setSelectedRole('CUSTOMER'); setShowRoleSelection(false); }}
+                className="w-full group relative overflow-hidden rounded-2xl border-2 border-emerald-200 
+                  bg-gradient-to-br from-emerald-50 to-white p-6 text-left
+                  hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-500/10
+                  hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.99]"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="w-14 h-14 rounded-2xl bg-emerald-100 border border-emerald-200 
+                    flex items-center justify-center group-hover:scale-110 transition-transform shrink-0">
+                    <ShoppingBag size={28} className="text-emerald-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-bold text-lg text-gray-900 mb-1">Comprar en Rescatto</h3>
+                    <p className="text-sm text-gray-500 leading-relaxed">
+                      Explora productos, descubre ofertas, haz pedidos y acumula puntos. 
+                      La mejor forma de comprar local.
+                    </p>
+                    <span className="inline-flex items-center gap-1 text-emerald-600 font-bold text-sm mt-3 group-hover:gap-2 transition-all">
+                      Crear cuenta de Cliente <ArrowRight size={16} />
+                    </span>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => { setSelectedRole('BUSINESS'); setShowRoleSelection(false); setIsRegistering(true); }}
+                className="w-full group relative overflow-hidden rounded-2xl border-2 border-blue-200 
+                  bg-gradient-to-br from-blue-50 to-white p-6 text-left
+                  hover:border-blue-400 hover:shadow-lg hover:shadow-blue-500/10
+                  hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.99]"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="w-14 h-14 rounded-2xl bg-blue-100 border border-blue-200 
+                    flex items-center justify-center group-hover:scale-110 transition-transform shrink-0">
+                    <Store size={28} className="text-blue-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-bold text-lg text-gray-900 mb-1">Vender en Rescatto</h3>
+                    <p className="text-sm text-gray-500 leading-relaxed">
+                      Crea tu tienda, publica productos, llega a miles de compradores 
+                      y haz crecer tu negocio.
+                    </p>
+                    <span className="inline-flex items-center gap-1 text-blue-600 font-bold text-sm mt-3 group-hover:gap-2 transition-all">
+                      Registrarme como Negocio <ArrowRight size={16} />
+                    </span>
+                  </div>
+                </div>
+              </button>
+            </div>
+          ) : (
+            <>
+            {/* Back to role selection */}
+            <button
+              onClick={() => setShowRoleSelection(true)}
+              className="text-sm text-gray-400 hover:text-gray-600 mb-4 flex items-center gap-1 transition-colors"
+            >
+              ← Cambiar tipo de cuenta
+            </button>
           {isRegistering && (
             <div className="flex p-1 bg-slate-200/50 rounded-xl mb-8">
               <button
@@ -490,6 +567,7 @@ const Login: React.FC = () => {
               {isRegistering ? t('login_link_login') : t('login_link_register')}
             </button>
           </div>
+          </>)}
         </div>
       </div>
     </div>
